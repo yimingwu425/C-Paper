@@ -1,0 +1,25 @@
+# 构建产物
+build/
+dist/
+*.spec
+.build_venv/
+.build_venv_win/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 缓存
+.cie_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp

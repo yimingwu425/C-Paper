@@ -1,0 +1,146 @@
+name: Build (macOS DMG + Windows EXE)
+
+# 触发方式：
+#   1. 打 tag（如 v3.0.1）→ 自动构建 + 发布 Release
+#   2. GitHub 网页手动触发（Actions → Run workflow）
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # ══════════════════════════════════════════════════════════
+  #  macOS → DMG
+  # ══════════════════════════════════════════════════════════
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'   # 稳定版本，避免 3.13 兼容性问题
+
+      - name: Build DMG
+        run: bash build_mac.sh
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CIE下载器-macOS
+          path: dist/*.dmg
+          retention-days: 30
+
+  # ══════════════════════════════════════════════════════════
+  #  Windows → ZIP (内含 exe + DLL)
+  # ══════════════════════════════════════════════════════════
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps & build
+        shell: pwsh
+        run: |
+          python -m venv .build_venv_win
+          .build_venv_win\Scripts\Activate.ps1
+          pip install --quiet pywebview pyinstaller requests
+          Copy-Item -Path "src\*" -Destination "." -Recurse -Force
+          pyinstaller `
+            --windowed `
+            --noconfirm `
+            --name "CIE下载器" `
+            --distpath dist `
+            --workpath build `
+            --collect-all webview `
+            --hidden-import webview `
+            --hidden-import webview.platforms.winforms `
+            --hidden-import webview.platforms.edgechromium `
+            --hidden-import backend `
+            --hidden-import backend.const `
+            --hidden-import backend.cache `
+            --hidden-import backend.limiter `
+            --hidden-import backend.engine `
+            --hidden-import backend.parser `
+            --hidden-import backend.api `
+            --add-data "src\ui_v2.html;." `
+            --add-data "src\ui_v2.css;." `
+            --add-data "src\ui_v2.js;." `
+            --exclude-module tkinter `
+            --exclude-module numpy `
+            --exclude-module pandas `
+            --exclude-module scipy `
+            --exclude-module matplotlib `
+            --exclude-module PIL `
+            --exclude-module PyQt5 `
+            --exclude-module PyQt6 `
+            --exclude-module PySide2 `
+            --exclude-module PySide6 `
+            src\main.py
+
+      - name: Zip output
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\CIE下载器 -DestinationPath dist\CIE下载器_win.zip -Force
+          $size = (Get-Item dist\CIE下载器_win.zip).Length / 1MB
+          Write-Host ("ZIP 大小: {0:F1} MB" -f $size)
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CIE下载器-Windows
+          path: dist\CIE下载器_win.zip
+          retention-days: 30
+
+  # ══════════════════════════════════════════════════════════
+  #  自动发布 Release（仅在推 tag 时执行）
+  # ══════════════════════════════════════════════════════════
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CIE下载器-macOS
+          path: artifacts/mac
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: CIE下载器-Windows
+          path: artifacts/win
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "CIE 试卷下载器 ${{ github.ref_name }}"
+          body: |
+            ## 下载
+
+            | 平台 | 文件 | 说明 |
+            |------|------|------|
+            | 🍎 macOS | `CIE下载器.dmg` | 打开后拖入 Applications |
+            | 🪟 Windows | `CIE下载器_win.zip` | 解压后运行 `CIE下载器.exe` |
+
+            ### Windows 说明
+            需要 **Windows 10 v1803+**（已内置 Edge WebView2）
+            或先安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/zh-cn/microsoft-edge/webview2/)
+
+            ### macOS 说明
+            首次运行如提示"无法验证开发者"：
+            右键 → 打开 → 仍然打开
+          files: |
+            artifacts/mac/*.dmg
+            artifacts/win/*.zip
+          draft: false
+          prerelease: false

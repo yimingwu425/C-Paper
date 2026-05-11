@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>C-Paper</title>
+<style>
+:root{--bg:#faf9f5;--surface:#ffffff;--surface3:#e8e6dc;--border:rgba(20,20,19,0.07);
+--text:#141413;--text3:#a09e96;--accent:#d97757;--accent2:#6a9bcc;
+--ease:cubic-bezier(0.16,1,0.3,1);--ease-spring:cubic-bezier(0.34,1.56,0.64,1);}
+[data-theme="dark"]{--bg:#0c0c0b;--surface:#161614;--surface3:#262624;
+--border:rgba(250,249,245,0.06);--text:#f0efe8;--text3:#706e66;
+--accent:#e8845a;--accent2:#6a9bcc;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);margin:0;}
+.splash{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;
+align-items:center;justify-content:center;gap:10px;background:var(--bg);
+opacity:1;transition:opacity .5s var(--ease);}
+.splash.fade{opacity:0;pointer-events:none;}
+.splash-logo{width:64px;height:64px;border-radius:16px;
+background:linear-gradient(135deg,var(--accent),#c06838);
+display:flex;align-items:center;justify-content:center;
+box-shadow:0 8px 32px rgba(217,119,87,0.3);
+animation:splashBounce .6s var(--ease-spring);}
+.splash-logo svg{width:32px;height:32px;stroke:#fff;}
+@keyframes splashBounce{from{transform:scale(0.5);opacity:0}to{transform:scale(1);opacity:1}}
+.splash-brand{font-family:Georgia,serif;font-size:28px;font-weight:700;color:var(--text);
+letter-spacing:-.5px;margin-top:4px;}
+.splash-ver{font-size:11px;color:var(--text3);font-weight:500;margin-top:-4px;}
+.splash-bar{width:180px;height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:8px;}
+.splash-bar-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));
+border-radius:2px;transition:width .4s var(--ease);}
+.splash-bar-fill.loop{animation:splash-loop 1.8s var(--ease) infinite;}
+@keyframes splash-loop{0%{width:0%;margin-left:0}50%{width:60%}100%{width:0%;margin-left:100%}}
+.splash-msg{font-size:12px;color:var(--text3);margin-top:2px;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link href="ui_v2.css" rel="stylesheet">
+</head>
+<body>
+<div class="splash" id="splash">
+  <div class="splash-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+  </div>
+  <div class="splash-brand">C-Paper</div>
+  <div class="splash-ver">v5.1</div>
+  <div class="splash-bar"><div class="splash-bar-fill loop" id="splash-fill"></div></div>
+  <span class="splash-msg">正在初始化...</span>
+</div>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+<div id="toasts"></div>
+
+<div class="confirm-overlay" id="confirm-overlay">
+  <div id="confirm-content" style="background:transparent;border:none;backdrop-filter:none;-webkit-backdrop-filter:none"></div>
+</div>
+
+<div class="set-overlay" id="set-overlay">
+  <div class="set-dialog">
+    <button class="close-btn" onclick="document.getElementById('set-overlay').classList.remove('on')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> 设置</h3>
+    <div>
+      <label style="font-size:11px;color:var(--text2)">代理服务器 (HTTP/HTTPS)</label>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <input type="text" id="proxy-url" placeholder="http://127.0.0.1:7890" style="flex:1">
+        <button class="btn btn-sec btn-sm" onclick="saveProxy()">保存</button>
+        <button class="btn btn-sec btn-sm" onclick="testProxy()">测试</button>
+      </div>
+      <span class="proxy-status" id="proxy-st"></span>
+    </div>
+    <div style="text-align:right">
+      <button class="btn btn-err btn-sm" onclick="clearHistory()">清空下载历史</button>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;font-size:12px;color:var(--text2);line-height:1.8">
+      <div style="font-weight:700;font-size:14px;color:var(--text);margin-bottom:6px">C-Paper v5.1</div>
+      <div>CIE 试卷批量搜索与下载工具</div>
+      <div style="margin-top:8px">试卷来源：<a href="https://cie.fraft.cn/" target="_blank" style="color:var(--accent)">https://cie.fraft.cn/</a></div>
+      <div>GitHub 仓库：<a href="https://github.com/Ja-son-WU/CIE-Downloader" target="_blank" style="color:var(--accent)">github.com/Ja-son-WU/CIE-Downloader</a></div>
+      <div style="margin-top:10px;font-size:10px;opacity:.6">&copy; 2026 Ja-son-WU &middot; MIT License<br>数据源自 Cambridge International Education</div>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <nav class="rail">
+    <div class="rail-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </div>
+    <button class="rail-btn on" id="mode-search" title="搜索" onclick="switchMode('search')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span class="rail-label">搜索</span>
+    </button>
+    <button class="rail-btn" id="mode-batch" title="批量下载" onclick="switchMode('batch')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+      <span class="rail-label">批量下载</span>
+    </button>
+    <button class="rail-btn" id="mode-downloads" title="下载列表" onclick="switchMode('downloads')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span class="rail-label">下载列表</span>
+    </button>
+    <div class="rail-divider"></div>
+    <div class="rail-fav-section">
+      <div class="rail-fav-hdr">
+        <span class="rail-fav-title">收藏</span>
+        <button class="fav-add" onclick="addFav()" title="添加当前科目"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      </div>
+      <div class="rail-fav-list" id="fav-list">
+        <div class="fav-empty">暂无收藏</div>
+      </div>
+    </div>
+    <div style="flex:1;min-height:4px"></div>
+    <div class="rail-divider"></div>
+    <button class="rail-btn" title="设置" onclick="syncProxyToDialog();document.getElementById('set-overlay').classList.add('on')">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="rail-label">设置</span>
+    </button>
+  </nav>
+
+  <div class="main-wrap">
+    <div class="content-row">
+    <div class="main" style="position:relative">
+    <div class="topbar">
+      <span class="topbar-tag" id="subj-name"></span>
+      <div class="topbar-right">
+        <span class="topbar-dot" id="hdr-dot"></span>
+        <span class="topbar-status" id="hdr-st">加载中...</span>
+        <button class="theme-btn" onclick="toggleTheme()" title="切换主题" id="theme-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="panel on" id="pnl-search">
+        <div class="card bento-full">
+          <div class="card-body">
+            <div class="filter-row">
+              <select id="s-subj" style="min-width:160px"><option>加载中...</option></select>
+              <select id="s-year" style="width:80px"></select>
+              <select id="s-seas" style="width:100px">
+                <option value="Mar">Mar 春</option>
+                <option value="Jun">Jun 夏</option>
+                <option value="Nov" selected>Nov 冬</option>
+              </select>
+              <button class="btn btn-pri" id="sbtn" onclick="doSearch()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                搜索
+              </button>
+              <div style="flex:1"></div>
+              <button class="btn btn-sec btn-sm" onclick="selAll()">全选</button>
+              <button class="btn btn-sec btn-sm" onclick="deselAll()">全不选</button>
+              <button class="btn btn-sec btn-sm" onclick="selQP()">仅 QP</button>
+              <button class="btn btn-sec btn-sm" onclick="selMS()">仅 MS</button>
+              <span class="tbar-r" id="rcnt">共 0 项</span>
+            </div>
+          </div>
+        </div>
+        <div class="bento">
+          <div class="card" style="grid-row:span 2">
+            <div class="card-hdr">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span class="card-title">搜索结果</span>
+              <span class="card-badge" id="res-badge">0</span>
+            </div>
+            <div class="card-body results-grid" id="rlist">
+              <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><div>搜索后显示结果</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span class="card-title">设定</span>
+            </div>
+            <div class="card-body" id="settings-body">
+              <div class="dir-row">
+                <div class="dir-disp" id="dir-disp"></div>
+                <button class="dir-btn" title="浏览" onclick="browseDir()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+                <button class="dir-btn" title="打开" onclick="openDir()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+              </div>
+              <div class="setting-row">
+                <label>速度</label>
+                <input type="range" id="b-rate" min="2" max="10" step="1" value="5"
+                  oninput="document.getElementById('rv').textContent=this.value+'/s';autoSaveSettings()">
+                <span class="sval" id="rv">5/s</span>
+              </div>
+              <div class="setting-row">
+                <label>线程</label>
+                <select id="b-thr" style="width:60px" onchange="autoSaveSettings()">
+                  <option>2</option><option selected>4</option><option>6</option><option>8</option>
+                </select>
+                <label class="chk-label" style="margin-left:auto"><input type="checkbox" id="b-merge" onchange="syncCB(this);autoSaveSettings()"><span>合并</span></label>
+              </div>
+              <div class="setting-row">
+                <label>去重</label>
+                <select id="dup-mode" style="width:90px;font-size:10px" onchange="autoSaveSettings()">
+                  <option value="overwrite">覆盖下载</option>
+                  <option value="skip">跳过已下载</option>
+                  <option value="missing">只补缺失</option>
+                </select>
+                <label class="chk-label" style="margin-left:auto"><input type="checkbox" id="dl-ms" checked onchange="syncMS(this);autoSaveSettings()"><span>MS</span></label>
+              </div>
+              <div class="proxy-toggle" onclick="this.nextElementSibling.classList.toggle('on')">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>代理</span>
+                <span style="font-size:9px" id="proxy-indicator"></span>
+              </div>
+              <div class="proxy-details">
+                <div style="display:flex;gap:6px">
+                  <input type="text" id="proxy-url-side" placeholder="http://127.0.0.1:7890" style="flex:1;font-size:10px">
+                  <button class="btn btn-sec btn-sm" onclick="saveProxySide()">保存</button>
+                  <button class="btn btn-sec btn-sm" onclick="testProxySide()">测试</button>
+                </div>
+                <span class="proxy-status" id="proxy-st-side"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="pnl-batch">
+        <div class="card bento-full">
+          <div class="card-body">
+            <div class="filter-row">
+              <select id="b-subj" style="min-width:160px"><option>加载中...</option></select>
+              <select id="b-yfrom" style="width:80px"></select>
+              <span style="font-size:11px;color:var(--text3)">至</span>
+              <select id="b-yto" style="width:80px"></select>
+            </div>
+            <div class="quick-years">
+              <span>快捷：</span>
+              <button class="btn btn-sec btn-sm" onclick="quickYears(2)">近2年</button>
+              <button class="btn btn-sec btn-sm" onclick="quickYears(5)">近5年</button>
+              <button class="btn btn-sec btn-sm" onclick="quickYears(99)">全部</button>
+            </div>
+            <div class="bgrid">
+              <div>
+                <div class="bsec-t">季度</div>
+                <div class="cbgrp" id="cbg-seasons">
+                  <label class="cbitem on"><input type="checkbox" value="Mar" checked onchange="syncCB(this)"> Mar 春</label>
+                  <label class="cbitem on"><input type="checkbox" value="Jun" checked onchange="syncCB(this)"> Jun 夏</label>
+                  <label class="cbitem on"><input type="checkbox" value="Nov" checked onchange="syncCB(this)"> Nov 冬</label>
+                </div>
+              </div>
+              <div>
+                <div class="bsec-t">试卷类型</div>
+                <div class="cbgrp" id="cbg-papers">
+                  <label class="cbitem on"><input type="checkbox" value="1" checked onchange="syncCB(this)"> P1</label>
+                  <label class="cbitem on"><input type="checkbox" value="2" checked onchange="syncCB(this)"> P2</label>
+                  <label class="cbitem on"><input type="checkbox" value="3" checked onchange="syncCB(this)"> P3</label>
+                  <label class="cbitem on"><input type="checkbox" value="4" checked onchange="syncCB(this)"> P4</label>
+                  <label class="cbitem on"><input type="checkbox" value="5" checked onchange="syncCB(this)"> P5</label>
+                  <label class="cbitem on"><input type="checkbox" value="6" checked onchange="syncCB(this)"> P6</label>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+              <button class="btn btn-sec" id="pvbtn" onclick="doPreview()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> 预览
+              </button>
+              <button class="btn btn-pri" id="bdbtn" onclick="doBatchDL()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 开始下载
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="bento" style="flex:1;min-height:0">
+          <div class="card" style="grid-row:span 2;display:flex;flex-direction:column;min-height:0">
+            <div class="card-hdr">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span class="card-title">预览</span>
+              <span class="card-badge" id="batch-badge" style="display:none"></span>
+              <button class="btn btn-sec btn-sm" id="back-to-select" style="display:none;margin-left:auto" onclick="backToSelect()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> 返回
+              </button>
+            </div>
+            <div class="card-body" style="padding:8px 16px;flex:1;display:flex;flex-direction:column;min-height:0">
+              <div class="prev-area" id="prev">（点击「预览」查看将要下载的文件...）</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span class="card-title">设定</span>
+            </div>
+            <div class="card-body" id="settings-body-batch">
+              <div class="dir-row">
+                <div class="dir-disp" id="dir-disp-batch"></div>
+                <button class="dir-btn" title="浏览" onclick="browseDir()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+                <button class="dir-btn" title="打开" onclick="openDir()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+              </div>
+              <div class="setting-row">
+                <label>速度</label>
+                <input type="range" id="b-rate-batch" min="2" max="10" step="1" value="5"
+                  oninput="document.getElementById('rv-batch').textContent=this.value+'/s';document.getElementById('b-rate').value=this.value;document.getElementById('rv').textContent=this.value+'/s';autoSaveSettings()">
+                <span class="sval" id="rv-batch">5/s</span>
+              </div>
+              <div class="setting-row">
+                <label>线程</label>
+                <select id="b-thr-batch" style="width:60px" onchange="document.getElementById('b-thr').value=this.value;autoSaveSettings()">
+                  <option>2</option><option selected>4</option><option>6</option><option>8</option>
+                </select>
+                <label class="chk-label" style="margin-left:auto"><input type="checkbox" id="b-merge-batch" onchange="document.getElementById('b-merge').checked=this.checked;syncCB(document.getElementById('b-merge'));autoSaveSettings()"><span>合并</span></label>
+              </div>
+              <div class="setting-row">
+                <label>去重</label>
+                <select id="dup-mode-batch" style="width:90px;font-size:10px" onchange="document.getElementById('dup-mode').value=this.value;autoSaveSettings()">
+                  <option value="overwrite">覆盖下载</option>
+                  <option value="skip">跳过已下载</option>
+                  <option value="missing">只补缺失</option>
+                </select>
+                <label class="chk-label" style="margin-left:auto"><input type="checkbox" id="dl-ms-batch" checked onchange="document.getElementById('dl-ms').checked=this.checked;syncMS(document.getElementById('dl-ms'));autoSaveSettings()"><span>MS</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="pnl-downloads">
+        <div class="card bento-full" style="flex:1;display:flex;flex-direction:column">
+          <div class="card-hdr">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="card-title">下载任务</span>
+          </div>
+          <div class="dl-card-body">
+            <div class="dl-summary-row">
+              <span id="dl-total">共 0 项</span>
+              <span class="cnt-dl" id="dl-cnt-dl"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 0</span>
+              <span class="cnt-ok" id="dl-cnt-ok"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> 0</span>
+              <span class="cnt-err" id="dl-cnt-err"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> 0</span>
+              <span class="cnt-pnd" id="dl-cnt-pnd"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 0</span>
+            </div>
+            <div class="dlwrap" id="dllist">
+              <div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><div>下载后在此查看进度</div></div>
+            </div>
+            <div class="dl-actions">
+              <button class="btn btn-err btn-sm" id="retry-all-btn" onclick="retryAll()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> 重试失败</button>
+              <button class="btn btn-sec btn-sm" onclick="clearDLList()">清空</button>
+            </div>
+          </div>
+        </div>
+    </div>
+  </div>
+  </div>
+
+    <div class="preview-panel" id="preview-panel">
+      <div class="preview-hdr">
+        <span class="preview-title" id="preview-title">PDF 预览</span>
+        <button class="preview-close" onclick="closePreview()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="preview-body" id="preview-body">
+        <div class="preview-empty" id="preview-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <div>点击文件名或预览按钮查看 PDF</div>
+        </div>
+        <iframe id="preview-iframe" style="display:none;width:100%;height:100%;border:none"></iframe>
+      </div>
+    </div>
+  </div>
+
+    <div class="dock">
+      <div class="dock-progress">
+        <div class="progress-bar"><div class="progress-fill" id="dock-progress-fill"></div></div>
+      </div>
+      <button class="dock-btn secondary" id="dock-retry-btn" onclick="retryAll()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> 重试</button>
+      <button class="dock-btn primary" id="dlbtn" onclick="doDownloadSel()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载选中</button>
+    </div>
+  </div>
+</div>
+
+<script src="ui_v2.js"></script>
+</body>
+</html>

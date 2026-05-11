@@ -1,0 +1,76 @@
+# AppVeyor CI — Windows EXE build for CIE 试卷下载器
+# Free for open-source repos.
+# Sign up at https://www.appveyor.com/  → "New project" → connect GitHub → pick CIE-Downloader
+# Artifacts can be downloaded from the AppVeyor build dashboard.
+# Set GITHUB_TOKEN in AppVeyor "Environment" settings to auto-publish to GitHub Releases.
+
+version: 5.0.{build}
+
+# Only build main branch and version tags
+branches:
+  only:
+    - main
+
+skip_non_tags: false
+
+# ── Build environment ──────────────────────────────────────
+environment:
+  matrix:
+    - PYTHON: "C:\\Python311-x64"
+  GITHUB_TOKEN:
+    secure: ""          # paste your encrypted token from AppVeyor's Encrypt tool
+
+init:
+  - ps: $env:PATH = "$env:PYTHON;$env:PYTHON\Scripts;$env:PATH"
+
+# ── Install deps ───────────────────────────────────────────
+install:
+  - python -m pip install --quiet --upgrade pip
+  - pip install --quiet pywebview pyinstaller requests
+
+# ── Build ──────────────────────────────────────────────────
+build_script:
+  - >-
+    pyinstaller
+    --windowed
+    --noconfirm
+    --name "CIE下载器"
+    --distpath dist
+    --workpath build
+    --collect-all webview
+    --hidden-import webview
+    --hidden-import webview.platforms.winforms
+    --hidden-import webview.platforms.edgechromium
+    --exclude-module tkinter
+    --exclude-module numpy
+    --exclude-module pandas
+    --exclude-module scipy
+    --exclude-module matplotlib
+    --exclude-module PIL
+    --exclude-module PyQt5
+    --exclude-module PyQt6
+    --exclude-module PySide2
+    --exclude-module PySide6
+    cie_downloader_v5.py
+
+  - ps: Compress-Archive -Path "dist\CIE下载器" -DestinationPath "dist\CIE下载器_win.zip" -Force
+  - ps: $size = [math]::Round((Get-Item "dist\CIE下载器_win.zip").Length / 1MB, 1); Write-Host "ZIP 大小：$size MB"
+
+# ── Artifacts (downloadable from AppVeyor dashboard) ───────
+artifacts:
+  - path: dist\CIE下载器_win.zip
+    name: CIE下载器-Windows
+
+# ── Deploy to GitHub Releases (only for v* tags) ───────────
+deploy:
+  - provider: GitHub
+    auth_token:
+      secure: ""        # same encrypted GITHUB_TOKEN from AppVeyor's Encrypt tool
+    artifact: CIE下载器-Windows
+    tag: $(APPVEYOR_REPO_TAG_NAME)
+    release: "CIE 试卷下载器 $(APPVEYOR_REPO_TAG_NAME)"
+    description: "Windows EXE 版本。解压后运行 CIE下载器.exe（需要 Windows 10 v1803+ 或 Edge WebView2）"
+    draft: false
+    prerelease: false
+    on:
+      APPVEYOR_REPO_TAG: true
