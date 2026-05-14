@@ -77,6 +77,11 @@ func (h *GroupHandler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 	RespondJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+func parseIDParam(r *http.Request, key string) (int64, bool) {
+	id, err := strconv.ParseInt(chi.URLParam(r, key), 10, 64)
+	return id, err == nil && id > 0
+}
+
 func (h *GroupHandler) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserID(r)
 	if !ok {
@@ -84,7 +89,11 @@ func (h *GroupHandler) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groupID, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	groupID, ok := parseIDParam(r, "id")
+	if !ok {
+		RespondError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
 	if err := h.groups.Leave(groupID, userID); err != nil {
 		RespondError(w, http.StatusBadRequest, "cannot leave group (owners cannot leave)")
 		return
@@ -116,7 +125,11 @@ func (h *GroupHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groupID, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	groupID, ok := parseIDParam(r, "id")
+	if !ok {
+		RespondError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
 
 	isMember, err := h.groups.IsMember(groupID, userID)
 	if err != nil || !isMember {
@@ -156,7 +169,11 @@ func (h *GroupHandler) AddPaper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groupID, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	groupID, ok := parseIDParam(r, "id")
+	if !ok {
+		RespondError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
 
 	isMember, err := h.groups.IsMember(groupID, userID)
 	if err != nil || !isMember {
@@ -186,7 +203,11 @@ func (h *GroupHandler) RemovePaper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	paperID, _ := strconv.ParseInt(chi.URLParam(r, "pid"), 10, 64)
+	paperID, ok := parseIDParam(r, "pid")
+	if !ok {
+		RespondError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
 	if err := h.groups.RemovePaper(paperID, userID); err != nil {
 		RespondError(w, http.StatusInternalServerError, "failed to remove paper")
 		return
@@ -196,7 +217,11 @@ func (h *GroupHandler) RemovePaper(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *GroupHandler) GetProgress(w http.ResponseWriter, r *http.Request) {
-	groupID, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	groupID, ok := parseIDParam(r, "id")
+	if !ok {
+		RespondError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
 
 	progress, err := h.groups.GetProgress(groupID)
 	if err != nil {
@@ -219,7 +244,11 @@ func (h *GroupHandler) UpdateProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groupID, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	groupID, ok := parseIDParam(r, "id")
+	if !ok {
+		RespondError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
 
 	var req updateProgressReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

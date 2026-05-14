@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/ja-son-wu/c-paper-server/internal/middleware"
 	"github.com/ja-son-wu/c-paper-server/internal/models"
 )
@@ -65,7 +63,11 @@ func (h *ReviewHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reviewID, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	reviewID, ok := parseIDParam(r, "id")
+	if !ok {
+		RespondError(w, http.StatusBadRequest, "invalid review id")
+		return
+	}
 	if err := h.reviews.Delete(reviewID, userID); err != nil {
 		RespondError(w, http.StatusInternalServerError, "failed to delete review")
 		return

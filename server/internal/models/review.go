@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -39,7 +40,10 @@ func NewReviewStore(db *sql.DB) *ReviewStore {
 
 func (s *ReviewStore) Create(userID int64, subject string, year int, season, paperType, filename string, rating, difficulty int, tags []string, comment string) (*Review, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
-	tagsJSON, _ := json.Marshal(tags)
+	tagsJSON, err := json.Marshal(tags)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal tags: %w", err)
+	}
 	res, err := s.db.Exec(
 		`INSERT INTO reviews (user_id, subject, year, season, paper_type, filename, rating, difficulty, tags, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		userID, subject, year, season, paperType, filename, rating, difficulty, string(tagsJSON), comment, now,
@@ -47,7 +51,10 @@ func (s *ReviewStore) Create(userID int64, subject string, year int, season, pap
 	if err != nil {
 		return nil, err
 	}
-	id, _ := res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get review id: %w", err)
+	}
 	return &Review{ID: id, UserID: userID, Subject: subject, Year: year, Season: season, PaperType: paperType, Filename: filename, Rating: rating, Difficulty: difficulty, Tags: tags, Comment: comment, CreatedAt: now}, nil
 }
 
@@ -87,7 +94,9 @@ func (s *ReviewStore) List(subject string, year int, season string) ([]Review, e
 		if err := rows.Scan(&rev.ID, &rev.UserID, &rev.Subject, &rev.Year, &rev.Season, &rev.PaperType, &rev.Filename, &rev.Rating, &rev.Difficulty, &tagsStr, &rev.Comment, &rev.CreatedAt, &rev.UserNickname); err != nil {
 			return nil, err
 		}
-		json.Unmarshal([]byte(tagsStr), &rev.Tags)
+		if err := json.Unmarshal([]byte(tagsStr), &rev.Tags); err != nil {
+			rev.Tags = []string{}
+		}
 		reviews = append(reviews, rev)
 	}
 	return reviews, rows.Err()
