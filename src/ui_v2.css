@@ -409,3 +409,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important;}
 }
+
+#plugin-list .plugin-card{border:1px solid var(--border);border-radius:8px;padding:10px;
+  display:flex;flex-direction:column;gap:4px;transition:border-color .2s;}
+#plugin-list .plugin-card:hover{border-color:var(--border2);}

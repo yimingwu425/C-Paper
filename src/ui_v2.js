@@ -758,3 +758,46 @@ function closePreview(){
   iframe.src='';iframe.style.display='none';
   empty.style.display='';title.textContent='PDF 预览';
 }
+
+async function loadPlugins(){
+  try{
+    const r=JSON.parse(await pywebview.api.get_plugins());
+    if(!r.ok) return;
+    renderPlugins(r.plugins);
+  }catch(e){}
+}
+
+function renderPlugins(plugins){
+  const el=document.getElementById('plugin-list');
+  if(!el) return;
+  if(!plugins||!plugins.length){
+    el.innerHTML='<div style="font-size:11px;color:var(--text3)">暂未安装插件</div>';
+    return;
+  }
+  el.innerHTML='';
+  plugins.forEach(p=>{
+    const card=document.createElement('div');
+    card.style.cssText='border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:4px';
+    card.innerHTML=`
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" ${p.enabled?'checked':''} onchange="togglePlugin('${p.id}',this.checked)" style="width:14px;height:14px">
+        <span style="font-size:12px;font-weight:600;color:var(--text)">${esc(p.name)}</span>
+        <span style="font-size:9px;color:var(--text3);margin-left:auto">v${esc(p.version)}</span>
+      </div>
+      <div style="font-size:10px;color:var(--text2);padding-left:22px">${esc(p.description||'')}</div>
+      <div style="font-size:9px;color:var(--text3);padding-left:22px">Hooks: ${p.hooks.join(', ')}</div>
+    `;
+    el.appendChild(card);
+  });
+}
+
+async function togglePlugin(pluginId,enabled){
+  try{
+    const r=JSON.parse(await pywebview.api.toggle_plugin(pluginId,JSON.stringify(enabled)));
+    if(!r.ok) toast('插件状态切换失败','err');
+  }catch(e){ toast('插件状态切换失败: '+e.message,'err'); }
+}
+
+async function openPluginsDir(){
+  await pywebview.api.open_plugins_dir();
+}
