@@ -1,4 +1,4 @@
-# C-Paper v5.1
+# C-Paper v5.2
 
 ---
 
@@ -14,6 +14,8 @@
 - ⭐ **收藏管理** —— 收藏常用科目代码，一键快速搜索
 - 🗂️ **历史记录** —— 自动记录已下载文件，支持覆盖、跳过、仅缺失三种去重模式
 - 🌙 **明暗主题** —— 支持浅色/深色双主题切换，保护视力
+- 🔄 **自动更新** —— 启动时自动检查 GitHub 最新版本，一键前往下载
+- 🔌 **插件扩展** —— 支持 Python 脚本和外部命令插件，自定义下载后行为
 - ⚙️ **灵活配置** —— 可自定义保存目录、并发线程数、请求速率限制、代理等
 
 ### 技术架构
@@ -112,13 +114,60 @@ SOFTWARE.
 ### 网络请求
 
 - 本应用仅在用户主动执行搜索或下载操作时向 **cie.fraft.cn** 发起网络请求
-- 请求中包含标准的 HTTP User-Agent 标识 `C-Paper/5.1 (Desktop)`
+- 请求中包含标准的 HTTP User-Agent 标识 `C-Paper/5.2 (Desktop)`
 - 不向任何其他服务器发送数据
 - 如果用户配置了 HTTP 代理，网络请求将经过该代理
 
 ### 数据清理
 
 卸载本应用后，如需彻底清除所有数据，请手动删除 `~/.cie_cache/` 目录及保存试卷的目录。本应用不会在卸载程序之外保留任何数据。
+
+---
+
+## 插件开发
+
+C-Paper 支持两种插件类型：
+
+### Python 插件
+
+在 `~/.cie_cache/plugins/{plugin_name}/` 目录下创建 `plugin.json` 和 `main.py`：
+
+```json
+{
+  "name": "我的插件",
+  "id": "com.example.myplugin",
+  "version": "1.0.0",
+  "type": "python",
+  "entry": "main.py",
+  "hooks": ["on_download_complete"],
+  "enabled": true
+}
+```
+
+`main.py` 中定义 `Plugin` 类：
+
+```python
+class Plugin:
+    def __init__(self, config):
+        self.config = config
+
+    def on_download_complete(self, data):
+        print(f"下载完成: {data['filename']}")
+        return {"ok": True}
+```
+
+### 外部命令插件
+
+将 `type` 设为 `"command"`，`entry` 指向可执行文件。C-Paper 会通过 stdin 传入 JSON 数据，从 stdout 读取返回结果。
+
+### 支持的事件
+
+- `on_search_result` —— 搜索完成后
+- `on_download_start` —— 单个文件开始下载
+- `on_download_complete` —— 单个文件下载成功
+- `on_download_failed` —— 单个文件下载失败
+- `on_batch_start` —— 批量下载开始
+- `on_batch_complete` —— 批量下载结束（含统计：total/success/failed/skipped/retry_rounds）
 
 ---
 
