@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 
 	"github.com/ja-son-wu/c-paper-server/internal/config"
 	"github.com/ja-son-wu/c-paper-server/internal/handlers"
@@ -18,8 +19,10 @@ func Setup(db *sql.DB, cfg *config.Config) http.Handler {
 
 	// Global middleware
 	r.Use(middleware.Logger)
-	r.Use(middleware.CORS(cfg.AllowedOrigins))
-	r.Use(middleware.RateLimitGeneral(cfg.RateLimit))
+	r.Use(cors.Handler(middleware.CORSOptions(cfg.AllowedOrigins)))
+	r.Use(func(next http.Handler) http.Handler {
+		return middleware.RateLimitGeneral(next)
+	})
 
 	// Stores
 	users := models.NewUserStore(db)
@@ -41,7 +44,9 @@ func Setup(db *sql.DB, cfg *config.Config) http.Handler {
 
 	// Auth routes (rate limited)
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.RateLimitAuth(cfg.AuthRateLimit))
+		r.Use(func(next http.Handler) http.Handler {
+			return middleware.RateLimitAuth(next)
+		})
 		r.Post("/api/auth/register", auth.Register)
 		r.Post("/api/auth/login", auth.Login)
 		r.Post("/api/auth/refresh", auth.RefreshToken)
@@ -54,7 +59,7 @@ func Setup(db *sql.DB, cfg *config.Config) http.Handler {
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+		r.Use(middleware.Auth(cfg.JWTSecret))
 
 		// User
 		r.Get("/api/me", auth.GetMe)
