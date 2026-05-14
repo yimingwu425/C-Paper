@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import subprocess
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from .cache import read_json, write_json
@@ -97,15 +98,21 @@ class Plugin:
 
 
 class PluginManager:
-    def __init__(self, plugins_dir: str):
+    def __init__(self, plugins_dir: str, lazy: bool = False):
         self._plugins_dir = plugins_dir
         self._plugins: dict[str, Plugin] = {}
+        self._lock = threading.Lock()
+        self._loaded = False
         os.makedirs(plugins_dir, exist_ok=True)
-        self._load_all()
+        if not lazy:
+            self._load_all()
+        else:
+            threading.Thread(target=self._load_all, daemon=True).start()
 
     def _load_all(self):
         if not os.path.isdir(self._plugins_dir):
             return
+        loaded = {}
         for name in os.listdir(self._plugins_dir):
             plugin_dir = os.path.join(self._plugins_dir, name)
             manifest_path = os.path.join(plugin_dir, "plugin.json")
@@ -118,14 +125,18 @@ class PluginManager:
                     continue
                 plugin = Plugin(manifest, plugin_dir)
                 plugin.initialize()
-                self._plugins[plugin.id] = plugin
+                loaded[plugin.id] = plugin
                 logger.info("Loaded plugin: %s v%s", plugin.id, plugin.version)
             except Exception:
                 logger.exception("Failed to load plugin %s", name)
+        with self._lock:
+            self._plugins = loaded
+            self._loaded = True
 
     def dispatch(self, hook_name: str, data: dict):
         """Dispatch event to all subscribed plugins in parallel."""
-        targets = [p for p in self._plugins.values() if p.enabled and hook_name in p.hooks]
+        with self._lock:
+            targets = [p for p in self._plugins.values() if p.enabled and hook_name in p.hooks]
         if not targets:
             return
 
@@ -142,11 +153,13 @@ class PluginManager:
                 ex.submit(_run, plugin)
 
     def list_plugins(self) -> list[dict]:
-        return [p.to_dict() for p in self._plugins.values()]
+        with self._lock:
+            return [p.to_dict() for p in self._plugins.values()]
 
     def enable_plugin(self, plugin_id: str, enabled: bool):
         """Enable/disable a plugin. Persists to plugin.json, preserving all existing fields."""
-        plugin = self._plugins.get(plugin_id)
+        with self._lock:
+            plugin = self._plugins.get(plugin_id)
         if not plugin:
             return False
         plugin.enabled = enabled
@@ -161,11 +174,13 @@ class PluginManager:
         return True
 
     def get_plugin_config(self, plugin_id: str) -> dict:
-        plugin = self._plugins.get(plugin_id)
+        with self._lock:
+            plugin = self._plugins.get(plugin_id)
         return plugin.config if plugin else {}
 
     def set_plugin_config(self, plugin_id: str, config: dict):
-        plugin = self._plugins.get(plugin_id)
+        with self._lock:
+            plugin = self._plugins.get(plugin_id)
         if not plugin:
             return False
         plugin.config = config

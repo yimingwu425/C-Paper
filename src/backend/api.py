@@ -37,7 +37,7 @@ class API:
         self._settings_path = os.path.join(CACHE_DIR, "settings.json")
         self._persist_lock = threading.Lock()
         self._hist_set: set = set()
-        self.plugin_manager = PluginManager(PLUGINS_DIR)
+        self.plugin_manager = PluginManager(PLUGINS_DIR, lazy=True)
         self._hist_loaded = False
 
     def _ensure_hist_loaded(self):
