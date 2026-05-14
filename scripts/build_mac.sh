@@ -121,6 +121,7 @@ a = Analysis(
         ('../src/ui_v2.html', '.'),
         ('../src/ui_v2.css', '.'),
         ('../src/ui_v2.js', '.'),
+        ('../version.json', '.'),
     ] + collect_data_files('webview'),
     pathex=[],
     binaries=[],

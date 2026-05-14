@@ -71,6 +71,7 @@ jobs:
             --add-data "src\ui_v2.html;." `
             --add-data "src\ui_v2.css;." `
             --add-data "src\ui_v2.js;." `
+            --add-data "version.json;." `
             --exclude-module tkinter `
             --exclude-module numpy `
             --exclude-module pandas `
