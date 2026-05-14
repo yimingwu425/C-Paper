@@ -5,14 +5,17 @@ import os
 import subprocess
 import threading
 import time
+import webbrowser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
 from .cache import read_json, write_json
-from .const import BASE_URL, CACHE_DIR, HISTORY_MAX
+from .const import BASE_URL, CACHE_DIR, HISTORY_MAX, PLUGINS_DIR, VERSION
 from .engine import DownloadEngine, create_session
 from .parser import build_folders, fetch_subjects, get_year, group_papers, search_papers
+from .plugin_manager import PluginManager
+from .updater import check_update, skip_version, set_update_check
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,7 @@ class API:
         self._settings_path = os.path.join(CACHE_DIR, "settings.json")
         self._persist_lock = threading.Lock()
         self._hist_set: set = set()
+        self.plugin_manager = PluginManager(PLUGINS_DIR)
         self._hist_loaded = False
 
     def _ensure_hist_loaded(self):
@@ -85,6 +89,15 @@ class API:
         try:
             result = search_papers(self.session, subject, year, season)
             groups = group_papers(result.get("rows", []))
+            try:
+                self.plugin_manager.dispatch("on_search_result", {
+                    "subject": subject,
+                    "year": year,
+                    "season": season,
+                    "groups": groups,
+                })
+            except Exception:
+                logger.exception("Plugin dispatch failed for on_search_result")
             return json.dumps({"ok": True, "groups": groups,
                                "count": len(result.get("rows", []))}, ensure_ascii=False)
         except Exception as e:
@@ -189,6 +202,11 @@ class API:
             self._status = {"phase": "running", "done": 0, "total": len(items),
                             "success": 0, "message": "准备下载...",
                             "skipped": skipped_count}
+        # Dispatch batch start hook
+        self.plugin_manager.dispatch("on_batch_start", {
+            "total": len(items),
+            "groups": groups,
+        })
         threading.Thread(target=self._run_downloads, args=(items,), daemon=True).start()
         return json.dumps({"ok": True, "total": len(items), "skipped": skipped_count})
 
@@ -221,6 +239,16 @@ class API:
             else:
                 with self._dl_lock:
                     total_done = sum(1 for i in self._dl_items if i["status"] == "done")
+                    failed_count = sum(1 for i in self._dl_items if i["status"] == "failed")
+                    skipped_count = sum(1 for i in self._dl_items if i["status"] == "skipped")
+                # Dispatch batch_complete hook before marking phase done
+                self.plugin_manager.dispatch("on_batch_complete", {
+                    "total": batch_total,
+                    "success": total_done,
+                    "failed": failed_count,
+                    "skipped": skipped_count,
+                    "retry_rounds": current_round,
+                })
                 with self._status_lock:
                     self._status["phase"] = "done"
                     self._status["total"] = batch_total
@@ -237,24 +265,35 @@ class API:
                 return None
             with self._dl_lock:
                 item["status"] = "downloading"
+            self.plugin_manager.dispatch("on_download_start", {
+                "filename": item["filename"],
+                "save_path": item["save_path"],
+                "ftype": item["ftype"],
+                "label": item["label"],
+                "year": item["year"],
+            })
+            success = None
             try:
                 self.engine.download_one(item["filename"], item["save_path"])
                 with self._dl_lock:
                     item["status"] = "done"
                     item["error"] = ""
                 self._record_one_history(item["filename"], item["label"], item["year"], item["save_path"])
+                success = True
                 return True
             except requests.exceptions.Timeout:
                 with self._dl_lock:
                     item["status"] = "failed"
                     item["error"] = "网络超时"
                     item["error_type"] = "network"
+                success = False
                 return False
             except requests.exceptions.ConnectionError:
                 with self._dl_lock:
                     item["status"] = "failed"
                     item["error"] = "连接失败"
                     item["error_type"] = "network"
+                success = False
                 return False
             except requests.exceptions.HTTPError as e:
                 code = e.response.status_code if e.response is not None else 0
@@ -272,6 +311,7 @@ class API:
                     else:
                         item["error"] = f"HTTP {code}"
                         item["error_type"] = "unknown"
+                success = False
                 return False
             except Exception as e:
                 msg = str(e)
@@ -284,7 +324,29 @@ class API:
                         item["error_type"] = "rate_limit"
                     else:
                         item["error_type"] = "unknown"
+                success = False
                 return False
+            finally:
+                try:
+                    if success:
+                        self.plugin_manager.dispatch("on_download_complete", {
+                            "filename": item["filename"],
+                            "save_path": item["save_path"],
+                            "ftype": item["ftype"],
+                            "label": item["label"],
+                            "year": item["year"],
+                        })
+                    elif success is False:
+                        self.plugin_manager.dispatch("on_download_failed", {
+                            "filename": item["filename"],
+                            "ftype": item["ftype"],
+                            "label": item["label"],
+                            "year": item["year"],
+                            "error": item.get("error", ""),
+                            "error_type": item.get("error_type", "unknown"),
+                        })
+                except Exception:
+                    logger.exception("Plugin dispatch failed in download worker")
         return worker
 
     def _execute_download_batch(self, items, batch_total):
@@ -384,6 +446,7 @@ class API:
     # ── Retry ──
 
     def retry_failed(self):
+        self._cancel.clear()
         with self._status_lock:
             if self._status["phase"] == "running":
                 return json.dumps({"ok": False, "error": "下载进行中"})
@@ -401,6 +464,7 @@ class API:
         return json.dumps({"ok": True, "count": len(failed)})
 
     def retry_item(self, item_id):
+        self._cancel.clear()
         with self._status_lock:
             if self._status["phase"] == "running":
                 return json.dumps({"ok": False, "error": "下载进行中"})
@@ -413,7 +477,7 @@ class API:
         with self._status_lock:
             self._status = {"phase": "running", "done": 0, "total": 1,
                             "success": 0, "message": "单文件重试中..."}
-        threading.Thread(target=self._run_downloads, args=([item], 3), daemon=True).start()
+        threading.Thread(target=self._run_downloads, args=([item], 0), daemon=True).start()
         return json.dumps({"ok": True})
 
     def clear_download_list(self):
@@ -539,3 +603,79 @@ class API:
                 subprocess.run(["xdg-open", path])
         except Exception:
             pass
+
+    # ── Auto Update ──
+
+    def check_update(self, force="false"):
+        try:
+            result = check_update(force=(force.lower() == "true"))
+            return json.dumps(result, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e), "has_update": False})
+
+    def skip_version(self, version):
+        try:
+            skip_version(version)
+            return json.dumps({"ok": True})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def set_update_check(self, enabled_json):
+        try:
+            enabled = json.loads(enabled_json)
+            set_update_check(bool(enabled))
+            return json.dumps({"ok": True})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def open_url(self, url):
+        """Open URL in system default browser."""
+        try:
+            webbrowser.open(url)
+            return json.dumps({"ok": True})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    # ── Plugins ──
+
+    def get_plugins(self):
+        try:
+            return json.dumps({"ok": True, "plugins": self.plugin_manager.list_plugins()}, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def toggle_plugin(self, plugin_id, enabled_json):
+        try:
+            enabled = json.loads(enabled_json)
+            ok = self.plugin_manager.enable_plugin(plugin_id, bool(enabled))
+            return json.dumps({"ok": ok})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def get_plugin_config(self, plugin_id):
+        try:
+            config = self.plugin_manager.get_plugin_config(plugin_id)
+            return json.dumps({"ok": True, "config": config}, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def set_plugin_config(self, plugin_id, config_json):
+        try:
+            config = json.loads(config_json)
+            ok = self.plugin_manager.set_plugin_config(plugin_id, config)
+            return json.dumps({"ok": ok})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def open_plugins_dir(self):
+        try:
+            import sys
+            if sys.platform == "darwin":
+                subprocess.run(["open", PLUGINS_DIR])
+            elif sys.platform == "win32":
+                subprocess.run(["explorer", PLUGINS_DIR])
+            else:
+                subprocess.run(["xdg-open", PLUGINS_DIR])
+            return json.dumps({"ok": True})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})

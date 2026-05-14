@@ -10,9 +10,10 @@ class Plugin:
         system = platform.system()
         try:
             if system == "Darwin":
+                safe_filename = filename.replace('"', '\\"')
                 subprocess.run([
                     "osascript", "-e",
-                    f'display notification "{filename}" with title "C-Paper 下载完成"'
+                    f'display notification "{safe_filename}" with title "C-Paper 下载完成"'
                 ], check=True, capture_output=True)
             elif system == "Linux":
                 subprocess.run([

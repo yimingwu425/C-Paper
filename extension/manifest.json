@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "C-Paper",
+  "version": "5.1",
+  "description": "CIE 历年真题搜索与下载工具 - 浏览器插件版",
+  "host_permissions": [
+    "https://cie.fraft.cn/*"
+  ],
+  "permissions": [
+    "downloads",
+    "storage"
+  ],
+  "action": {
+    "default_title": "C-Paper",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

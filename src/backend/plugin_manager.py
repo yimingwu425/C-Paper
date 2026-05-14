@@ -61,6 +61,11 @@ class Plugin:
                 entry_path = os.path.join(self.plugin_dir, self.entry)
                 if not os.path.exists(entry_path):
                     return {"ok": False, "error": f"Entry not found: {entry_path}"}
+                # Verify entry_path stays within plugin directory (path traversal protection)
+                real_entry = os.path.realpath(entry_path)
+                real_dir = os.path.realpath(self.plugin_dir)
+                if os.path.commonpath([real_entry, real_dir]) != real_dir:
+                    return {"ok": False, "error": "Plugin entry path escapes plugin directory"}
                 payload = json.dumps({"event": hook_name, "data": data}, ensure_ascii=False)
                 result = subprocess.run(
                     [entry_path],
@@ -140,6 +145,7 @@ class PluginManager:
         return [p.to_dict() for p in self._plugins.values()]
 
     def enable_plugin(self, plugin_id: str, enabled: bool):
+        """Enable/disable a plugin. Persists to plugin.json, preserving all existing fields."""
         plugin = self._plugins.get(plugin_id)
         if not plugin:
             return False

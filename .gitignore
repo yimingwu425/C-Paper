@@ -9,7 +9,23 @@ dist/
 __pycache__/
 *.py[cod]
 *.pyo
+*.egg-info/
+*.egg
+.env
+.venv/
+venv/
+ENV/
+env/
+requirements.lock
+uv.lock
+poetry.lock
+Pipfile.lock
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+tox.ini
 
 # macOS
 .DS_Store

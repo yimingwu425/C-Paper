@@ -15,8 +15,14 @@ VERSION_JSON_URL = "https://raw.githubusercontent.com/Ja-son-WU/CIE-Downloader/m
 
 
 def _parse_version(v: str):
-    """Parse '5.2.0' or 'v5.2.0' into (5, 2, 0) tuple."""
-    return tuple(int(x) for x in v.lstrip("v").split(".")[:3])
+    """Parse '5.2.0' or 'v5.2.0' into (5, 2, 0) tuple. Returns (0,0,0) for invalid input."""
+    try:
+        cleaned = v.lstrip("v").strip()
+        if not cleaned:
+            return (0, 0, 0)
+        return tuple(int(x) for x in cleaned.split(".")[:3])
+    except (ValueError, AttributeError):
+        return (0, 0, 0)
 
 
 def _version_gte(v1: str, v2: str) -> bool:
@@ -32,6 +38,8 @@ def _should_check() -> bool:
         return True
     try:
         last_dt = datetime.fromisoformat(last)
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
         return (datetime.now(timezone.utc) - last_dt).total_seconds() > 86400
     except ValueError:
         return True
@@ -102,6 +110,10 @@ def check_update(force: bool = False) -> dict:
 
 
 def skip_version(version: str):
+    import re
+    if not re.match(r'^\d+\.\d+\.\d+$', version):
+        logger.warning("Invalid version format in skip_version: %s", version)
+        return
     state = read_json(UPDATE_STATE_PATH, {})
     state["skipped_version"] = version
     write_json(UPDATE_STATE_PATH, state)
