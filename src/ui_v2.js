@@ -178,19 +178,27 @@ async function clearHistory(){
 
 function switchMode(name){
   S.mode=name;
-  ['search','batch','downloads'].forEach(n=>{
+  ['search','batch','downloads','collab'].forEach(n=>{
     const btn=document.getElementById('mode-'+n);
     const pnl=document.getElementById('pnl-'+n);
     if(btn)btn.classList.toggle('on',n===name);
     if(pnl)pnl.classList.toggle('on',n===name);
   });
   const dlbtn=document.getElementById('dlbtn');
-  if(name==='batch'){
-    dlbtn.onclick=doBatchDL;
-    dlbtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 批量下载';
+  const dockRetryBtn=document.getElementById('dock-retry-btn');
+  if(name==='collab'){
+    dlbtn.style.display='none';
+    if(dockRetryBtn)dockRetryBtn.style.display='none';
   }else{
-    dlbtn.onclick=doDownloadSel;
-    dlbtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载选中';
+    dlbtn.style.display='';
+    if(dockRetryBtn)dockRetryBtn.style.display='';
+    if(name==='batch'){
+      dlbtn.onclick=doBatchDL;
+      dlbtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 批量下载';
+    }else{
+      dlbtn.onclick=doDownloadSel;
+      dlbtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载选中';
+    }
   }
   autoSaveSettings();
 }
@@ -853,3 +861,193 @@ async function toggleAutoUpdate(enabled){
     await pywebview.api.set_update_check(JSON.stringify(enabled));
   }catch(e){}
 }
+
+// === Collaboration ===
+function switchCollabTab(tab) {
+  ['shares', 'groups', 'reviews'].forEach(t => {
+    const el = document.getElementById('ctab-content-' + t);
+    const btn = document.getElementById('ctab-' + t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+    if (btn) btn.classList.toggle('on', t === tab);
+  });
+}
+
+async function checkCollabLogin() {
+  try {
+    const r = JSON.parse(await pywebview.api.collab_is_logged_in());
+    if (r.logged_in) {
+      document.getElementById('collab-login-card').style.display = 'none';
+      document.getElementById('collab-main').style.display = 'block';
+      const me = JSON.parse(await pywebview.api.collab_get_me());
+      if (me.nickname) document.getElementById('collab-user-info').textContent = me.nickname;
+    }
+  } catch(e) {}
+}
+
+async function doCollabLogin() {
+  const email = document.getElementById('collab-email').value.trim();
+  const password = document.getElementById('collab-password').value;
+  if (!email || !password) { document.getElementById('collab-login-error').textContent = '请填写邮箱和密码'; return; }
+  try {
+    const r = JSON.parse(await pywebview.api.collab_login(email, password));
+    if (r.ok === false || r.error) {
+      document.getElementById('collab-login-error').textContent = r.error || '登录失败';
+    } else {
+      document.getElementById('collab-login-error').textContent = '';
+      checkCollabLogin();
+    }
+  } catch(e) { document.getElementById('collab-login-error').textContent = '网络错误'; }
+}
+
+async function doCollabRegister() {
+  const email = document.getElementById('collab-email').value.trim();
+  const password = document.getElementById('collab-password').value;
+  const nickname = document.getElementById('collab-nickname').value.trim() || email.split('@')[0];
+  if (!email || !password) { document.getElementById('collab-login-error').textContent = '请填写邮箱和密码'; return; }
+  if (password.length < 8) { document.getElementById('collab-login-error').textContent = '密码至少8位'; return; }
+  try {
+    const r = JSON.parse(await pywebview.api.collab_register(email, password, nickname));
+    if (r.ok === false || r.error) {
+      document.getElementById('collab-login-error').textContent = r.error || '注册失败';
+    } else {
+      document.getElementById('collab-login-error').textContent = '';
+      checkCollabLogin();
+    }
+  } catch(e) { document.getElementById('collab-login-error').textContent = '网络错误'; }
+}
+
+async function doCollabLogout() {
+  await pywebview.api.collab_logout();
+  document.getElementById('collab-login-card').style.display = 'block';
+  document.getElementById('collab-main').style.display = 'none';
+}
+
+async function doCreateShare() {
+  if (!S.lastResults || S.lastResults.length === 0) { alert('请先搜索试卷'); return; }
+  const p = S.lastResults[0];
+  const expiry = prompt('过期时间: 1d / 7d / 30d / never', '7d');
+  if (!expiry) return;
+  try {
+    const r = JSON.parse(await pywebview.api.collab_create_share(p.subject, p.year, p.season, p.paper_type || '', expiry));
+    if (r.code) {
+      alert('分享码: ' + r.code + '\n链接: https://cpaper.fly.dev/share/' + r.code);
+    } else {
+      alert('创建失败: ' + (r.error || '未知错误'));
+    }
+  } catch(e) { alert('网络错误'); }
+}
+
+async function doLoadMyShares() {
+  try {
+    const shares = JSON.parse(await pywebview.api.collab_list_my_shares());
+    const el = document.getElementById('shares-list');
+    if (!shares || shares.length === 0) { el.innerHTML = '<div style="color:var(--text2);padding:12px">暂无分享</div>'; return; }
+    el.innerHTML = shares.map(s => `<div style="padding:8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span><b>${s.code}</b> — ${s.subject} ${s.year} ${s.season} · 浏览 ${s.view_count}</span>
+      <button class="btn" onclick="doDeleteShare('${s.code}')" style="font-size:11px;opacity:0.7">删除</button>
+    </div>`).join('');
+  } catch(e) {}
+}
+
+async function doDeleteShare(code) {
+  if (!confirm('删除分享 ' + code + '?')) return;
+  await pywebview.api.collab_delete_share(code);
+  doLoadMyShares();
+}
+
+async function doOpenShare() {
+  const code = document.getElementById('share-open-code').value.trim();
+  if (!code) return;
+  try {
+    const r = JSON.parse(await pywebview.api.collab_get_share(code));
+    if (r.subject) {
+      alert('分享内容: ' + r.subject + ' ' + r.year + ' ' + r.season + '\n浏览次数: ' + r.view_count);
+    } else {
+      alert('分享不存在或已过期');
+    }
+  } catch(e) { alert('网络错误'); }
+}
+
+async function doCreateGroup() {
+  const name = prompt('小组名称');
+  if (!name) return;
+  const desc = prompt('小组描述（可选）') || '';
+  try {
+    const r = JSON.parse(await pywebview.api.collab_create_group(name, desc));
+    if (r.invite_code) {
+      alert('小组已创建！邀请码: ' + r.invite_code);
+      doLoadGroups();
+    } else {
+      alert('创建失败: ' + (r.error || ''));
+    }
+  } catch(e) { alert('网络错误'); }
+}
+
+async function doJoinGroup() {
+  const code = document.getElementById('group-join-code').value.trim();
+  if (!code) return;
+  try {
+    const r = JSON.parse(await pywebview.api.collab_join_group(code));
+    if (r.ok) { alert('已加入小组'); doLoadGroups(); }
+    else alert('加入失败: ' + (r.error || ''));
+  } catch(e) { alert('网络错误'); }
+}
+
+async function doLoadGroups() {
+  try {
+    const groups = JSON.parse(await pywebview.api.collab_list_groups());
+    const el = document.getElementById('groups-list');
+    if (!groups || groups.length === 0) { el.innerHTML = '<div style="color:var(--text2);padding:12px">暂无小组</div>'; return; }
+    el.innerHTML = groups.map(g => `<div style="padding:8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span>${g.name} · 邀请码: <code>${g.invite_code}</code></span>
+      <button class="btn" onclick="doViewGroup(${g.id})" style="font-size:11px">查看</button>
+    </div>`).join('');
+  } catch(e) {}
+}
+
+async function doViewGroup(id) {
+  try {
+    const r = JSON.parse(await pywebview.api.collab_get_group(id));
+    const el = document.getElementById('group-detail');
+    el.style.display = 'block';
+    let html = '<div style="padding:12px"><h3>' + (r.group?.name || '小组') + '</h3>';
+    html += '<h4>成员</h4><ul>';
+    (r.members || []).forEach(m => { html += '<li>' + m.nickname + ' (' + m.role + ')</li>'; });
+    html += '</ul><h4>共享试卷</h4>';
+    (r.papers || []).forEach(p => { html += '<div>' + p.filename + ' (by user ' + p.added_by + ')</div>'; });
+    html += '<button class="btn" onclick="document.getElementById(\'group-detail\').style.display=\'none\'" style="margin-top:8px">关闭</button></div>';
+    el.innerHTML = html;
+  } catch(e) { alert('加载失败'); }
+}
+
+async function doLoadReviews() {
+  const subject = prompt('输入科目代码查看评价（如 9709）');
+  if (!subject) return;
+  try {
+    const reviews = JSON.parse(await pywebview.api.collab_list_reviews(subject, '0', ''));
+    const el = document.getElementById('reviews-list');
+    if (!reviews || reviews.length === 0) { el.innerHTML = '<div style="color:var(--text2);padding:12px">暂无评价</div>'; return; }
+    el.innerHTML = reviews.map(r => `<div style="padding:8px;border-bottom:1px solid var(--border)">
+      <div><b>${r.user_nickname || '匿名'}</b> · 评分 ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)} · 难度 ${r.difficulty}/5</div>
+      ${r.comment ? '<div style="color:var(--text2);font-size:13px;margin-top:4px">' + r.comment + '</div>' : ''}
+    </div>`).join('');
+  } catch(e) {}
+}
+
+async function doSubmitReview() {
+  const subject = prompt('科目代码');
+  if (!subject) return;
+  const year = prompt('年份');
+  const season = prompt('季节 (Mar/Jun/Nov)');
+  const rating = prompt('评分 (1-5)');
+  const difficulty = prompt('难度 (1-5)');
+  const comment = prompt('评语（可选）') || '';
+  try {
+    const r = JSON.parse(await pywebview.api.collab_create_review(subject, year, season, '', '', rating, difficulty, [], comment));
+    if (r.ok === false || r.error) alert('提交失败: ' + (r.error || ''));
+    else alert('评价已提交');
+  } catch(e) { alert('网络错误'); }
+}
+
+// Call on init
+document.addEventListener('pywebviewready', () => { setTimeout(checkCollabLogin, 500); });

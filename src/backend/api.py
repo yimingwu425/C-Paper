@@ -14,6 +14,7 @@ from .cache import read_json, write_json
 from .const import BASE_URL, CACHE_DIR, HISTORY_MAX, PLUGINS_DIR, VERSION
 from .engine import DownloadEngine, create_session
 from .parser import build_folders, fetch_subjects, get_year, group_papers, search_papers
+from .collab_client import CollabClient
 from .plugin_manager import PluginManager
 from .updater import check_update, skip_version, set_update_check
 
@@ -38,6 +39,7 @@ class API:
         self._persist_lock = threading.Lock()
         self._hist_set: set = set()
         self.plugin_manager = PluginManager(PLUGINS_DIR, lazy=True)
+        self._collab = CollabClient()
         self._hist_loaded = False
 
     def _ensure_hist_loaded(self):
@@ -686,3 +688,74 @@ class API:
             return json.dumps({"ok": True})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
+
+    # === Collaboration ===
+
+    def collab_register(self, email, password, nickname):
+        return json.dumps(self._collab.register(email, password, nickname))
+
+    def collab_login(self, email, password):
+        return json.dumps(self._collab.login(email, password))
+
+    def collab_logout(self):
+        return json.dumps(self._collab.logout())
+
+    def collab_is_logged_in(self):
+        return json.dumps({"ok": True, "logged_in": self._collab.is_logged_in()})
+
+    def collab_get_me(self):
+        return json.dumps(self._collab.get_me())
+
+    def collab_update_me(self, nickname, avatar_url):
+        return json.dumps(self._collab.update_me(nickname, avatar_url))
+
+    def collab_create_share(self, subject, year, season, paper_type, expiry):
+        return json.dumps(self._collab.create_share(subject, int(year), season, paper_type, expiry))
+
+    def collab_get_share(self, code):
+        return json.dumps(self._collab.get_share(code))
+
+    def collab_delete_share(self, code):
+        return json.dumps(self._collab.delete_share(code))
+
+    def collab_list_my_shares(self):
+        return json.dumps(self._collab.list_my_shares())
+
+    def collab_create_group(self, name, description):
+        return json.dumps(self._collab.create_group(name, description))
+
+    def collab_join_group(self, invite_code):
+        return json.dumps(self._collab.join_group(invite_code))
+
+    def collab_leave_group(self, group_id):
+        return json.dumps(self._collab.leave_group(group_id))
+
+    def collab_list_groups(self):
+        return json.dumps(self._collab.list_groups())
+
+    def collab_get_group(self, group_id):
+        return json.dumps(self._collab.get_group(group_id))
+
+    def collab_add_group_paper(self, group_id, subject, year, season, paper_type, filename, download_url):
+        return json.dumps(self._collab.add_group_paper(group_id, subject, year, season, paper_type, filename, download_url))
+
+    def collab_remove_group_paper(self, group_id, paper_id):
+        return json.dumps(self._collab.remove_group_paper(group_id, paper_id))
+
+    def collab_get_progress(self, group_id):
+        return json.dumps(self._collab.get_progress(group_id))
+
+    def collab_update_progress(self, group_id, group_paper_id, status):
+        return json.dumps(self._collab.update_progress(group_id, group_paper_id, status))
+
+    def collab_create_review(self, subject, year, season, paper_type, filename, rating, difficulty, tags, comment):
+        return json.dumps(self._collab.create_review(subject, year, season, paper_type, filename, rating, difficulty, tags, comment))
+
+    def collab_list_reviews(self, subject, year, season):
+        return json.dumps(self._collab.list_reviews(subject, int(year) if year else 0, season))
+
+    def collab_get_review_stats(self, subject):
+        return json.dumps(self._collab.get_review_stats(subject))
+
+    def collab_delete_review(self, review_id):
+        return json.dumps(self._collab.delete_review(review_id))

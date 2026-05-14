@@ -12,3 +12,4 @@ VERSION = "5.2.0"
 
 PLUGINS_DIR = os.path.join(CACHE_DIR, "plugins")
 UPDATE_STATE_PATH = os.path.join(CACHE_DIR, "update_state.json")
+COLLAB_SERVER_URL = os.environ.get("CPAPER_COLLAB_URL", "https://cpaper-api.fly.dev")
