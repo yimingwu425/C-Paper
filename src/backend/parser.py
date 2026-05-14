@@ -21,7 +21,7 @@ def fetch_subjects(session: requests.Session):
 def search_papers(session: requests.Session, subject, year, season):
     key = f"{subject}_{year}_{season}"
     cached = load_cache(key)
-    if cached:
+    if cached is not None:
         return cached
     resp = session.post(
         f"{BASE_URL}/obj/Common/Fetch/renum",

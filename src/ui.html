@@ -688,7 +688,7 @@ async function doInit(){
 
     // History
     const hist=JSON.parse(histR);
-    if(Array.isArray(hist)) hist.forEach(h=>S.downloadHistory.add(h.filename));
+    if(Array.isArray(hist)) hist.forEach(h=>S.downloadHistory.add(h));
 
     switchMode(S.mode);
     setStat('就绪');

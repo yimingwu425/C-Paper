@@ -47,7 +47,9 @@ def load_cache(key):
 
 def _cleanup_cache_directory():
     try:
-        return [os.path.join(CACHE_DIR, f) for f in os.listdir(CACHE_DIR) if f.endswith(".json")]
+        files = [os.path.join(CACHE_DIR, f) for f in os.listdir(CACHE_DIR) if f.endswith(".json")]
+        files.sort(key=os.path.getmtime)  # LRU: oldest first
+        return files
     except OSError:
         return []
 

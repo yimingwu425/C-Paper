@@ -132,6 +132,7 @@ class PluginManager:
         with self._lock:
             self._plugins = loaded
             self._loaded = True
+        logger.info("PluginManager lazy load complete: %d plugins loaded", len(loaded))
 
     def dispatch(self, hook_name: str, data: dict):
         """Dispatch event to all subscribed plugins in parallel."""
