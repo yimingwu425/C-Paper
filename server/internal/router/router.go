@@ -18,6 +18,7 @@ func Setup(db *sql.DB, cfg *config.Config) http.Handler {
 	r := chi.NewRouter()
 
 	// Global middleware
+	r.Use(middleware.Recover)
 	r.Use(middleware.Logger)
 	r.Use(cors.Handler(middleware.CORSOptions(cfg.AllowedOrigins)))
 	r.Use(middleware.MaxBodySize(1 << 20)) // 1MB request body limit
@@ -38,9 +39,15 @@ func Setup(db *sql.DB, cfg *config.Config) http.Handler {
 	group := handlers.NewGroupHandler(groups, sseHub)
 	review := handlers.NewReviewHandler(reviews)
 
-	// Health check
+	// Health check (includes DB ping)
 	r.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		handlers.RespondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		dbStatus := "ok"
+		statusCode := http.StatusOK
+		if err := db.PingContext(r.Context()); err != nil {
+			dbStatus = "error"
+			statusCode = http.StatusServiceUnavailable
+		}
+		handlers.RespondJSON(w, statusCode, map[string]string{"status": dbStatus})
 	})
 
 	// Auth routes (rate limited)
