@@ -6,9 +6,16 @@ from .cache import load_cache, save_cache
 
 
 def fetch_subjects(session: requests.Session):
+    """Fetch subject list from API. Results are cached for 24 hours."""
+    cache_key = "subjects"
+    cached = load_cache(cache_key)
+    if cached is not None:
+        return cached
     resp = session.post(f"{BASE_URL}/obj/Common/Subject/combo", timeout=(5, 15))
     resp.raise_for_status()
-    return resp.json()
+    data = resp.json()
+    save_cache(cache_key, data)
+    return data
 
 
 def search_papers(session: requests.Session, subject, year, season):
