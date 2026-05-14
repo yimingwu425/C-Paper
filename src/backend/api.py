@@ -420,8 +420,15 @@ class API:
             self._hist_set.add(filename)
 
     def get_download_history(self):
-        hist = read_json(self._hist_path, {"items": []})
-        return json.dumps(hist.get("items", []))
+        try:
+            hist = read_json(self._hist_path, {"items": []})
+            items = hist.get("items", [])
+            # Only return filenames — that's all the frontend needs for dedup
+            filenames = [item.get("filename") for item in items if item.get("filename")]
+            return json.dumps(filenames, ensure_ascii=False)
+        except Exception:
+            logger.exception("Failed to load download history")
+            return json.dumps([])
 
     def check_downloaded(self, filename):
         self._ensure_hist_loaded()
