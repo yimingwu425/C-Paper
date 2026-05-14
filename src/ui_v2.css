@@ -5,8 +5,8 @@
   --text:#141413;--text2:#6b6960;--text3:#a09e96;
   --accent:#d97757;--accent2:#6a9bcc;--accent-dim:rgba(217,119,87,0.10);
   --ok:#788c5d;--err:#c53030;--warn:#b8860b;
-  --sans:'Nunito Sans','Noto Sans SC',system-ui,sans-serif;
-  --serif:'Playfair Display','Noto Serif SC',Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --serif:Georgia,'Times New Roman',serif;
   --ease:cubic-bezier(0.16,1,0.3,1);
   --ease-spring:cubic-bezier(0.34,1.56,0.64,1);
 }
