@@ -1,0 +1,8 @@
+{
+  "version": "5.2.0",
+  "min_version": "5.0.0",
+  "download_url": "https://github.com/Ja-son-WU/CIE-Downloader/releases/tag/v5.2.0",
+  "release_notes": "- 新增插件系统\n- 新增自动更新检查",
+  "force_update": false,
+  "published_at": "2026-05-13T00:00:00Z"
+}

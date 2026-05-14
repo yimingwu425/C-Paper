@@ -8,4 +8,7 @@ CACHE_TTL = 86400          # 24 hours
 CACHE_MAX = 200            # max cache files
 USER_AGENT = "C-Paper/5.1 (Desktop)"
 HISTORY_MAX = 2000         # max download history entries
-VERSION = "5.1"
+VERSION = "5.2.0"
+
+PLUGINS_DIR = os.path.join(CACHE_DIR, "plugins")
+UPDATE_STATE_PATH = os.path.join(CACHE_DIR, "update_state.json")
