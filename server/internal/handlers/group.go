@@ -217,9 +217,21 @@ func (h *GroupHandler) RemovePaper(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *GroupHandler) GetProgress(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		RespondError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	groupID, ok := parseIDParam(r, "id")
 	if !ok {
 		RespondError(w, http.StatusBadRequest, "invalid group id")
+		return
+	}
+
+	isMember, err := h.groups.IsMember(groupID, userID)
+	if err != nil || !isMember {
+		RespondError(w, http.StatusForbidden, "not a member of this group")
 		return
 	}
 

@@ -76,6 +76,15 @@ func (h *ShareHandler) GetShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check expiry
+	if share.ExpiresAt != "" {
+		expiresAt, err := time.Parse(time.RFC3339, share.ExpiresAt)
+		if err == nil && time.Now().After(expiresAt) {
+			RespondError(w, http.StatusGone, "share has expired")
+			return
+		}
+	}
+
 	RespondJSON(w, http.StatusOK, share)
 }
 
@@ -112,7 +121,7 @@ func (h *ShareHandler) ListMyShares(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateCode(n int) (string, error) {
-	b := make([]byte, n)
+	b := make([]byte, (n+1)/2)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}

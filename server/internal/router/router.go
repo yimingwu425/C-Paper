@@ -20,6 +20,7 @@ func Setup(db *sql.DB, cfg *config.Config) http.Handler {
 	// Global middleware
 	r.Use(middleware.Logger)
 	r.Use(cors.Handler(middleware.CORSOptions(cfg.AllowedOrigins)))
+	r.Use(middleware.MaxBodySize(1 << 20)) // 1MB request body limit
 	r.Use(func(next http.Handler) http.Handler {
 		return middleware.RateLimitGeneral(next)
 	})
@@ -80,7 +81,7 @@ func Setup(db *sql.DB, cfg *config.Config) http.Handler {
 		r.Delete("/api/groups/{id}/papers/{pid}", group.RemovePaper)
 		r.Get("/api/groups/{id}/progress", group.GetProgress)
 		r.Post("/api/groups/{id}/progress", group.UpdateProgress)
-		r.Get("/api/groups/{id}/events", sse.HandleSSE(sseHub))
+		r.Get("/api/groups/{id}/events", sse.HandleSSE(sseHub, groups.IsMember))
 
 		// Review
 		r.Post("/api/reviews", review.CreateReview)

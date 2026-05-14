@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/ja-son-wu/c-paper-server/internal/middleware"
@@ -61,15 +62,30 @@ func (h *Hub) Broadcast(groupID int64, event Event) {
 	}
 }
 
-func HandleSSE(hub *Hub) http.HandlerFunc {
+// MembershipChecker is a function that checks if a user belongs to a group.
+type MembershipChecker func(groupID, userID int64) (bool, error)
+
+// HandleSSE creates an SSE handler that verifies group membership.
+func HandleSSE(hub *Hub, isMember MembershipChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := middleware.GetUserID(r)
 		if !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			http.Error(w, `{"ok":false,"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 
-		groupID, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+		groupID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+		if err != nil || groupID <= 0 {
+			http.Error(w, `{"ok":false,"error":"invalid group id"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Verify group membership
+		member, err := isMember(groupID, userID)
+		if err != nil || !member {
+			http.Error(w, `{"ok":false,"error":"not a member of this group"}`, http.StatusForbidden)
+			return
+		}
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -90,11 +106,18 @@ func HandleSSE(hub *Hub) http.HandlerFunc {
 		fmt.Fprintf(w, "event: connected\ndata: %s\n\n", data)
 		flusher.Flush()
 
+		// Heartbeat ticker
+		heartbeat := time.NewTicker(30 * time.Second)
+		defer heartbeat.Stop()
+
 		ctx := r.Context()
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-heartbeat.C:
+				fmt.Fprintf(w, ":heartbeat\n\n")
+				flusher.Flush()
 			case event := <-ch:
 				fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, event.Data)
 				flusher.Flush()

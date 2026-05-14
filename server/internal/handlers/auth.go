@@ -130,7 +130,12 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := int64(claims["user_id"].(float64))
+	userIDFloat, ok := claims["user_id"].(float64)
+	if !ok {
+		RespondError(w, http.StatusUnauthorized, "invalid user_id in token")
+		return
+	}
+	userID := int64(userIDFloat)
 	access, refresh, err := issueTokens(userID, h.cfg)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, "failed to issue tokens")
