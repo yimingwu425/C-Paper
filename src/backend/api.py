@@ -17,6 +17,10 @@ from .parser import build_folders, fetch_subjects, get_year, group_papers, searc
 from .collab_client import CollabClient
 from .plugin_manager import PluginManager
 from .updater import check_update, skip_version, set_update_check
+from .ocr_engine import OCREngine
+from .ai_analyzer import AIAnalyzer
+from .dedup_engine import DedupEngine
+from .fts_engine import FTSEngine
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,13 @@ class API:
         self.plugin_manager = PluginManager(PLUGINS_DIR, lazy=True)
         self._collab = CollabClient()
         self._hist_loaded = False
+
+        # v6.0-beta: AI/OCR/FTS/Dedup lazy-init
+        self._ocr = None
+        self._ai = None
+        self._dedup = None
+        self._fts = FTSEngine()
+        self._fts.initialize()
 
     def _ensure_hist_loaded(self):
         if self._hist_loaded:
@@ -759,3 +770,84 @@ class API:
 
     def collab_delete_review(self, review_id):
         return json.dumps(self._collab.delete_review(review_id))
+
+    # === OCR ===
+
+    def ocr_paper(self, pdf_path):
+        if not self._ocr:
+            self._ocr = OCREngine()
+        result = self._ocr.extract_text(pdf_path)
+        return json.dumps({"ok": True, "result": result.to_dict()})
+
+    def get_ocr_status(self):
+        if not self._ocr:
+            return json.dumps({"ok": True, "available": False})
+        return json.dumps({"ok": True, "available": self._ocr.is_available()})
+
+    # === AI Analysis ===
+
+    def configure_ai(self, config_json):
+        if not self._ai:
+            self._ai = AIAnalyzer()
+        cfg = json.loads(config_json) if isinstance(config_json, str) else config_json
+        return json.dumps(self._ai.configure(cfg.get("provider",""), cfg.get("api_key",""), cfg.get("model",""), cfg.get("base_url","")))
+
+    def get_ai_config(self):
+        if not self._ai:
+            self._ai = AIAnalyzer()
+        return json.dumps(self._ai.get_config())
+
+    def test_ai_connection(self):
+        if not self._ai:
+            self._ai = AIAnalyzer()
+        return json.dumps(self._ai.test_connection())
+
+    def analyze_paper(self, text, paper_info_json="{}"):
+        if not self._ai:
+            self._ai = AIAnalyzer()
+        paper_info = json.loads(paper_info_json) if paper_info_json else {}
+        return json.dumps(self._ai.analyze_paper(text, paper_info))
+
+    def get_ai_result(self, paper_id):
+        if not self._ai:
+            self._ai = AIAnalyzer()
+        return json.dumps(self._ai.get_cached_result(paper_id))
+
+    # === Dedup ===
+
+    def init_dedup(self):
+        if not self._dedup:
+            self._dedup = DedupEngine()
+        return json.dumps(self._dedup.initialize())
+
+    def get_dedup_status(self):
+        if not self._dedup:
+            self._dedup = DedupEngine()
+        return json.dumps(self._dedup.get_stats())
+
+    def find_similar_questions(self, question_text, top_k=10):
+        if not self._dedup:
+            self._dedup = DedupEngine()
+            self._dedup.initialize()
+        return json.dumps(self._dedup.find_similar(question_text, int(top_k)))
+
+    def add_to_dedup(self, paper_id, questions_json, metadata_json="{}"):
+        if not self._dedup:
+            self._dedup = DedupEngine()
+            self._dedup.initialize()
+        questions = json.loads(questions_json) if isinstance(questions_json, str) else questions_json
+        metadata = json.loads(metadata_json) if metadata_json else {}
+        return json.dumps(self._dedup.add_paper(paper_id, questions, metadata))
+
+    # === FTS ===
+
+    def fts_search(self, query, limit=20):
+        return json.dumps(self._fts.search(query, int(limit)))
+
+    def fts_index_paper(self, paper_id, full_text, questions_json, metadata_json="{}"):
+        questions = json.loads(questions_json) if isinstance(questions_json, str) else questions_json
+        metadata = json.loads(metadata_json) if metadata_json else {}
+        return json.dumps(self._fts.index_paper(paper_id, full_text, questions, metadata))
+
+    def fts_stats(self):
+        return json.dumps(self._fts.get_stats())

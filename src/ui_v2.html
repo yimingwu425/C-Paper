@@ -131,6 +131,14 @@ border-radius:2px;transition:width .4s var(--ease);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span class="rail-label">协作</span>
     </button>
+    <button class="rail-btn" id="mode-ai" title="AI 分析" onclick="switchMode('ai')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93L12 22"/><path d="M12 2a4 4 0 0 0-4 4c0 1.95 1.4 3.58 3.25 3.93"/><circle cx="12" cy="6" r="1"/><path d="M7.5 14.5L3 18"/><path d="M16.5 14.5L21 18"/></svg>
+      <span class="rail-label">AI</span>
+    </button>
+    <button class="rail-btn" id="mode-fts" title="全文搜索" onclick="switchMode('fts')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span class="rail-label">全文</span>
+    </button>
     <div class="rail-fav-section">
       <div class="rail-fav-hdr">
         <span class="rail-fav-title">收藏</span>
@@ -436,6 +444,59 @@ border-radius:2px;transition:width .4s var(--ease);}
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- AI Panel -->
+      <div class="panel" id="pnl-ai">
+        <div class="card">
+          <div class="card-hdr">AI 配置</div>
+          <div class="card-body">
+            <select id="ai-provider" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="qwen">通义千问</option>
+            </select>
+            <input type="password" id="ai-key" placeholder="API Key" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+            <select id="ai-model" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+              <option value="gpt-4o-mini">gpt-4o-mini</option>
+              <option value="claude-sonnet-4-20250514">claude-sonnet</option>
+              <option value="qwen-turbo">qwen-turbo</option>
+            </select>
+            <div style="display:flex;gap:8px">
+              <button class="btn" onclick="doSaveAIConfig()">保存</button>
+              <button class="btn" onclick="doTestAI()">测试连接</button>
+            </div>
+            <div id="ai-status" style="font-size:12px;margin-top:8px;color:var(--text2)"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr">试卷分析</div>
+          <div class="card-body">
+            <textarea id="ai-input" placeholder="粘贴试卷文本（或通过 OCR 自动填入）" style="width:100%;height:120px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;resize:vertical"></textarea>
+            <button class="btn" onclick="doAnalyzePaper()" style="margin-top:8px">分析</button>
+            <div id="ai-progress" style="margin-top:8px"></div>
+          </div>
+        </div>
+        <div class="card" id="ai-result-card" style="display:none">
+          <div class="card-hdr">分析结果</div>
+          <div class="card-body" id="ai-result"></div>
+        </div>
+      </div>
+
+      <!-- FTS Panel -->
+      <div class="panel" id="pnl-fts">
+        <div class="card">
+          <div class="card-hdr">全文搜索</div>
+          <div class="card-body">
+            <input type="text" id="fts-query" placeholder="搜索 OCR 提取的题目内容..." style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+            <button class="btn" onclick="doFTSSearch()">搜索</button>
+            <span id="fts-stats" style="font-size:12px;color:var(--text2);margin-left:12px"></span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr">搜索结果</div>
+          <div class="card-body" id="fts-results" style="max-height:400px;overflow-y:auto"></div>
         </div>
       </div>
   </div>

@@ -178,7 +178,7 @@ async function clearHistory(){
 
 function switchMode(name){
   S.mode=name;
-  ['search','batch','downloads','collab'].forEach(n=>{
+  ['search','batch','downloads','collab','ai','fts'].forEach(n=>{
     const btn=document.getElementById('mode-'+n);
     const pnl=document.getElementById('pnl-'+n);
     if(btn)btn.classList.toggle('on',n===name);
@@ -186,7 +186,7 @@ function switchMode(name){
   });
   const dlbtn=document.getElementById('dlbtn');
   const dockRetryBtn=document.getElementById('dock-retry-btn');
-  if(name==='collab'){
+  if(name==='collab'||name==='ai'||name==='fts'){
     dlbtn.style.display='none';
     if(dockRetryBtn)dockRetryBtn.style.display='none';
   }else{
@@ -1051,3 +1051,101 @@ async function doSubmitReview() {
 
 // Call on init
 document.addEventListener('pywebviewready', () => { setTimeout(checkCollabLogin, 500); });
+
+// === AI Analysis ===
+async function doSaveAIConfig() {
+  const provider = document.getElementById('ai-provider').value;
+  const key = document.getElementById('ai-key').value.trim();
+  const model = document.getElementById('ai-model').value;
+  if (!key) { document.getElementById('ai-status').textContent = '请输入 API Key'; return; }
+  try {
+    const r = JSON.parse(await pywebview.api.configure_ai(JSON.stringify({provider, api_key: key, model})));
+    document.getElementById('ai-status').textContent = r.ok ? '配置已保存' : ('错误: ' + (r.error || ''));
+  } catch(e) { document.getElementById('ai-status').textContent = '保存失败'; }
+}
+
+async function doTestAI() {
+  document.getElementById('ai-status').textContent = '测试中...';
+  try {
+    const r = JSON.parse(await pywebview.api.test_ai_connection());
+    document.getElementById('ai-status').textContent = r.ok ? '连接成功 \u2713' : ('失败: ' + (r.error || ''));
+  } catch(e) { document.getElementById('ai-status').textContent = '测试失败'; }
+}
+
+async function doAnalyzePaper() {
+  const text = document.getElementById('ai-input').value.trim();
+  if (!text) { alert('请输入试卷文本'); return; }
+  document.getElementById('ai-progress').textContent = '分析中...';
+  document.getElementById('ai-result-card').style.display = 'none';
+  try {
+    const r = JSON.parse(await pywebview.api.analyze_paper(text));
+    document.getElementById('ai-progress').textContent = '';
+    if (r.ok && r.result) {
+      renderAIResult(r.result);
+    } else {
+      document.getElementById('ai-progress').textContent = '分析失败: ' + (r.error || '');
+    }
+  } catch(e) { document.getElementById('ai-progress').textContent = '请求失败'; }
+}
+
+function renderAIResult(result) {
+  const card = document.getElementById('ai-result-card');
+  card.style.display = 'block';
+  let html = '';
+
+  if (result.topics && result.topics.length) {
+    html += '<h4>考点分布</h4><div>';
+    result.topics.forEach(t => {
+      html += `<div style="margin-bottom:4px"><b>${esc(t.name)}</b>: Q${(t.questions||[]).map(esc).join(', Q')} (${t.total_marks || '?'} marks)</div>`;
+    });
+    html += '</div>';
+  }
+
+  if (result.difficulty_distribution) {
+    const d = result.difficulty_distribution;
+    html += `<h4>难度分布</h4><div>简单: ${d.easy||0} \u00b7 中等: ${d.medium||0} \u00b7 困难: ${d.hard||0}</div>`;
+  }
+
+  if (result.summary) {
+    html += `<h4>摘要</h4><div style="line-height:1.6">${esc(result.summary)}</div>`;
+  }
+
+  if (result.repeated_from_previous && result.repeated_from_previous.length) {
+    html += '<h4>重复题型</h4>';
+    result.repeated_from_previous.forEach(r => {
+      html += `<div>Q${esc(String(r.question))} \u2248 ${esc(String(r.similar_to))} (${(r.similarity*100).toFixed(0)}%)</div>`;
+    });
+  }
+
+  document.getElementById('ai-result').innerHTML = html;
+}
+
+// === FTS Search ===
+async function doFTSSearch() {
+  const query = document.getElementById('fts-query').value.trim();
+  if (!query) return;
+  try {
+    const r = JSON.parse(await pywebview.api.fts_search(query));
+    const el = document.getElementById('fts-results');
+    if (!r.results || r.results.length === 0) {
+      el.innerHTML = '<div style="color:var(--text2);padding:12px">无匹配结果</div>';
+      return;
+    }
+    el.innerHTML = r.results.map(item =>
+      `<div style="padding:8px;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px;color:var(--text2)">${esc(item.paper_id)} \u00b7 Q${esc(String(item.question_number))}</div>
+        <div style="margin-top:4px">${esc(item.snippet)}</div>
+      </div>`
+    ).join('');
+  } catch(e) {}
+}
+
+async function loadFTSStats() {
+  try {
+    const r = JSON.parse(await pywebview.api.fts_stats());
+    document.getElementById('fts-stats').textContent = `${r.total_papers} 份试卷 \u00b7 ${r.total_questions} 道题已索引`;
+  } catch(e) {}
+}
+
+// Load on init
+document.addEventListener('pywebviewready', () => { setTimeout(loadFTSStats, 1000); });

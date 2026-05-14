@@ -13,3 +13,10 @@ VERSION = "5.2.0"
 PLUGINS_DIR = os.path.join(CACHE_DIR, "plugins")
 UPDATE_STATE_PATH = os.path.join(CACHE_DIR, "update_state.json")
 COLLAB_SERVER_URL = os.environ.get("CPAPER_COLLAB_URL", "https://cpaper-api.fly.dev")
+
+# === v6.0-beta: AI/OCR/FTS/Dedup ===
+FTS_DB_PATH = os.path.join(CACHE_DIR, "cpaper_fts.db")
+DEDUP_INDEX_PATH = os.path.join(CACHE_DIR, "dedup_index")
+AI_CONFIG_PATH = os.path.join(CACHE_DIR, "ai_config.json")
+AI_CACHE_DIR = os.path.join(CACHE_DIR, "ai_results")
+OCR_CACHE_DIR = os.path.join(CACHE_DIR, "ocr_results")
