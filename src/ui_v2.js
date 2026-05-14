@@ -60,32 +60,34 @@ async function doInit(){
     if(fill)fill.style.width='75%';
     const settings=JSON.parse(settingsR);
     S.theme=settings.theme||'light';S.saveDir=settings.save_dir||'';
-    document.documentElement.dataset.theme=S.theme;
-    updateThemeIcon();
-    document.getElementById('dir-disp').textContent=S.saveDir;
-    document.getElementById('dir-disp-batch').textContent=S.saveDir;
-    document.getElementById('dl-ms').checked=settings.include_ms!==false;
-    document.getElementById('dl-ms-batch').checked=settings.include_ms!==false;
-    document.getElementById('b-rate').value=settings.rate||5;document.getElementById('rv').textContent=(settings.rate||5)+'/s';
-    document.getElementById('b-rate-batch').value=settings.rate||5;document.getElementById('rv-batch').textContent=(settings.rate||5)+'/s';
-    document.getElementById('b-thr').value=settings.threads||4;
-    document.getElementById('b-thr-batch').value=settings.threads||4;
-    document.getElementById('b-merge').checked=!!settings.merge;
-    document.getElementById('b-merge-batch').checked=!!settings.merge;
-    syncCB(document.getElementById('b-merge'));
-    syncCB(document.getElementById('b-merge-batch'));
-    if(settings.last_mode)S.mode=settings.last_mode;
-    if(settings.proxy_url){
-      document.getElementById('proxy-url-side').value=settings.proxy_url;
-      document.getElementById('proxy-indicator').textContent='已配置';
-    }
+    requestAnimationFrame(()=>{
+      document.documentElement.dataset.theme=S.theme;
+      updateThemeIcon();
+      document.getElementById('dir-disp').textContent=S.saveDir;
+      document.getElementById('dir-disp-batch').textContent=S.saveDir;
+      document.getElementById('dl-ms').checked=settings.include_ms!==false;
+      document.getElementById('dl-ms-batch').checked=settings.include_ms!==false;
+      document.getElementById('b-rate').value=settings.rate||5;document.getElementById('rv').textContent=(settings.rate||5)+'/s';
+      document.getElementById('b-rate-batch').value=settings.rate||5;document.getElementById('rv-batch').textContent=(settings.rate||5)+'/s';
+      document.getElementById('b-thr').value=settings.threads||4;
+      document.getElementById('b-thr-batch').value=settings.threads||4;
+      document.getElementById('b-merge').checked=!!settings.merge;
+      document.getElementById('b-merge-batch').checked=!!settings.merge;
+      syncCB(document.getElementById('b-merge'));
+      syncCB(document.getElementById('b-merge-batch'));
+      if(settings.last_mode)S.mode=settings.last_mode;
+      if(settings.proxy_url){
+        document.getElementById('proxy-url-side').value=settings.proxy_url;
+        document.getElementById('proxy-indicator').textContent='已配置';
+      }
 
-    const fav=JSON.parse(favR);
-    S.favorites=Array.isArray(fav)?fav:[];
-    renderFavs();
+      const fav=JSON.parse(favR);
+      S.favorites=Array.isArray(fav)?fav:[];
+      renderFavs();
+    });
 
     const hist=JSON.parse(histR);
-    if(Array.isArray(hist))hist.forEach(h=>S.downloadHistory.add(h.filename));
+    if(Array.isArray(hist))hist.forEach(h=>S.downloadHistory.add(h));
 
     switchMode(S.mode);
     setStat('就绪');
