@@ -94,6 +94,8 @@ async function doInit(){
     if(msg)msg.textContent='加载完成';
     const sp=document.getElementById('splash');
     if(sp){setTimeout(()=>{sp.classList.add('fade');setTimeout(()=>sp.remove(),500);},300);}
+    // Check for updates (async, non-blocking)
+    setTimeout(()=>checkUpdate(), 2000);
     window.focus();
   }catch(e){
     const sp=document.getElementById('splash');
@@ -800,4 +802,37 @@ async function togglePlugin(pluginId,enabled){
 
 async function openPluginsDir(){
   await pywebview.api.open_plugins_dir();
+}
+
+let _updateUrl = '';
+let _updateVersion = '';
+
+async function checkUpdate(force=false){
+  try{
+    const r = JSON.parse(await pywebview.api.check_update(force ? 'true' : 'false'));
+    if(!r.ok || !r.has_update) return;
+    _updateUrl = r.download_url || '';
+    _updateVersion = r.latest_version || '';
+    document.getElementById('update-ver').textContent = 'v' + _updateVersion;
+    document.getElementById('update-notes').textContent = r.release_notes || '';
+    document.getElementById('update-toast').style.display = '';
+  }catch(e){}
+}
+
+async function openUpdateUrl(){
+  if(_updateUrl){
+    await pywebview.api.open_url(_updateUrl);
+  }
+  dismissUpdate();
+}
+
+async function skipThisVersion(){
+  if(_updateVersion){
+    await pywebview.api.skip_version(_updateVersion);
+  }
+  dismissUpdate();
+}
+
+function dismissUpdate(){
+  document.getElementById('update-toast').style.display = 'none';
 }
