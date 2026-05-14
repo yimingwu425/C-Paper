@@ -39,3 +39,17 @@ tox.ini
 .vscode/
 .idea/
 *.swp
+
+# Go
+server/server
+server/*.db
+server/dev.db
+server/tmp/
+
+# iOS
+ios/build/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcworkspace/xcuserdata/
+DerivedData/
+*.ipa
+*.dSYM.zip
