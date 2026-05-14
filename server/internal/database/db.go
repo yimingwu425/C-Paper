@@ -15,9 +15,9 @@ func Open(dbPath string) *sql.DB {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 
-	// SQLite works best with a single connection for writes.
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	// WAL mode allows concurrent reads. Use a small pool for read throughput.
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(5)
 
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)

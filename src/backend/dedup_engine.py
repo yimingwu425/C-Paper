@@ -52,6 +52,7 @@ class DedupEngine:
         self._index = None
         self._metadata = []  # list of dicts: {paper_id, question_number, text, subject, year}
         self._paper_ids = set()
+        self._dirty = False  # tracks unsaved changes
 
         self._index_path = os.path.join(self._cache_dir, "questions.index")
         self._meta_path = os.path.join(self._cache_dir, "questions.meta.pkl")
@@ -119,7 +120,7 @@ class DedupEngine:
             })
 
         self._paper_ids.add(paper_id)
-        self._save_index()
+        self._dirty = True
 
         return {"ok": True, "added_count": len(texts)}
 
@@ -172,10 +173,18 @@ class DedupEngine:
                 progress_cb("indexing", int((i / total) * 100), f"索引中 {i+1}/{total}")
             self.add_paper(paper_id, questions, meta)
 
+        self._save_index()
+
         if progress_cb:
             progress_cb("done", 100, f"索引完成，共 {len(self._metadata)} 道题")
 
         return {"ok": True, "total_questions": len(self._metadata), "total_papers": len(self._paper_ids)}
+
+    def flush(self):
+        """Save index to disk if there are unsaved changes."""
+        if self._dirty:
+            self._save_index()
+            self._dirty = False
 
     def get_stats(self):
         """Get index statistics."""

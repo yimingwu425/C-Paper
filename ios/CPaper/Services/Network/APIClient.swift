@@ -15,7 +15,7 @@ final class APIClient {
         self.session = URLSession(configuration: config)
     }
 
-    func request<T: Decodable>(_ method: String, _ path: String, body: Encodable? = nil) async throws -> T {
+    func request<T: Decodable>(_ method: String, _ path: String, body: Encodable? = nil, isRetry: Bool = false) async throws -> T {
         var urlRequest = URLRequest(url: baseURL.appendingPathComponent(path))
         urlRequest.httpMethod = method
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -42,9 +42,12 @@ final class APIClient {
         switch httpResponse.statusCode {
         case 200...299:
             return try JSONDecoder().decode(T.self, from: data)
-        case 401:
+        case 401 where !isRetry:
             try await tokenManager.refreshIfNeeded()
-            return try await request(method, path, body: body)
+            return try await request(method, path, body: body, isRetry: true)
+        case 401:
+            tokenManager.clearTokens()
+            throw APIError.unauthorized
         case 429:
             throw APIError.rateLimited
         default:

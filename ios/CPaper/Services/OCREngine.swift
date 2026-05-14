@@ -26,7 +26,7 @@ final class OCREngine {
             guard let page = document.page(at: i) else { continue }
 
             let pageRect = page.bounds(for: .mediaBox)
-            let scale: CGFloat = 3.0 // 300 DPI equivalent
+            let scale: CGFloat = 2.0 // 200 DPI — sufficient for Vision OCR, ~44% less memory than 3x
             let size = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
 
             UIGraphicsBeginImageContextWithOptions(size, true, 1.0)
@@ -38,12 +38,10 @@ final class OCREngine {
             }
             context.scaleBy(x: scale, y: scale)
             page.draw(with: .mediaBox, to: context)
-            guard let image = UIGraphicsGetImageFromCurrentImageContext() else {
-                UIGraphicsEndImageContext()
-                continue
-            }
+            let image = UIGraphicsGetImageFromCurrentImageContext()
             UIGraphicsEndImageContext()
 
+            guard let image else { continue }
             let pageText = try await recognizeText(from: image)
             pages.append(pageText)
 
