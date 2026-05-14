@@ -453,10 +453,10 @@ border-radius:2px;transition:width .4s var(--ease);}
           <div class="card-hdr">AI 助手设置</div>
           <div class="card-body">
             <p style="font-size:13px;color:var(--text3);margin-bottom:12px">
-              配置 API Key 以使用 AI 助手。支持 Anthropic / DeepSeek / 通义千问等。
+              使用 DeepSeek API 驱动的 AI 助手。<br>
+              请在 <a href="https://platform.deepseek.com/api_keys" target="_blank" style="color:var(--accent)">platform.deepseek.com</a> 获取 API Key。
             </p>
-            <input type="password" id="ai-api-key" placeholder="API Key" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
-            <input type="text" id="ai-base-url" placeholder="自定义 API 地址（可选）" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+            <input type="password" id="ai-api-key" placeholder="DeepSeek API Key" style="width:100%;margin-bottom:8px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
             <button class="btn btn-pri" onclick="aiSaveKey()">保存并启动</button>
             <div id="ai-setup-status" style="font-size:12px;margin-top:8px;color:var(--text2)"></div>
           </div>

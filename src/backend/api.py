@@ -797,8 +797,8 @@ class API:
             "running": self._claude.is_running,
         })
 
-    def ai_set_key(self, api_key, base_url=""):
-        write_json(AI_KEY_PATH, {"api_key": api_key, "base_url": base_url})
+    def ai_set_key(self, api_key):
+        write_json(AI_KEY_PATH, {"api_key": api_key})
         return json.dumps({"ok": True})
 
     def ai_start(self):
@@ -810,8 +810,7 @@ class API:
         api_key = key_data.get("api_key", "")
         if not api_key:
             return json.dumps({"ok": False, "error": "请先配置 API Key"})
-        base_url = key_data.get("base_url", "")
-        return json.dumps(self._claude.start_session(api_key, base_url))
+        return json.dumps(self._claude.start_session(api_key))
 
     def ai_send(self, message):
         if not self._claude:

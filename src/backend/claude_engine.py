@@ -40,8 +40,8 @@ class ClaudeEngine:
     def get_binary_path(self):
         return self._binary
 
-    def start_session(self, api_key, base_url="", model="claude-sonnet-4-20250514"):
-        """Start a cc-haha subprocess with the given API key."""
+    def start_session(self, api_key):
+        """Start a cc-haha subprocess with the given DeepSeek API key."""
         if self._process:
             self.stop_session()
 
@@ -51,8 +51,7 @@ class ClaudeEngine:
 
         env = os.environ.copy()
         env["ANTHROPIC_AUTH_TOKEN"] = api_key
-        if base_url:
-            env["ANTHROPIC_BASE_URL"] = base_url
+        env["ANTHROPIC_BASE_URL"] = "https://api.deepseek.com/anthropic"
 
         cmd = [
             self._binary, "-p",
@@ -60,7 +59,7 @@ class ClaudeEngine:
             "--output-format", "stream-json",
             "--permission-mode", "bypassPermissions",
             "--session-id", self._session_id,
-            "--model", model,
+            "--model", "deepseek-v4-pro",
         ]
 
         try:

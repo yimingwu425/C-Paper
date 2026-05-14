@@ -50,8 +50,6 @@ class TestClaudeEngineSession:
         if not engine.is_available():
             pytest.skip("claude-haha binary not available")
         result = engine.start_session("invalid-key-12345")
-        # It may fail or succeed depending on binary behavior
-        # Just verify it returns a dict
         assert isinstance(result, dict)
         engine.stop_session()
 

@@ -1072,10 +1072,9 @@ async function aiInit() {
 
 async function aiSaveKey() {
   const key = document.getElementById('ai-api-key').value.trim();
-  const baseUrl = document.getElementById('ai-base-url').value.trim();
   if (!key) { document.getElementById('ai-setup-status').textContent = '请输入 API Key'; return; }
   try {
-    const r = JSON.parse(await pywebview.api.ai_set_key(key, baseUrl));
+    const r = JSON.parse(await pywebview.api.ai_set_key(key));
     if (r.ok) {
       document.getElementById('ai-setup-card').style.display = 'none';
       document.getElementById('ai-chat-card').style.display = 'block';
