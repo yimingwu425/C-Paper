@@ -1050,74 +1050,106 @@ async function doSubmitReview() {
 }
 
 // Call on init
-document.addEventListener('pywebviewready', () => { setTimeout(checkCollabLogin, 500); });
+document.addEventListener('pywebviewready', () => {
+  setTimeout(checkCollabLogin, 500);
+  setTimeout(aiInit, 1500);
+});
 
-// === AI Analysis ===
-async function doSaveAIConfig() {
-  const provider = document.getElementById('ai-provider').value;
-  const key = document.getElementById('ai-key').value.trim();
-  const model = document.getElementById('ai-model').value;
-  if (!key) { document.getElementById('ai-status').textContent = '请输入 API Key'; return; }
-  try {
-    const r = JSON.parse(await pywebview.api.configure_ai(JSON.stringify({provider, api_key: key, model})));
-    document.getElementById('ai-status').textContent = r.ok ? '配置已保存' : ('错误: ' + (r.error || ''));
-  } catch(e) { document.getElementById('ai-status').textContent = '保存失败'; }
-}
+// === AI (Claude Code) ===
+let aiMessages = [];
+let aiPolling = null;
 
-async function doTestAI() {
-  document.getElementById('ai-status').textContent = '测试中...';
+async function aiInit() {
   try {
-    const r = JSON.parse(await pywebview.api.test_ai_connection());
-    document.getElementById('ai-status').textContent = r.ok ? '连接成功 \u2713' : ('失败: ' + (r.error || ''));
-  } catch(e) { document.getElementById('ai-status').textContent = '测试失败'; }
-}
-
-async function doAnalyzePaper() {
-  const text = document.getElementById('ai-input').value.trim();
-  if (!text) { alert('请输入试卷文本'); return; }
-  document.getElementById('ai-progress').textContent = '分析中...';
-  document.getElementById('ai-result-card').style.display = 'none';
-  try {
-    const r = JSON.parse(await pywebview.api.analyze_paper(text));
-    document.getElementById('ai-progress').textContent = '';
-    if (r.ok && r.result) {
-      renderAIResult(r.result);
-    } else {
-      document.getElementById('ai-progress').textContent = '分析失败: ' + (r.error || '');
+    const r = JSON.parse(await pywebview.api.ai_status());
+    if (r.has_key) {
+      document.getElementById('ai-setup-card').style.display = 'none';
+      document.getElementById('ai-chat-card').style.display = 'block';
+      if (!r.running) aiStartSession();
     }
-  } catch(e) { document.getElementById('ai-progress').textContent = '请求失败'; }
+  } catch(e) {}
 }
 
-function renderAIResult(result) {
-  const card = document.getElementById('ai-result-card');
-  card.style.display = 'block';
-  let html = '';
+async function aiSaveKey() {
+  const key = document.getElementById('ai-api-key').value.trim();
+  const baseUrl = document.getElementById('ai-base-url').value.trim();
+  if (!key) { document.getElementById('ai-setup-status').textContent = '请输入 API Key'; return; }
+  try {
+    const r = JSON.parse(await pywebview.api.ai_set_key(key, baseUrl));
+    if (r.ok) {
+      document.getElementById('ai-setup-card').style.display = 'none';
+      document.getElementById('ai-chat-card').style.display = 'block';
+      aiStartSession();
+    }
+  } catch(e) { document.getElementById('ai-setup-status').textContent = '保存失败'; }
+}
 
-  if (result.topics && result.topics.length) {
-    html += '<h4>考点分布</h4><div>';
-    result.topics.forEach(t => {
-      html += `<div style="margin-bottom:4px"><b>${esc(t.name)}</b>: Q${(t.questions||[]).map(esc).join(', Q')} (${t.total_marks || '?'} marks)</div>`;
-    });
-    html += '</div>';
-  }
+async function aiStartSession() {
+  try {
+    const r = JSON.parse(await pywebview.api.ai_start());
+    if (!r.ok) {
+      document.getElementById('ai-setup-status').textContent = r.error;
+      document.getElementById('ai-setup-card').style.display = 'block';
+      document.getElementById('ai-chat-card').style.display = 'none';
+    }
+  } catch(e) {}
+}
 
-  if (result.difficulty_distribution) {
-    const d = result.difficulty_distribution;
-    html += `<h4>难度分布</h4><div>简单: ${d.easy||0} \u00b7 中等: ${d.medium||0} \u00b7 困难: ${d.hard||0}</div>`;
-  }
+async function aiSend() {
+  const input = document.getElementById('ai-chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  aiMessages.push({role: 'user', content: msg, complete: true});
+  renderAI();
+  try { await pywebview.api.ai_send(msg); } catch(e) {}
+  aiStartPolling();
+}
 
-  if (result.summary) {
-    html += `<h4>摘要</h4><div style="line-height:1.6">${esc(result.summary)}</div>`;
-  }
+function aiStartPolling() {
+  if (aiPolling) clearInterval(aiPolling);
+  aiPolling = setInterval(async () => {
+    try {
+      const r = JSON.parse(await pywebview.api.ai_get_messages());
+      if (r.messages) {
+        aiMessages = r.messages;
+        renderAI();
+        const last = aiMessages[aiMessages.length - 1];
+        if (last && last.complete) clearInterval(aiPolling);
+      }
+    } catch(e) {}
+  }, 300);
+}
 
-  if (result.repeated_from_previous && result.repeated_from_previous.length) {
-    html += '<h4>重复题型</h4>';
-    result.repeated_from_previous.forEach(r => {
-      html += `<div>Q${esc(String(r.question))} \u2248 ${esc(String(r.similar_to))} (${(r.similarity*100).toFixed(0)}%)</div>`;
-    });
-  }
+function renderAI() {
+  const el = document.getElementById('ai-messages');
+  el.innerHTML = aiMessages.map(m => {
+    const isUser = m.role === 'user';
+    const bg = isUser ? 'var(--accent-dim, rgba(217,119,87,0.1))' : 'var(--surface3)';
+    const align = isUser ? 'margin-left:40px' : 'margin-right:40px';
+    return `<div style="margin-bottom:8px;padding:10px 12px;border-radius:10px;background:${bg};${align}">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">${isUser?'你':'AI'}</div>
+      <div style="white-space:pre-wrap;font-size:13px;line-height:1.6">${esc(m.content)}${m.streaming?'  \u258c':''}</div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
 
-  document.getElementById('ai-result').innerHTML = html;
+function aiQuick(msg) {
+  document.getElementById('ai-chat-input').value = msg;
+  aiSend();
+}
+
+function aiShowSettings() {
+  document.getElementById('ai-chat-card').style.display = 'none';
+  document.getElementById('ai-setup-card').style.display = 'block';
+}
+
+async function aiNewSession() {
+  if (aiPolling) clearInterval(aiPolling);
+  aiMessages = [];
+  renderAI();
+  await aiStartSession();
 }
 
 // === FTS Search ===

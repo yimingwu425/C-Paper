@@ -38,7 +38,7 @@ echo "▶ 使用 Python: $SYS_PYTHON ($(${SYS_PYTHON} --version))"
 
 # ══ Step 1: 创建干净的 venv ══════════════════════════════
 echo ""
-echo "▶ [1/6] 创建干净 venv（隔离 Anaconda 大包）..."
+echo "▶ [1/7] 创建干净 venv（隔离 Anaconda 大包）..."
 rm -rf "${VENV_DIR}"
 "${SYS_PYTHON}" -m venv "${VENV_DIR}"
 VENV_PY="${VENV_DIR}/bin/python"
@@ -47,7 +47,7 @@ VENV_PIP="${VENV_DIR}/bin/pip"
 "${VENV_PIP}" install --quiet --upgrade pip
 
 # ══ Step 2: 只装必需依赖 ═════════════════════════════════
-echo "▶ [2/6] 安装最小依赖（pywebview + pyinstaller + requests）..."
+echo "▶ [2/7] 安装最小依赖（pywebview + pyinstaller + requests）..."
 "${VENV_PIP}" install --quiet \
   pywebview \
   pyinstaller \
@@ -57,13 +57,24 @@ echo "▶ [2/6] 安装最小依赖（pywebview + pyinstaller + requests）..."
   pyobjc-framework-Cocoa \
   pyobjc-framework-UniformTypeIdentifiers
 
-# ══ Step 3: 清理旧构建 ═══════════════════════════════════
-echo "▶ [3/6] 清理旧构建..."
+# ══ Step 3: 下载 Claude Code 引擎 ══════════════════════════
+echo "▶ [3/7] 准备 Claude Code 引擎..."
+mkdir -p "../bin"
+if [ ! -f "../bin/claude-haha" ]; then
+  echo "  下载 claude-haha macOS ARM64..."
+  curl -L -o "../bin/claude-haha" \
+    "https://github.com/NanmiCoder/cc-haha/releases/latest/download/claude-haha-darwin-arm64" \
+    || echo "  ⚠ 下载失败，请手动放置 bin/claude-haha"
+fi
+chmod +x "../bin/claude-haha" 2>/dev/null || true
+
+# ══ Step 4: 清理旧构建 ═══════════════════════════════════
+echo "▶ [4/7] 清理旧构建..."
 rm -rf "${BUILD_DIR}" "${DIST_DIR}/${APP_NAME}.app" "${DMG_OUT}"
 mkdir -p "${DIST_DIR}"
 
-# ══ Step 4: PyInstaller 打包 ═════════════════════════════
-echo "▶ [4/6] PyInstaller 打包（使用 spec 文件）..."
+# ══ Step 5: PyInstaller 打包 ═════════════════════════════
+echo "▶ [5/7] PyInstaller 打包（使用 spec 文件）..."
 
 # 动态生成 spec，内嵌 Info.plist 并排除非必需模块
 cat > "_cie_build.spec" << 'SPEC_EOF'
@@ -122,6 +133,7 @@ a = Analysis(
         ('../src/ui_v2.css', '.'),
         ('../src/ui_v2.js', '.'),
         ('../version.json', '.'),
+        ('../bin/claude-haha', 'bin'),
     ] + collect_data_files('webview'),
     pathex=[],
     binaries=[],
@@ -215,7 +227,7 @@ if [ ! -d "${APP_PATH}" ]; then
 fi
 
 # ══ Step 5: 剪枝（删除打包后残留的无用文件） ════════════
-echo "▶ [5/6] 剪枝瘦身 & 清理扩展属性..."
+echo "▶ [6/7] 剪枝瘦身 & 清理扩展属性..."
 # 清理 macOS 扩展属性（避免 codesign "detritus" 警告）
 xattr -cr "${APP_PATH}" 2>/dev/null || true
 # 重新签名
@@ -260,7 +272,7 @@ FINAL_SIZE=$(du -sh "${APP_PATH}" | cut -f1)
 echo "   App 大小: ${FINAL_SIZE} → ${APP_PATH}"
 
 # ══ Step 6: 制作 DMG ════════════════════════════════════
-echo "▶ [6/6] 制作 DMG..."
+echo "▶ [7/7] 制作 DMG..."
 
 make_dmg_hdiutil() {
   local STAGING="${DIST_DIR}/_dmg_staging"

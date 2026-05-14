@@ -4,6 +4,8 @@ dist/
 *.spec
 .build_venv/
 .build_venv_win/
+bin/claude-haha
+bin/claude-haha.exe
 
 # Python
 __pycache__/

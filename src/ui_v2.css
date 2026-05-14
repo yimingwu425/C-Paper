@@ -440,7 +440,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   color: #fff;
 }
 
-/* AI & FTS panels */
-#pnl-ai h4, #pnl-fts h4 { font-size: 13px; margin: 12px 0 6px; color: var(--text); }
-#ai-result { line-height: 1.6; }
+/* AI chat */
+#ai-messages { scrollbar-width: thin; }
+#ai-messages::-webkit-scrollbar { width: 4px; }
 #fts-results mark { background: var(--accent-dim, rgba(59,130,246,0.15)); padding: 1px 2px; border-radius: 2px; }

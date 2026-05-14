@@ -11,14 +11,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
 from .cache import read_json, write_json
-from .const import BASE_URL, CACHE_DIR, HISTORY_MAX, PLUGINS_DIR, VERSION
+from .const import BASE_URL, CACHE_DIR, HISTORY_MAX, PLUGINS_DIR, VERSION, AI_KEY_PATH
 from .engine import DownloadEngine, create_session
 from .parser import build_folders, fetch_subjects, get_year, group_papers, search_papers
 from .collab_client import CollabClient
 from .plugin_manager import PluginManager
 from .updater import check_update, skip_version, set_update_check
 from .ocr_engine import OCREngine
-from .ai_analyzer import AIAnalyzer
+from .claude_engine import ClaudeEngine
 from .dedup_engine import DedupEngine
 from .fts_engine import FTSEngine
 
@@ -48,7 +48,7 @@ class API:
 
         # v6.0-beta: AI/OCR/FTS/Dedup lazy-init
         self._ocr = None
-        self._ai = None
+        self._claude = None
         self._dedup = None
         self._fts = FTSEngine()
         self._fts.initialize()
@@ -784,34 +784,49 @@ class API:
             return json.dumps({"ok": True, "available": False})
         return json.dumps({"ok": True, "available": self._ocr.is_available()})
 
-    # === AI Analysis ===
+    # === AI (Claude Code) ===
 
-    def configure_ai(self, config_json):
-        if not self._ai:
-            self._ai = AIAnalyzer()
-        cfg = json.loads(config_json) if isinstance(config_json, str) else config_json
-        return json.dumps(self._ai.configure(cfg.get("provider",""), cfg.get("api_key",""), cfg.get("model",""), cfg.get("base_url","")))
+    def ai_status(self):
+        if not self._claude:
+            self._claude = ClaudeEngine()
+        key_data = read_json(AI_KEY_PATH, {})
+        return json.dumps({
+            "ok": True,
+            "available": self._claude.is_available(),
+            "has_key": bool(key_data.get("api_key")),
+            "running": self._claude.is_running,
+        })
 
-    def get_ai_config(self):
-        if not self._ai:
-            self._ai = AIAnalyzer()
-        return json.dumps(self._ai.get_config())
+    def ai_set_key(self, api_key, base_url=""):
+        write_json(AI_KEY_PATH, {"api_key": api_key, "base_url": base_url})
+        return json.dumps({"ok": True})
 
-    def test_ai_connection(self):
-        if not self._ai:
-            self._ai = AIAnalyzer()
-        return json.dumps(self._ai.test_connection())
+    def ai_start(self):
+        if not self._claude:
+            self._claude = ClaudeEngine()
+        if not self._claude.is_available():
+            return json.dumps({"ok": False, "error": "未找到 Claude Code 引擎"})
+        key_data = read_json(AI_KEY_PATH, {})
+        api_key = key_data.get("api_key", "")
+        if not api_key:
+            return json.dumps({"ok": False, "error": "请先配置 API Key"})
+        base_url = key_data.get("base_url", "")
+        return json.dumps(self._claude.start_session(api_key, base_url))
 
-    def analyze_paper(self, text, paper_info_json="{}"):
-        if not self._ai:
-            self._ai = AIAnalyzer()
-        paper_info = json.loads(paper_info_json) if paper_info_json else {}
-        return json.dumps(self._ai.analyze_paper(text, paper_info))
+    def ai_send(self, message):
+        if not self._claude:
+            return json.dumps({"ok": False, "error": "请先启动会话"})
+        return json.dumps(self._claude.send_message(message))
 
-    def get_ai_result(self, paper_id):
-        if not self._ai:
-            self._ai = AIAnalyzer()
-        return json.dumps(self._ai.get_cached_result(paper_id))
+    def ai_get_messages(self):
+        if not self._claude:
+            return json.dumps({"ok": True, "messages": []})
+        return json.dumps({"ok": True, "messages": self._claude.get_messages()})
+
+    def ai_stop(self):
+        if self._claude:
+            self._claude.stop_session()
+        return json.dumps({"ok": True})
 
     # === Dedup ===
 
