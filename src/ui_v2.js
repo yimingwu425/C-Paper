@@ -59,7 +59,7 @@ async function doInit(){
 
     if(fill)fill.style.width='75%';
     const settings=JSON.parse(settingsR);
-    S.theme=settings.theme||'light';S.saveDir=settings.save_dir||'';
+    S.theme=settings.theme||'light';S.saveDir=settings.save_dir||'';S.mode=settings.last_mode||S.mode;
     requestAnimationFrame(()=>{
       document.documentElement.dataset.theme=S.theme;
       updateThemeIcon();
@@ -75,7 +75,7 @@ async function doInit(){
       document.getElementById('b-merge-batch').checked=!!settings.merge;
       syncCB(document.getElementById('b-merge'));
       syncCB(document.getElementById('b-merge-batch'));
-      if(settings.last_mode)S.mode=settings.last_mode;
+
       if(settings.proxy_url){
         document.getElementById('proxy-url-side').value=settings.proxy_url;
         document.getElementById('proxy-indicator').textContent='已配置';
