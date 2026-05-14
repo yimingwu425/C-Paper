@@ -691,6 +691,7 @@ async function retryAll(){
   if(!r.ok){toast(r.error,'err');document.getElementById('retry-all-btn').disabled=false;return;}
   if(r.count===0){toast('没有失败的项目','info');document.getElementById('retry-all-btn').disabled=false;return;}
   S.dlRendered=false;toast('重试 '+r.count+' 个失败项','info');startPoll();
+  document.getElementById('retry-all-btn').disabled=false;
 }
 async function retryItem(id){
   const btn=document.querySelector('.dlrow[data-id="'+id+'"] .btn-err');if(btn)btn.disabled=true;
@@ -757,16 +758,20 @@ function closePreview(){
   const empty=document.getElementById('preview-empty');
   const title=document.getElementById('preview-title');
   panel.classList.remove('on');
-  iframe.src='';iframe.style.display='none';
+  iframe.style.display='none';iframe.src='';
   empty.style.display='';title.textContent='PDF 预览';
 }
 
 async function loadPlugins(){
+  const el=document.getElementById('plugin-list');
+  if(!el)return;
   try{
     const r=JSON.parse(await pywebview.api.get_plugins());
-    if(!r.ok) return;
+    if(!r.ok){el.innerHTML='<div style="font-size:11px;color:var(--text3)">无法加载插件列表</div>';return;}
     renderPlugins(r.plugins);
-  }catch(e){}
+  }catch(e){
+    el.innerHTML='<div style="font-size:11px;color:var(--er)">插件加载失败</div>';
+  }
 }
 
 function renderPlugins(plugins){
@@ -782,12 +787,12 @@ function renderPlugins(plugins){
     card.style.cssText='border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:4px';
     card.innerHTML=`
       <div style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" ${p.enabled?'checked':''} onchange="togglePlugin('${p.id}',this.checked)" style="width:14px;height:14px">
+        <input type="checkbox" ${p.enabled?'checked':''} onchange="togglePlugin('${esc(p.id)}',this.checked)" style="width:14px;height:14px">
         <span style="font-size:12px;font-weight:600;color:var(--text)">${esc(p.name)}</span>
         <span style="font-size:9px;color:var(--text3);margin-left:auto">v${esc(p.version)}</span>
       </div>
       <div style="font-size:10px;color:var(--text2);padding-left:22px">${esc(p.description||'')}</div>
-      <div style="font-size:9px;color:var(--text3);padding-left:22px">Hooks: ${p.hooks.join(', ')}</div>
+      <div style="font-size:9px;color:var(--text3);padding-left:22px">Hooks: ${p.hooks.map(esc).join(', ')}</div>
     `;
     el.appendChild(card);
   });
@@ -821,7 +826,11 @@ async function checkUpdate(force=false){
 
 async function openUpdateUrl(){
   if(_updateUrl){
-    await pywebview.api.open_url(_updateUrl);
+    try{
+      await pywebview.api.open_url(_updateUrl);
+    }catch(e){
+      return; // Don't dismiss on error, user can retry
+    }
   }
   dismissUpdate();
 }
@@ -835,4 +844,10 @@ async function skipThisVersion(){
 
 function dismissUpdate(){
   document.getElementById('update-toast').style.display = 'none';
+}
+
+async function toggleAutoUpdate(enabled){
+  try{
+    await pywebview.api.set_update_check(JSON.stringify(enabled));
+  }catch(e){}
 }

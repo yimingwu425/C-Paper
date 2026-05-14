@@ -417,9 +417,9 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 .update-toast{position:fixed;top:16px;right:16px;z-index:1001;
   background:var(--surface);border:1px solid var(--border2);border-radius:12px;
   box-shadow:0 8px 32px rgba(0,0,0,0.12);padding:16px;min-width:280px;
-  animation:toastIn .3s ease;}
+  animation:updateToastIn .3s ease;}
 .update-toast-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;}
 .update-toast-notes{font-size:11px;color:var(--text2);line-height:1.6;max-height:120px;
   overflow-y:auto;margin-bottom:10px;white-space:pre-wrap;}
 .update-toast-actions{display:flex;gap:6px;justify-content:flex-end;}
-@keyframes toastIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes updateToastIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
