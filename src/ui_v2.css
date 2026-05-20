@@ -19,7 +19,7 @@
   /* Easing and transitions */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --transition: all 0.3s var(--ease);
+  --transition: background-color 0.3s var(--ease), border-color 0.3s var(--ease), box-shadow 0.3s var(--ease), transform 0.3s var(--ease), opacity 0.3s var(--ease), color 0.3s var(--ease);
 
   /* Light Acrylic Glass Theme */
   --bg-gradient: radial-gradient(circle at 10% 20%, rgba(219, 234, 254, 0.8), transparent 50%),
@@ -129,25 +129,51 @@ html, body {
   background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
 }
 
-/* Window layout controls */
+/* Custom Drag & Window Titlebar */
+.rail-titlebar {
+  display: none; /* Hidden on non-macOS platforms to avoid duplicate controls */
+  height: 38px;
+  align-items: center;
+  padding-left: 6px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+body.mac-os .rail-titlebar {
+  display: flex; /* Shown only on macOS under Python injection */
+}
 .traffic {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
-  padding-left: 6px;
-  flex-shrink: 0;
+  align-items: center;
 }
-.traffic .dot {
+.traffic button.dot {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  cursor: pointer;
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  display: inline-block;
   position: relative;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s var(--ease), opacity 0.2s var(--ease);
 }
-.traffic .dot.red { background: #ff5f56; border: 0.5px solid #e0443e; }
-.traffic .dot.yellow { background: #ffbd2e; border: 0.5px solid #dfa224; }
-.traffic .dot.green { background: #27c93f; border: 0.5px solid #1aab29; }
+.traffic button.dot:hover {
+  transform: scale(1.1);
+}
+.traffic button.dot:active {
+  transform: scale(0.95);
+}
+.traffic button.dot.red { background: #ff5f56; border: 0.5px solid #e0443e; }
+.traffic button.dot.yellow { background: #ffbd2e; border: 0.5px solid #dfa224; }
+.traffic button.dot.green { background: #27c93f; border: 0.5px solid #1aab29; }
+
+/* Accessible keyboard focus states for window controls */
+.traffic button.dot:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
 
 /* Splash Screen overlay */
 .splash {
@@ -1912,5 +1938,136 @@ select:focus, input:focus {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   macOS Native Vibrancy Adaptive Overrides
+   Active only when Python injects body.mac-os
+   ══════════════════════════════════════════════════ */
+
+body.mac-os {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Remove the fake desktop shell frame — let native vibrancy fill the viewport */
+body.mac-os .app {
+  height: 100vh;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Hide the CSS glow spotlights — native vibrancy replaces them */
+body.mac-os .glow {
+  display: none;
+}
+
+/* Sleek translucent sidebar — desktop bleeds through beautifully */
+body.mac-os .rail {
+  background: rgba(var(--surface-rgb), 0.02) !important;
+  border-right: 1px solid rgba(var(--surface-rgb), 0.06);
+}
+
+/* Main content area gets an ultra-thin frosted tint for absolute clarity */
+body.mac-os .main-wrap {
+  background: rgba(var(--surface-rgb), 0.06) !important;
+}
+
+/* Cards float delicately with light backing and sharp sub-pixel borders */
+body.mac-os .card {
+  background: rgba(var(--surface-rgb), 0.25) !important;
+  border: 1px solid rgba(var(--surface-rgb), 0.1) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Topbar blends into native frame */
+body.mac-os .topbar {
+  background: transparent !important;
+}
+
+/* Dock floats over native vibrancy with a subtle frosted glass backing */
+body.mac-os .dock {
+  background: rgba(var(--surface-rgb), 0.25) !important;
+  backdrop-filter: blur(25px) saturate(1.4);
+  -webkit-backdrop-filter: blur(25px) saturate(1.4);
+  border: 1px solid rgba(var(--surface-rgb), 0.12) !important;
+}
+
+/* Settings overlay with heavier backdrop on native transparency */
+body.mac-os .set-overlay.on {
+  background: rgba(0, 0, 0, 0.25);
+}
+body.mac-os .set-dialog {
+  background: rgba(var(--surface-rgb), 0.5);
+  backdrop-filter: blur(40px) saturate(1.5);
+  -webkit-backdrop-filter: blur(40px) saturate(1.5);
+  border: 1px solid rgba(var(--surface-rgb), 0.15);
+}
+
+/* Preview panel with native-blended backdrop */
+body.mac-os .preview-panel {
+  background: rgba(var(--surface-rgb), 0.3);
+  backdrop-filter: blur(35px) saturate(1.3);
+  -webkit-backdrop-filter: blur(35px) saturate(1.3);
+  border-left: 1px solid rgba(var(--surface-rgb), 0.1);
+}
+
+/* Dark theme refinements on macOS — deep translucent tones matching native macOS apps */
+[data-theme="dark"] body.mac-os .rail,
+body.mac-os [data-theme="dark"] .rail {
+  background: rgba(0, 0, 0, 0.15) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+[data-theme="dark"] body.mac-os .main-wrap,
+body.mac-os [data-theme="dark"] .main-wrap {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+[data-theme="dark"] body.mac-os .card,
+body.mac-os [data-theme="dark"] .card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+[data-theme="dark"] body.mac-os .dock,
+body.mac-os [data-theme="dark"] .dock {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+
+/* ══════════════════════════════════════════════════
+   System Accessibility: Reduce Transparency
+   Fallback to opaque backgrounds when user enables
+   Settings > Accessibility > Reduce Transparency
+   ══════════════════════════════════════════════════ */
+
+@media(prefers-reduced-transparency: reduce) {
+  body.mac-os .app {
+    background: var(--bg);
+  }
+  body.mac-os .rail {
+    background: var(--surface3);
+  }
+  body.mac-os .main-wrap {
+    background: var(--surface2);
+  }
+  body.mac-os .card {
+    background: var(--surface3);
+  }
+  body.mac-os .dock {
+    background: var(--surface2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  body.mac-os .set-dialog {
+    background: var(--surface3);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
