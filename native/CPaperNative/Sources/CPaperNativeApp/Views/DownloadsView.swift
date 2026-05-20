@@ -16,7 +16,7 @@ struct DownloadsView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("下载队列")
-                    .font(.largeTitle.weight(.semibold))
+                    .font(.title.weight(.semibold))
                 Text(model.downloadSnapshot.message)
                     .foregroundStyle(.secondary)
             }

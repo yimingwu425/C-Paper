@@ -5,20 +5,26 @@ struct BatchView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: CPDesign.Spacing.lg) {
-            header
-            actionBar
-            previewHeader
-            previewList
+            BatchHeader(model: model)
+            HStack(alignment: .top, spacing: CPDesign.Spacing.lg) {
+                BatchFilterPanel(model: model)
+                    .frame(width: 280)
+                BatchPreviewPanel(model: model)
+            }
         }
         .padding(28)
     }
+}
 
-    private var header: some View {
+private struct BatchHeader: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
         HStack(alignment: .lastTextBaseline) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("批量下载")
-                    .font(.largeTitle.weight(.semibold))
-                Text("先预览文件清单，再启动下载队列。")
+                    .font(.title.weight(.semibold))
+                Text("先预览文件清单，再选择保存目录并启动下载。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -28,118 +34,73 @@ struct BatchView: View {
                 .foregroundStyle(.secondary)
         }
     }
+}
 
-    private var actionBar: some View {
-        GlassSurface {
-            VStack(alignment: .leading, spacing: CPDesign.Spacing.md) {
-                Text("批量条件")
-                    .font(.headline)
+private struct BatchFilterPanel: View {
+    @Bindable var model: AppModel
 
-                HStack(spacing: CPDesign.Spacing.md) {
-                    Picker("科目", selection: $model.selectedSubject) {
-                        ForEach(model.subjects) { subject in
-                            Text(subject.displayName).tag(Optional(subject))
-                        }
+    var body: some View {
+        VStack(alignment: .leading, spacing: CPDesign.Spacing.md) {
+            FieldBlock("科目") {
+                Picker("科目", selection: $model.selectedSubject) {
+                    ForEach(model.subjects) { subject in
+                        Text(subject.displayName).tag(Optional(subject))
                     }
-                    .frame(minWidth: 300)
+                }
+                .labelsHidden()
+            }
 
+            FieldBlock("年份") {
+                VStack(alignment: .leading, spacing: 8) {
                     Stepper("从 \(model.batchYearFrom)", value: $model.batchYearFrom, in: 2000...model.batchYearTo)
-                        .frame(width: 150)
-
                     Stepper("到 \(model.batchYearTo)", value: $model.batchYearTo, in: model.batchYearFrom...2035)
-                        .frame(width: 150)
                 }
+            }
 
-                HStack(alignment: .top, spacing: CPDesign.Spacing.lg) {
-                    optionGroup(title: "考季") {
-                        HStack(spacing: CPDesign.Spacing.sm) {
-                            ForEach(Season.allCases) { season in
-                                Toggle(season.label, isOn: binding(for: season))
-                                    .toggleStyle(.button)
-                            }
-                        }
-                    }
-
-                    optionGroup(title: "Paper") {
-                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(58), spacing: 8), count: 3), alignment: .leading, spacing: 8) {
-                            ForEach(1...6, id: \.self) { group in
-                                Toggle("P\(group)", isOn: binding(forGroup: group))
-                                    .toggleStyle(.button)
-                            }
-                        }
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: CPDesign.Spacing.sm) {
-                        Button {
-                            Task { await model.previewBatch() }
-                        } label: {
-                            Label("预览", systemImage: "eye")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-                        .disabled(model.selectedSubject == nil || model.batchSeasons.isEmpty || model.batchPaperGroups.isEmpty || model.isLoading || !model.backendState.isAvailable)
-
-                        Button {
-                            Task { await model.startBatchDownload() }
-                        } label: {
-                            Label("开始下载", systemImage: "arrow.down.circle")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(model.batchGroups.isEmpty)
+            FieldBlock("考季") {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Season.allCases) { season in
+                        Toggle(season.label, isOn: seasonBinding(season))
                     }
                 }
             }
-        }
-    }
 
-    private var previewHeader: some View {
-        HStack {
-            Text("预览清单")
-                .font(.headline)
-            Spacer()
-            if !model.batchGroups.isEmpty {
-                Text("\(model.batchGroups.count) 组")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+            FieldBlock("Paper") {
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(58), spacing: 6), count: 3), alignment: .leading, spacing: 6) {
+                    ForEach(1...6, id: \.self) { group in
+                        Toggle("P\(group)", isOn: groupBinding(group))
+                            .toggleStyle(.button)
+                    }
+                }
             }
-        }
-    }
 
-    private var previewList: some View {
-        List(selection: $model.selectedPreview) {
-            ForEach(model.batchPreview) { file in
-                PaperRow(file: file)
-                    .tag(Optional(file))
+            Divider()
+
+            Button {
+                Task { await model.previewBatch() }
+            } label: {
+                Label("预览清单", systemImage: "eye")
             }
+            .buttonStyle(.bordered)
+            .disabled(model.selectedSubject == nil || model.batchSeasons.isEmpty || model.batchPaperGroups.isEmpty || model.isLoading || !model.backendState.isAvailable)
+
+            Button {
+                Task { await model.startBatchDownload() }
+            } label: {
+                Label("选择目录并下载", systemImage: "arrow.down.circle")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.batchGroups.isEmpty)
         }
-        .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+        .padding(CPDesign.Spacing.md)
+        .background(.bar, in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
         .overlay {
-            if model.batchPreview.isEmpty {
-                ContentUnavailableView(
-                    "暂无预览",
-                    systemImage: "tray.and.arrow.down",
-                    description: Text(model.backendState.isAvailable ? "选择条件后点击预览。" : "先连接 Python bridge。")
-                )
-            }
+            RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
+                .stroke(.quaternary, lineWidth: 1)
         }
     }
 
-    private func optionGroup<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-            content()
-        }
-        .padding(CPDesign.Spacing.sm)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
-    }
-
-    private func binding(for season: Season) -> Binding<Bool> {
+    private func seasonBinding(_ season: Season) -> Binding<Bool> {
         Binding(
             get: { model.batchSeasons.contains(season) },
             set: { isOn in
@@ -152,7 +113,7 @@ struct BatchView: View {
         )
     }
 
-    private func binding(forGroup group: Int) -> Binding<Bool> {
+    private func groupBinding(_ group: Int) -> Binding<Bool> {
         Binding(
             get: { model.batchPaperGroups.contains(group) },
             set: { isOn in
@@ -163,5 +124,42 @@ struct BatchView: View {
                 }
             }
         )
+    }
+}
+
+private struct BatchPreviewPanel: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
+            HStack {
+                Text("预览清单")
+                    .font(.headline)
+                Spacer()
+                if !model.batchGroups.isEmpty {
+                    Text("\(model.batchGroups.count) 组")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+
+            List(selection: $model.selectedPreview) {
+                ForEach(model.batchPreview) { file in
+                    PaperRow(file: file)
+                        .tag(Optional(file))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+            .overlay {
+                if model.batchPreview.isEmpty {
+                    ContentUnavailableView(
+                        "暂无预览",
+                        systemImage: "tray.and.arrow.down",
+                        description: Text(model.backendState.isAvailable ? "选择条件后点击预览。" : "先连接 Python bridge。")
+                    )
+                }
+            }
+        }
     }
 }

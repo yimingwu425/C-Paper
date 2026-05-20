@@ -12,19 +12,45 @@ struct SidebarView: View {
                 }
             }
 
-            Section("常用科目") {
+            Section {
                 if model.favorites.isEmpty {
                     Text("暂无常用科目")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(model.favorites) { subject in
-                        Button {
-                            model.selectFavorite(subject)
-                        } label: {
-                            Label(subject.displayName, systemImage: "star")
+                        HStack(spacing: 6) {
+                            Button {
+                                model.selectFavorite(subject)
+                            } label: {
+                                Label(subject.displayName, systemImage: "star")
+                            }
+                            .buttonStyle(.plain)
+
+                            Spacer(minLength: 4)
+
+                            Button {
+                                Task { await model.removeFavorite(subject) }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.tertiary)
+                            .help("移除收藏")
                         }
-                        .buttonStyle(.plain)
                     }
+                }
+            } header: {
+                HStack {
+                    Text("常用科目")
+                    Spacer()
+                    Button {
+                        Task { await model.addSelectedSubjectToFavorites() }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(model.selectedSubject == nil || model.isSelectedSubjectFavorite || !model.backendState.isAvailable)
+                    .help("添加当前科目")
                 }
             }
         }

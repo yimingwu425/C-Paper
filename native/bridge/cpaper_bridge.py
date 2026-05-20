@@ -158,6 +158,12 @@ def handle(message: dict[str, Any]) -> dict[str, Any]:
                     favorites.append({"code": code, "name": name})
             return _ok(request_id, favorites)
 
+        if method == "add_favorite":
+            return _ok(request_id, _unwrap_ok(api.add_favorite(params.get("code", ""), params.get("name", ""))))
+
+        if method == "remove_favorite":
+            return _ok(request_id, _unwrap_ok(api.remove_favorite(params.get("code", ""))))
+
         if method == "load_settings":
             return _ok(request_id, _unwrap_ok(api.load_settings()))
 

@@ -49,6 +49,7 @@ final class AppModel {
     var batchGroups: [BackendPaperGroup] = []
     var downloads: [DownloadTaskItem] = []
     var selectedPreview: PaperFile?
+    var expandedPaperComponents: Set<String> = []
     var settings = DownloadSettings()
     var downloadSnapshot = DownloadStatusSnapshot(phase: "idle", done: 0, total: 0, success: 0, message: "Ready", failed: nil, cancelled: nil, skipped: nil)
     var backendState: BackendConnectionState = .checking
@@ -75,6 +76,11 @@ final class AppModel {
         Season.allCases.filter { batchSeasons.contains($0) }
     }
 
+    var isSelectedSubjectFavorite: Bool {
+        guard let selectedSubject else { return false }
+        return favorites.contains { $0.code == selectedSubject.code }
+    }
+
     var bridgeScriptPath: String {
         bridge.bridgeScriptPath
     }
@@ -98,6 +104,40 @@ final class AppModel {
     func selectFavorite(_ subject: Subject) {
         selectedSubject = subjects.first { $0.code == subject.code } ?? subject
         route = .search
+    }
+
+    func addSelectedSubjectToFavorites() async {
+        guard let selectedSubject, !isSelectedSubjectFavorite else { return }
+
+        do {
+            let result = try await bridge.send(
+                method: "add_favorite",
+                params: FavoriteParams(code: selectedSubject.code, name: selectedSubject.name),
+                payloadType: OKResult.self
+            )
+            guard result.ok else {
+                throw PythonBridgeError.backend(result.error ?? "添加收藏失败")
+            }
+            await loadFavorites()
+        } catch {
+            handleBridgeError(error)
+        }
+    }
+
+    func removeFavorite(_ subject: Subject) async {
+        do {
+            let result = try await bridge.send(
+                method: "remove_favorite",
+                params: FavoriteParams(code: subject.code, name: subject.name),
+                payloadType: OKResult.self
+            )
+            guard result.ok else {
+                throw PythonBridgeError.backend(result.error ?? "移除收藏失败")
+            }
+            await loadFavorites()
+        } catch {
+            handleBridgeError(error)
+        }
     }
 
     func loadSubjects() async {
@@ -196,7 +236,8 @@ final class AppModel {
             markBackendConnected()
             withAnimation(CPDesign.Motion.standard) {
                 searchResults = payload.files
-                selectedPreview = payload.files.first
+                expandedPaperComponents = Set(payload.files.compactMap { $0.componentKey }.prefix(3))
+                selectedPreview = nil
             }
         } catch {
             handleBridgeError(error)
@@ -221,7 +262,7 @@ final class AppModel {
             withAnimation(CPDesign.Motion.standard) {
                 batchGroups = payload.groups
                 batchPreview = payload.files
-                selectedPreview = payload.files.first
+                selectedPreview = nil
             }
             if let warning = payload.warnings.first {
                 errorMessage = warning
@@ -235,6 +276,12 @@ final class AppModel {
         guard !batchGroups.isEmpty else { return }
 
         do {
+            let chosenDirectory = try await bridge.send(method: "choose_directory", params: EmptyParams(), payloadType: String.self)
+            guard !chosenDirectory.isEmpty else {
+                return
+            }
+            settings.saveDirectory = chosenDirectory
+
             let params = DownloadStartParams(
                 groups: batchGroups,
                 saveDir: settings.saveDirectory,

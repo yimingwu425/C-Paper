@@ -5,18 +5,25 @@ struct SearchView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: CPDesign.Spacing.lg) {
-            header
-            controls
-            results
+            SearchHeader(model: model)
+            HStack(alignment: .top, spacing: CPDesign.Spacing.lg) {
+                SearchFilterPanel(model: model)
+                    .frame(width: 260)
+                SearchResultsPanel(model: model)
+            }
         }
         .padding(28)
     }
+}
 
-    private var header: some View {
+private struct SearchHeader: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
         HStack(alignment: .lastTextBaseline) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("搜索试卷")
-                    .font(.largeTitle.weight(.semibold))
+                    .font(.title.weight(.semibold))
                 Text(model.selectedSubject?.displayName ?? "选择一个科目后开始检索")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -31,23 +38,24 @@ struct SearchView: View {
             }
         }
     }
+}
 
-    private var controls: some View {
-        HStack(alignment: .center, spacing: 12) {
-            LabeledContent("科目") {
+private struct SearchFilterPanel: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CPDesign.Spacing.md) {
+            FieldBlock("科目") {
                 Picker("科目", selection: $model.selectedSubject) {
                     ForEach(model.subjects) { subject in
                         Text(subject.displayName).tag(Optional(subject))
                     }
                 }
                 .labelsHidden()
-                .frame(width: 260)
+                .frame(maxWidth: .infinity)
             }
 
-            Divider()
-                .frame(height: 22)
-
-            LabeledContent("考季") {
+            FieldBlock("考季") {
                 Picker("考季", selection: $model.selectedSeason) {
                     ForEach(Season.allCases) { season in
                         Text(season.label).tag(season)
@@ -55,16 +63,26 @@ struct SearchView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
-                .frame(width: 220)
+            }
+
+            FieldBlock("年份") {
+                Stepper("\(model.selectedYear)", value: $model.selectedYear, in: 2000...2035)
             }
 
             Divider()
-                .frame(height: 22)
 
-            Stepper("年份 \(model.selectedYear)", value: $model.selectedYear, in: 2000...2035)
-                .frame(width: 160)
-
-            Spacer(minLength: CPDesign.Spacing.sm)
+            Button {
+                Task {
+                    if model.isSelectedSubjectFavorite, let subject = model.selectedSubject {
+                        await model.removeFavorite(subject)
+                    } else {
+                        await model.addSelectedSubjectToFavorites()
+                    }
+                }
+            } label: {
+                Label(model.isSelectedSubjectFavorite ? "取消收藏" : "收藏科目", systemImage: model.isSelectedSubjectFavorite ? "star.fill" : "star")
+            }
+            .disabled(model.selectedSubject == nil || !model.backendState.isAvailable)
 
             Button {
                 Task { await model.search() }
@@ -72,19 +90,21 @@ struct SearchView: View {
                 Label("搜索", systemImage: "magnifyingglass")
             }
             .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
             .disabled(model.selectedSubject == nil || model.isLoading || !model.backendState.isAvailable)
         }
-        .padding(.horizontal, CPDesign.Spacing.md)
-        .padding(.vertical, 10)
+        .padding(CPDesign.Spacing.md)
         .background(.bar, in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
                 .stroke(.quaternary, lineWidth: 1)
         }
     }
+}
 
-    private var results: some View {
+private struct SearchResultsPanel: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
         VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
             HStack {
                 Text("检索结果")
@@ -97,9 +117,15 @@ struct SearchView: View {
             }
 
             List(selection: $model.selectedPreview) {
-                ForEach(model.searchResults) { file in
-                    PaperRow(file: file)
-                        .tag(Optional(file))
+                ForEach(paperGroups) { group in
+                    DisclosureGroup(isExpanded: expandedBinding(for: group.id)) {
+                        ForEach(group.files) { file in
+                            PaperRow(file: file)
+                                .tag(Optional(file))
+                        }
+                    } label: {
+                        PaperGroupHeader(group: group)
+                    }
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
@@ -113,6 +139,96 @@ struct SearchView: View {
                 }
             }
         }
+    }
+
+    private var paperGroups: [PaperComponentGroup] {
+        let grouped = Dictionary(grouping: model.searchResults) { $0.componentKey ?? "other" }
+        return grouped.map { PaperComponentGroup(id: $0.key, files: sortedFiles($0.value)) }
+            .sorted(by: sortGroups)
+    }
+
+    private func sortedFiles(_ files: [PaperFile]) -> [PaperFile] {
+        files.sorted { ($0.paperType ?? "") > ($1.paperType ?? "") }
+    }
+
+    private func sortGroups(_ lhs: PaperComponentGroup, _ rhs: PaperComponentGroup) -> Bool {
+        switch (Int(lhs.id), Int(rhs.id)) {
+        case let (left?, right?):
+            return left < right
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        case (.none, .none):
+            return lhs.id < rhs.id
+        }
+    }
+
+    private func expandedBinding(for id: String) -> Binding<Bool> {
+        Binding(
+            get: { model.expandedPaperComponents.contains(id) },
+            set: { isExpanded in
+                if isExpanded {
+                    model.expandedPaperComponents.insert(id)
+                } else {
+                    model.expandedPaperComponents.remove(id)
+                }
+            }
+        )
+    }
+}
+
+struct FieldBlock<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            content
+        }
+    }
+}
+
+struct PaperComponentGroup: Identifiable {
+    let id: String
+    let files: [PaperFile]
+
+    var title: String {
+        files.first?.componentTitle ?? "Other"
+    }
+
+    var detail: String {
+        let types = files.compactMap(\.paperType)
+        if types.isEmpty {
+            return "\(files.count) 个文件"
+        }
+        return "\(types.joined(separator: " + ")) · \(files.count) 个文件"
+    }
+}
+
+struct PaperGroupHeader: View {
+    let group: PaperComponentGroup
+
+    var body: some View {
+        HStack(spacing: CPDesign.Spacing.sm) {
+            Image(systemName: "doc.on.doc")
+                .foregroundStyle(.secondary)
+            Text(group.title)
+                .font(.headline)
+            Text(group.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.vertical, 4)
     }
 }
 

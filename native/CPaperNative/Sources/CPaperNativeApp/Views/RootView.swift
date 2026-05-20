@@ -6,7 +6,7 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model)
-        } content: {
+        } detail: {
             VStack(spacing: 0) {
                 if !model.backendState.isAvailable {
                     BackendStatusBanner(model: model)
@@ -26,8 +26,6 @@ struct RootView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        } detail: {
-            PDFPreviewView(file: model.selectedPreview)
         }
         .frame(minWidth: 1100, minHeight: 720)
         .task {
@@ -71,6 +69,10 @@ struct RootView: View {
         .sheet(isPresented: $model.isSettingsPresented) {
             SettingsView(model: model)
         }
+        .sheet(item: selectedPreviewBinding) { file in
+            PDFPreviewView(file: file)
+                .frame(minWidth: 760, minHeight: 640)
+        }
         .alert(
             "C-Paper",
             isPresented: Binding(
@@ -89,6 +91,13 @@ struct RootView: View {
             message: {
                 Text(model.errorMessage ?? "")
             }
+        )
+    }
+
+    private var selectedPreviewBinding: Binding<PaperFile?> {
+        Binding(
+            get: { model.selectedPreview },
+            set: { model.selectedPreview = $0 }
         )
     }
 }

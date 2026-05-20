@@ -90,6 +90,22 @@ struct PaperFile: Identifiable, Hashable, Codable {
 
     var id: String { url.absoluteString }
 
+    var componentKey: String? {
+        if paperType?.uppercased() == "GT" {
+            return "gt"
+        }
+        guard let number, !number.isEmpty else { return label }
+        return number
+    }
+
+    var componentTitle: String {
+        guard let componentKey, !componentKey.isEmpty else { return "Other" }
+        if componentKey.lowercased() == "gt" {
+            return "Grade Threshold"
+        }
+        return "Paper \(componentKey)"
+    }
+
     var subtitle: String {
         [subjectCode, season, year.map(String.init), paperType, number]
             .compactMap { $0 }
@@ -287,6 +303,11 @@ struct ProxyParams: Encodable {
     enum CodingKeys: String, CodingKey {
         case proxyURL = "proxy_url"
     }
+}
+
+struct FavoriteParams: Encodable {
+    let code: String
+    let name: String
 }
 
 struct FileNameParams: Encodable {

@@ -21,7 +21,8 @@ struct SettingsView: View {
             Divider()
             footer
         }
-        .frame(width: 620, height: 500)
+        .controlSize(.small)
+        .frame(width: 580, height: 420)
     }
 
     private var footer: some View {
@@ -50,7 +51,7 @@ private struct SettingsHeader: View {
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text("设置")
-                    .font(.title3.weight(.semibold))
+                    .font(.headline.weight(.semibold))
                 Text("保存位置、代理和下载行为")
                     .font(.caption)
                     .foregroundStyle(.secondary)
