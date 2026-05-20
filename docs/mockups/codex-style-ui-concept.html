@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>C-Paper Codex Style UI Concept</title>
+  <style>
+    :root{
+      --bg0:#090c2a;
+      --bg1:#14206d;
+      --ink:#f4f7ff;
+      --muted:#aeb9dd;
+      --soft:#7f8bc1;
+      --line:rgba(255,255,255,.16);
+      --line2:rgba(255,255,255,.24);
+      --glass:rgba(10,18,62,.42);
+      --glass2:rgba(11,19,54,.58);
+      --accent:#8be7ff;
+      --accent2:#9f7cff;
+      --ok:#9bf0bf;
+      --warn:#ffd18a;
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      width:1280px;
+      height:800px;
+      overflow:hidden;
+      color:var(--ink);
+      background:
+        radial-gradient(circle at 12% 88%,rgba(138,88,255,.55),transparent 32%),
+        radial-gradient(circle at 82% 18%,rgba(56,149,255,.7),transparent 40%),
+        linear-gradient(135deg,#2212ad 0%,#10195a 42%,#07172f 100%);
+    }
+    body:before{
+      content:"";
+      position:fixed;
+      inset:-80px;
+      background:
+        linear-gradient(136deg,transparent 0 36%,rgba(255,255,255,.18) 36.5%,transparent 42%),
+        linear-gradient(160deg,transparent 0 52%,rgba(93,174,255,.23) 53%,transparent 62%);
+      filter:blur(2px);
+      opacity:.85;
+    }
+    .wallpaper-blur{
+      position:absolute;
+      inset:0;
+      background:
+        radial-gradient(ellipse at 80% 75%,rgba(255,255,255,.24),transparent 18%),
+        radial-gradient(ellipse at 0% 50%,rgba(133,80,255,.5),transparent 24%);
+      filter:blur(18px);
+    }
+    .window{
+      position:absolute;
+      left:70px;
+      top:58px;
+      width:1140px;
+      height:684px;
+      border:1px solid rgba(255,255,255,.19);
+      border-radius:18px;
+      background:linear-gradient(135deg,rgba(10,15,54,.58),rgba(7,18,50,.48));
+      box-shadow:0 28px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.12);
+      backdrop-filter:blur(26px) saturate(1.35);
+      -webkit-backdrop-filter:blur(26px) saturate(1.35);
+      overflow:hidden;
+    }
+    .traffic{position:absolute;left:18px;top:17px;display:flex;gap:8px}
+    .dot{width:11px;height:11px;border-radius:50%}
+    .red{background:#ff5f57}.yellow{background:#febc2e}.green{background:#28c840}
+    .sidebar{
+      position:absolute;
+      inset:0 auto 0 0;
+      width:270px;
+      padding:48px 14px 14px;
+      border-right:1px solid var(--line);
+      background:linear-gradient(180deg,rgba(10,12,50,.62),rgba(8,16,42,.34));
+    }
+    .side-action,.thread{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      height:32px;
+      padding:0 10px;
+      border-radius:9px;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .side-action.active{
+      color:var(--ink);
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .mini-ico{
+      width:15px;
+      height:15px;
+      border:1px solid currentColor;
+      border-radius:4px;
+      opacity:.8;
+    }
+    .section-title{
+      margin:18px 10px 8px;
+      color:#8290c8;
+      font-size:11px;
+      letter-spacing:.02em;
+    }
+    .thread{
+      height:28px;
+      justify-content:space-between;
+      font-size:12px;
+    }
+    .thread span:first-child{
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      max-width:185px;
+    }
+    .pill{
+      padding:2px 7px;
+      border-radius:999px;
+      background:rgba(93,220,255,.18);
+      color:#9beaff;
+      font-size:10px;
+    }
+    .settings{
+      position:absolute;
+      left:14px;
+      right:14px;
+      bottom:14px;
+      height:34px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 11px;
+      border:1px solid var(--line);
+      border-radius:11px;
+      color:var(--muted);
+      font-size:12px;
+      background:rgba(255,255,255,.05);
+    }
+    .topbar{
+      position:absolute;
+      left:270px;
+      right:0;
+      top:0;
+      height:54px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:10px;
+      padding:0 16px;
+    }
+    .top-pill{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      height:30px;
+      padding:0 11px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      background:rgba(255,255,255,.05);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .main{
+      position:absolute;
+      left:270px;
+      right:0;
+      top:54px;
+      bottom:0;
+      padding:34px 34px 26px;
+      display:grid;
+      grid-template-rows:auto 1fr auto;
+      gap:22px;
+    }
+    .hero{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:20px;
+    }
+    .brand-mark{
+      width:58px;
+      height:58px;
+      border-radius:18px;
+      background:
+        radial-gradient(circle at 35% 35%,#fff 0 12%,transparent 13%),
+        conic-gradient(from 200deg,#91f3ff,#9c73ff,#142672,#91f3ff);
+      box-shadow:0 10px 34px rgba(62,192,255,.28);
+    }
+    h1{
+      margin:10px 0 6px;
+      font-size:38px;
+      font-weight:720;
+      letter-spacing:0;
+    }
+    .subtitle{margin:0;color:var(--muted);font-size:15px}
+    .stats{
+      display:flex;
+      gap:10px;
+    }
+    .stat{
+      width:118px;
+      padding:12px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:rgba(255,255,255,.055);
+    }
+    .stat strong{display:block;font-size:23px}
+    .stat span{font-size:11px;color:var(--muted)}
+    .work{
+      min-height:0;
+      display:grid;
+      grid-template-columns:1.08fr .92fr;
+      gap:16px;
+    }
+    .pane{
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.035));
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+      overflow:hidden;
+    }
+    .pane-h{
+      height:44px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 14px;
+      border-bottom:1px solid rgba(255,255,255,.1);
+      color:#eaf0ff;
+      font-size:13px;
+      font-weight:650;
+    }
+    .pane-body{padding:12px}
+    .result{
+      display:grid;
+      grid-template-columns:44px 1fr auto;
+      align-items:center;
+      gap:11px;
+      min-height:54px;
+      padding:8px 10px;
+      margin-bottom:8px;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      background:rgba(5,12,38,.28);
+    }
+    .doc{
+      width:34px;
+      height:38px;
+      border-radius:8px;
+      background:linear-gradient(145deg,rgba(139,231,255,.28),rgba(159,124,255,.16));
+      border:1px solid rgba(255,255,255,.16);
+      position:relative;
+    }
+    .doc:after{
+      content:"";
+      position:absolute;
+      left:8px;
+      right:8px;
+      top:12px;
+      height:2px;
+      background:rgba(255,255,255,.5);
+      box-shadow:0 7px 0 rgba(255,255,255,.32),0 14px 0 rgba(255,255,255,.18);
+    }
+    .r-title{font-size:13px;color:#f3f6ff;margin-bottom:3px}
+    .r-meta{font-size:11px;color:var(--soft)}
+    .tag{
+      padding:4px 8px;
+      border-radius:7px;
+      border:1px solid rgba(139,231,255,.24);
+      color:#a9efff;
+      font-size:11px;
+      background:rgba(139,231,255,.09);
+    }
+    .preview-box{
+      height:330px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:14px;
+      color:var(--muted);
+    }
+    .pdf-sheet{
+      width:182px;
+      height:238px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.18);
+      background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(220,230,255,.78));
+      box-shadow:0 22px 48px rgba(0,0,0,.28);
+      padding:22px;
+    }
+    .pdf-line{
+      height:8px;
+      border-radius:999px;
+      background:rgba(20,34,89,.22);
+      margin-bottom:12px;
+    }
+    .pdf-line.short{width:62%}
+    .command{
+      min-height:86px;
+      border:1px solid var(--line2);
+      border-radius:18px;
+      background:rgba(7,13,44,.54);
+      box-shadow:0 18px 45px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.12);
+      padding:14px;
+      display:grid;
+      grid-template-rows:1fr auto;
+      gap:11px;
+    }
+    .command-input{
+      color:#dce5ff;
+      font-size:14px;
+      padding:4px 2px;
+    }
+    .command-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:11px;
+    }
+    .chip{
+      height:24px;
+      display:flex;
+      align-items:center;
+      padding:0 9px;
+      border:1px solid rgba(255,255,255,.13);
+      border-radius:999px;
+      background:rgba(255,255,255,.05);
+    }
+    .send{
+      margin-left:auto;
+      width:32px;
+      height:32px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#0b1438;
+      background:#f6f8ff;
+      font-size:18px;
+      font-weight:800;
+    }
+  </style>
+</head>
+<body>
+  <div class="wallpaper-blur"></div>
+  <div class="window">
+    <div class="traffic"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+    <aside class="sidebar">
+      <div class="side-action active"><span class="mini-ico"></span> Search papers</div>
+      <div class="side-action"><span class="mini-ico"></span> Batch preview <span class="pill">24 ready</span></div>
+      <div class="side-action"><span class="mini-ico"></span> Downloads</div>
+      <div class="section-title">Favorites</div>
+      <div class="thread"><span>9709 Mathematics</span><small>2d</small></div>
+      <div class="thread"><span>9701 Chemistry</span><small>4d</small></div>
+      <div class="thread"><span>9618 Computer Science</span><small>1w</small></div>
+      <div class="section-title">Recent batches</div>
+      <div class="thread"><span>Jun 2024 P1-P6</span><small>18</small></div>
+      <div class="thread"><span>2022-2025 missing MS</span><small>63</small></div>
+      <div class="thread"><span>Paper 3 winter set</span><small>12</small></div>
+      <div class="settings"><span>Settings</span><span>v5.3 concept</span></div>
+    </aside>
+    <div class="topbar">
+      <div class="top-pill">Save to Downloads/C-Paper</div>
+      <div class="top-pill">5/s</div>
+      <div class="top-pill">4 threads</div>
+    </div>
+    <main class="main">
+      <section class="hero">
+        <div>
+          <div class="brand-mark"></div>
+          <h1>Let's collect papers</h1>
+          <p class="subtitle">9709 Mathematics · Jun 2024 · QP and MS paired</p>
+        </div>
+        <div class="stats">
+          <div class="stat"><strong>42</strong><span>files found</span></div>
+          <div class="stat"><strong>36</strong><span>selected</span></div>
+          <div class="stat"><strong>8</strong><span>already local</span></div>
+        </div>
+      </section>
+      <section class="work">
+        <div class="pane">
+          <div class="pane-h"><span>Search results</span><span class="pill">Paper groups</span></div>
+          <div class="pane-body">
+            <div class="result"><div class="doc"></div><div><div class="r-title">9709_s24_qp_12.pdf</div><div class="r-meta">Paper 1 · Summer 2024 · question paper</div></div><span class="tag">QP</span></div>
+            <div class="result"><div class="doc"></div><div><div class="r-title">9709_s24_ms_12.pdf</div><div class="r-meta">Paper 1 · Summer 2024 · mark scheme</div></div><span class="tag">MS</span></div>
+            <div class="result"><div class="doc"></div><div><div class="r-title">9709_s24_qp_32.pdf</div><div class="r-meta">Paper 3 · Summer 2024 · question paper</div></div><span class="tag">QP</span></div>
+            <div class="result"><div class="doc"></div><div><div class="r-title">9709_s24_ms_32.pdf</div><div class="r-meta">Paper 3 · Summer 2024 · mark scheme</div></div><span class="tag">MS</span></div>
+            <div class="result"><div class="doc"></div><div><div class="r-title">9709_w23_qp_42.pdf</div><div class="r-meta">Paper 4 · Winter 2023 · already downloaded</div></div><span class="tag">skip</span></div>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="pane-h"><span>Preview</span><span class="pill">Open in browser</span></div>
+          <div class="preview-box">
+            <div class="pdf-sheet">
+              <div class="pdf-line"></div>
+              <div class="pdf-line short"></div>
+              <div class="pdf-line"></div>
+              <div class="pdf-line"></div>
+              <div class="pdf-line short"></div>
+            </div>
+            <div>QP 24 / MS 18 / Total 42</div>
+          </div>
+        </div>
+      </section>
+      <section class="command">
+        <div class="command-input">Search 9709 · Jun 2024 · include Mark Schemes · missing only</div>
+        <div class="command-row">
+          <span class="chip">+ Subject</span>
+          <span class="chip">Jun 2024</span>
+          <span class="chip">Missing only</span>
+          <span class="chip">Full access</span>
+          <span class="send">↑</span>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
