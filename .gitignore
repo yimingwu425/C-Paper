@@ -4,6 +4,7 @@ dist/
 *.spec
 .build_venv/
 .build_venv_win/
+**/.build/
 bin/
 
 # Python

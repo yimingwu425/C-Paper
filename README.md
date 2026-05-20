@@ -52,6 +52,14 @@ pip install -r requirements.txt
 python src\main.py
 ```
 
+### Swift 原生预览版
+
+```bash
+./script/build_and_run.sh
+```
+
+Swift 原生路线使用 SwiftUI/AppKit 构建 macOS 前端，通过 `native/bridge/cpaper_bridge.py` 复用现有 Python 后端能力。当前 pywebview 版本仍是稳定主线，Swift 版本在 `codex/swift-native-ui` 分支迭代。
+
 ## 打包
 
 macOS：
