@@ -39,6 +39,7 @@ class API:
         self._hist_set: set = set()
         self.plugin_manager = PluginManager(PLUGINS_DIR, lazy=True)
         self._hist_loaded = False
+        self._is_maximized = False
 
     def _ensure_hist_loaded(self):
         if self._hist_loaded:
@@ -70,6 +71,23 @@ class API:
         if base in ('.', '..') or base.startswith('.'):
             return False
         return True
+
+    # ── Window Control APIs ──
+
+    def close_window(self):
+        if self.window:
+            self.window.destroy()
+
+    def minimize_window(self):
+        if self.window:
+            self.window.minimize()
+
+    def toggle_fullscreen(self):
+        if self.window:
+            self.window.toggle_fullscreen()
+
+    def sync_maximize_state(self, is_maximized):
+        self._is_maximized = is_maximized
 
     # ── Init ──
 
