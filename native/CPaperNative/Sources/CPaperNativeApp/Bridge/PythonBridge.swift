@@ -36,7 +36,7 @@ enum PythonBridgeError: LocalizedError {
         case .backend(let message):
             message
         case .missingScript(let path):
-            "Python bridge script not found at \(path)"
+            "找不到 Python bridge 脚本：\(path)"
         }
     }
 }
@@ -50,14 +50,111 @@ actor PythonBridge {
     private var errorOutput: FileHandle?
     private var buffer = Data()
 
-    init(
-        pythonPath: String = "/usr/bin/python3",
-        bridgeScript: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("bridge/cpaper_bridge.py")
-    ) {
+    init(pythonPath: String = PythonBridge.defaultPythonPath(), bridgeScript: URL = PythonBridge.defaultBridgeScriptURL()) {
         self.pythonPath = pythonPath
         self.bridgeScript = bridgeScript
+    }
+
+    nonisolated static func defaultPythonPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+        let fileManager = FileManager.default
+        var candidates: [String] = []
+
+        if let explicit = environment["CPAPER_PYTHON"], !explicit.isEmpty {
+            candidates.append(explicit)
+        }
+
+        let pathEntries = (environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map(String.init)
+        candidates.append(contentsOf: pathEntries.map { URL(fileURLWithPath: $0).appendingPathComponent("python3").path })
+        candidates.append(contentsOf: [
+            "/opt/anaconda3/bin/python3",
+            "/opt/homebrew/bin/python3",
+            "/usr/local/bin/python3",
+            "/usr/bin/python3"
+        ])
+
+        for candidate in Array(NSOrderedSet(array: candidates)) as? [String] ?? candidates {
+            if fileManager.isExecutableFile(atPath: candidate), pythonSupportsBridge(candidate) {
+                return candidate
+            }
+        }
+
+        return candidates.first(where: { fileManager.isExecutableFile(atPath: $0) }) ?? "/usr/bin/python3"
+    }
+
+    nonisolated private static func pythonSupportsBridge(_ path: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = ["-c", "import requests"]
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    nonisolated static func defaultBridgeScriptURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        currentDirectory: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+        bundleURL: URL = Bundle.main.bundleURL,
+        executableURL: URL? = Bundle.main.executableURL
+    ) -> URL {
+        let fileManager = FileManager.default
+
+        if let explicitScript = environment["CPAPER_BRIDGE_SCRIPT"], !explicitScript.isEmpty {
+            let url = URL(fileURLWithPath: explicitScript)
+            if fileManager.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+
+        var roots: [URL] = []
+        if let explicitRoot = environment["CPAPER_ROOT"], !explicitRoot.isEmpty {
+            roots.append(URL(fileURLWithPath: explicitRoot))
+        }
+
+        roots.append(contentsOf: [
+            currentDirectory,
+            currentDirectory.deletingLastPathComponent(),
+            currentDirectory.deletingLastPathComponent().deletingLastPathComponent(),
+            bundleURL.deletingLastPathComponent().deletingLastPathComponent()
+        ])
+
+        if let executableURL {
+            var candidate = executableURL
+            for _ in 0..<5 {
+                candidate.deleteLastPathComponent()
+                roots.append(candidate)
+            }
+        }
+
+        for root in roots {
+            let candidates = [
+                root.appendingPathComponent("native/bridge/cpaper_bridge.py"),
+                root.appendingPathComponent("bridge/cpaper_bridge.py")
+            ]
+            if let existing = candidates.first(where: { fileManager.fileExists(atPath: $0.path) }) {
+                return existing
+            }
+        }
+
+        return currentDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("bridge/cpaper_bridge.py")
+    }
+
+    nonisolated var bridgeScriptPath: String {
+        bridgeScript.path
+    }
+
+    nonisolated var pythonExecutablePath: String {
+        pythonPath
     }
 
     func start() throws {

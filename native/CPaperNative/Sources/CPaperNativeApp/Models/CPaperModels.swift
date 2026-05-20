@@ -9,9 +9,9 @@ enum AppRoute: String, CaseIterable, Identifiable, Codable {
 
     var title: String {
         switch self {
-        case .search: "Search"
-        case .batch: "Batch"
-        case .downloads: "Downloads"
+        case .search: "搜索"
+        case .batch: "批量"
+        case .downloads: "下载"
         }
     }
 
@@ -29,7 +29,21 @@ struct Subject: Identifiable, Hashable, Codable {
     let name: String
 
     var id: String { code }
-    var displayName: String { "\(code) · \(name)" }
+    var displayName: String { "\(code) · \(cleanName)" }
+
+    private var cleanName: String {
+        let escapedCode = NSRegularExpression.escapedPattern(for: code)
+        let withoutCode = name.replacingOccurrences(
+            of: #"^\s*\#(escapedCode)\s*[-·]\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        return withoutCode.replacingOccurrences(
+            of: #"\s*-\s*.*视频.*$"#,
+            with: "",
+            options: .regularExpression
+        )
+    }
 }
 
 enum Season: String, CaseIterable, Identifiable, Codable, Hashable {

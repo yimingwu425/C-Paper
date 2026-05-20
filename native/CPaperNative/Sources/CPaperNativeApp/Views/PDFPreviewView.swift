@@ -20,7 +20,7 @@ struct PDFPreviewView: View {
                     }
                     Spacer()
                     Link(destination: file.url) {
-                        Label("Open", systemImage: "safari")
+                        Label("打开", systemImage: "safari")
                     }
                 }
                 .padding([.horizontal, .top], CPDesign.Spacing.md)
@@ -28,9 +28,9 @@ struct PDFPreviewView: View {
                 PDFKitContainer(url: file.url)
             } else {
                 ContentUnavailableView(
-                    "PDF Preview",
+                    "PDF 预览",
                     systemImage: "doc.richtext",
-                    description: Text("Select a paper to preview.")
+                    description: Text("选择一份试卷后在这里预览。")
                 )
             }
         }

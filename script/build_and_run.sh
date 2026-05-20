@@ -14,8 +14,30 @@ APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+PYTHON_BIN="$(command -v python3)"
+if ! "$PYTHON_BIN" -c "import requests" >/dev/null 2>&1; then
+  for candidate in /opt/anaconda3/bin/python3 /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+    if [ -x "$candidate" ] && "$candidate" -c "import requests" >/dev/null 2>&1; then
+      PYTHON_BIN="$candidate"
+      break
+    fi
+  done
+fi
 
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+stop_running_app() {
+  if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+    pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+    for _ in {1..30}; do
+      if ! pgrep -x "$APP_NAME" >/dev/null 2>&1; then
+        return
+      fi
+      sleep 0.2
+    done
+    pkill -9 -x "$APP_NAME" >/dev/null 2>&1 || true
+  fi
+}
+
+stop_running_app
 
 cd "$PACKAGE_DIR"
 swift build
@@ -43,6 +65,15 @@ cat >"$INFO_PLIST" <<PLIST
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
+  <key>LSEnvironment</key>
+  <dict>
+    <key>CPAPER_ROOT</key>
+    <string>$ROOT_DIR</string>
+    <key>CPAPER_BRIDGE_SCRIPT</key>
+    <string>$ROOT_DIR/native/bridge/cpaper_bridge.py</string>
+    <key>CPAPER_PYTHON</key>
+    <string>$PYTHON_BIN</string>
+  </dict>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
 </dict>

@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class ModelTests: XCTestCase {
     func testRouteMetadata() {
-        XCTAssertEqual(AppRoute.search.title, "Search")
+        XCTAssertEqual(AppRoute.search.title, "搜索")
         XCTAssertEqual(AppRoute.batch.symbolName, "tray.and.arrow.down")
     }
 

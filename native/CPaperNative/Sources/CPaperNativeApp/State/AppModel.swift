@@ -2,6 +2,35 @@ import Foundation
 import Observation
 import SwiftUI
 
+enum BackendConnectionState: Equatable {
+    case checking
+    case connected
+    case failed(String)
+
+    var title: String {
+        switch self {
+        case .checking: "正在连接 Python bridge"
+        case .connected: "Python bridge 已连接"
+        case .failed: "Python bridge 未连接"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .checking: "正在启动本地后端"
+        case .connected: "本地后端可用"
+        case .failed(let message): message
+        }
+    }
+
+    var isAvailable: Bool {
+        if case .connected = self {
+            return true
+        }
+        return false
+    }
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -22,6 +51,7 @@ final class AppModel {
     var selectedPreview: PaperFile?
     var settings = DownloadSettings()
     var downloadSnapshot = DownloadStatusSnapshot(phase: "idle", done: 0, total: 0, success: 0, message: "Ready", failed: nil, cancelled: nil, skipped: nil)
+    var backendState: BackendConnectionState = .checking
     var isLoading = false
     var isSettingsPresented = false
     var errorMessage: String?
@@ -45,7 +75,16 @@ final class AppModel {
         Season.allCases.filter { batchSeasons.contains($0) }
     }
 
+    var bridgeScriptPath: String {
+        bridge.bridgeScriptPath
+    }
+
+    var pythonExecutablePath: String {
+        bridge.pythonExecutablePath
+    }
+
     func bootstrap() async {
+        backendState = .checking
         await loadSettings()
         await loadSubjects()
         await loadFavorites()
@@ -57,7 +96,7 @@ final class AppModel {
     }
 
     func selectFavorite(_ subject: Subject) {
-        selectedSubject = subject
+        selectedSubject = subjects.first { $0.code == subject.code } ?? subject
         route = .search
     }
 
@@ -67,6 +106,7 @@ final class AppModel {
 
         do {
             let payload = try await bridge.send(method: "get_subjects", params: EmptyParams(), payloadType: [Subject].self)
+            markBackendConnected()
             subjects = payload.sorted { $0.code < $1.code }
             if let preferred = subjects.first(where: { $0.code == settings.lastSubject }) {
                 selectedSubject = preferred
@@ -74,27 +114,29 @@ final class AppModel {
                 selectedSubject = subjects.first
             }
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
     func loadFavorites() async {
         do {
             favorites = try await bridge.send(method: "get_favorites", params: EmptyParams(), payloadType: [Subject].self)
+            markBackendConnected()
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
     func loadSettings() async {
         do {
             let loaded = try await bridge.send(method: "load_settings", params: EmptyParams(), payloadType: DownloadSettings.self)
+            markBackendConnected()
             settings = loaded
             if let savedRoute = AppRoute(rawValue: loaded.lastMode) {
                 route = savedRoute
             }
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
@@ -112,8 +154,9 @@ final class AppModel {
             guard saveResult.ok else {
                 throw PythonBridgeError.backend(saveResult.error ?? "Unable to save settings")
             }
+            markBackendConnected()
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
@@ -123,14 +166,16 @@ final class AppModel {
             if !path.isEmpty {
                 settings.saveDirectory = path
             }
+            markBackendConnected()
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
     func testProxy() async -> String {
         do {
             let result = try await bridge.send(method: "test_proxy", params: ProxyParams(proxyURL: settings.proxyURL), payloadType: ProxyResult.self)
+            markBackendConnected()
             if result.ok, let latency = result.latencyMs {
                 return "连接成功 (\(latency) ms)"
             }
@@ -148,12 +193,13 @@ final class AppModel {
         do {
             let params = SearchParams(subject: selectedSubject.code, year: selectedYear, season: selectedSeason.rawValue)
             let payload = try await bridge.send(method: "search", params: params, payloadType: SearchPayload.self)
+            markBackendConnected()
             withAnimation(CPDesign.Motion.standard) {
                 searchResults = payload.files
                 selectedPreview = payload.files.first
             }
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
@@ -171,6 +217,7 @@ final class AppModel {
                 paperGroups: batchPaperGroups.sorted()
             )
             let payload = try await bridge.send(method: "batch_preview", params: params, payloadType: BatchPreviewPayload.self)
+            markBackendConnected()
             withAnimation(CPDesign.Motion.standard) {
                 batchGroups = payload.groups
                 batchPreview = payload.files
@@ -180,7 +227,7 @@ final class AppModel {
                 errorMessage = warning
             }
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
@@ -197,11 +244,12 @@ final class AppModel {
             guard result.ok else {
                 throw PythonBridgeError.backend("下载任务启动失败")
             }
+            markBackendConnected()
             route = .downloads
             await refreshDownloads()
             startPollingDownloads()
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
@@ -209,6 +257,7 @@ final class AppModel {
         do {
             let snapshot = try await bridge.send(method: "get_status", params: EmptyParams(), payloadType: DownloadStatusSnapshot.self)
             let items = try await bridge.send(method: "get_download_list", params: EmptyParams(), payloadType: [DownloadTaskItem].self)
+            markBackendConnected()
             downloadSnapshot = snapshot
             downloads = items.sorted { $0.id < $1.id }
             if snapshot.isRunning {
@@ -217,7 +266,7 @@ final class AppModel {
                 stopPollingDownloads()
             }
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
@@ -227,9 +276,10 @@ final class AppModel {
             guard result.ok else {
                 throw PythonBridgeError.backend(result.error ?? "取消下载失败")
             }
+            markBackendConnected()
             await refreshDownloads()
         } catch {
-            errorMessage = error.localizedDescription
+            handleBridgeError(error)
         }
     }
 
@@ -249,5 +299,33 @@ final class AppModel {
     func stopPollingDownloads() {
         pollTask?.cancel()
         pollTask = nil
+    }
+
+    private func markBackendConnected() {
+        if backendState != .connected {
+            backendState = .connected
+        }
+    }
+
+    private func handleBridgeError(_ error: Error) {
+        let message = error.localizedDescription
+
+        guard let bridgeError = error as? PythonBridgeError else {
+            if !backendState.isAvailable {
+                backendState = .failed(message)
+            }
+            errorMessage = message
+            return
+        }
+
+        switch bridgeError {
+        case .launchFailed, .processUnavailable, .invalidResponse, .missingScript:
+            backendState = .failed(message)
+        case .encodingFailed, .backend:
+            if !backendState.isAvailable {
+                backendState = .failed(message)
+            }
+            errorMessage = message
+        }
     }
 }

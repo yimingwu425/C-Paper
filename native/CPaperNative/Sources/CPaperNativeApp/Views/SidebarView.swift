@@ -12,9 +12,9 @@ struct SidebarView: View {
                 }
             }
 
-            Section("Favorites") {
+            Section("常用科目") {
                 if model.favorites.isEmpty {
-                    Text("No favorites yet")
+                    Text("暂无常用科目")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(model.favorites) { subject in

@@ -15,4 +15,17 @@ final class PythonBridgeTests: XCTestCase {
         XCTAssertTrue(text.contains("\"method\":\"get_subjects\""))
         XCTAssertTrue(text.contains("\"id\":\"abc\""))
     }
+
+    func testDefaultBridgeScriptResolvesFromPackageDirectory() {
+        let packageDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let script = PythonBridge.defaultBridgeScriptURL(
+            environment: [:],
+            currentDirectory: packageDirectory,
+            bundleURL: packageDirectory.appendingPathComponent(".build/test-host.app"),
+            executableURL: nil
+        )
+
+        XCTAssertTrue(script.path.hasSuffix("native/bridge/cpaper_bridge.py"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: script.path))
+    }
 }
