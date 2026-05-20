@@ -1,36 +1,42 @@
-"""Auto-update checker — GitHub Releases API with version.json fallback"""
+"""Auto-update checker — version.json driven update metadata"""
 import json
 import logging
+import re
 from datetime import datetime, timezone
-
-import requests
 
 from .cache import read_json, write_json
 from .const import UPDATE_STATE_PATH, VERSION
 
 logger = logging.getLogger(__name__)
 
-GITHUB_API_URL = "https://api.github.com/repos/Ja-son-WU/CIE-Downloader/releases/latest"
-VERSION_JSON_URL = "https://raw.githubusercontent.com/Ja-son-WU/CIE-Downloader/main/version.json"
-
-
 def _parse_version(v: str):
     """Parse '5.2.0' or 'v5.2.0' into (5, 2, 0) tuple. Returns (0,0,0) for invalid input."""
-    try:
-        cleaned = v.lstrip("v").strip()
-        if not cleaned:
-            return (0, 0, 0)
-        return tuple(int(x) for x in cleaned.split(".")[:3])
-    except (ValueError, AttributeError):
+    if not isinstance(v, str):
         return (0, 0, 0)
+    match = re.match(r"^v?(\d+)\.(\d+)(?:\.(\d+))?(?:[-+].*)?$", v.strip(), re.IGNORECASE)
+    if not match:
+        return (0, 0, 0)
+    return tuple(int(part) if part is not None else 0 for part in match.groups())
+
+
+def _normalize_version(v: str) -> str | None:
+    parsed = _parse_version(v)
+    if parsed == (0, 0, 0):
+        return None
+    return ".".join(str(part) for part in parsed)
 
 
 def _version_gte(v1: str, v2: str) -> bool:
     return _parse_version(v1) >= _parse_version(v2)
 
 
-def _should_check() -> bool:
+def _read_state() -> dict:
     state = read_json(UPDATE_STATE_PATH, {})
+    return state if isinstance(state, dict) else {}
+
+
+def _should_check() -> bool:
+    state = _read_state()
     if not state.get("check_enabled", True):
         return False
     last = state.get("last_check", "")
@@ -45,31 +51,13 @@ def _should_check() -> bool:
         return True
 
 
-def _fetch_github() -> dict | None:
-    try:
-        resp = requests.get(GITHUB_API_URL, timeout=(5, 10), headers={"Accept": "application/vnd.github+json"})
-        if resp.status_code == 200:
-            data = resp.json()
-            return {
-                "version": data.get("tag_name", "").lstrip("v"),
-                "download_url": data.get("html_url", ""),
-                "release_notes": data.get("body", ""),
-                "force_update": False,
-                "published_at": data.get("published_at", ""),
-            }
-        logger.warning("GitHub API returned %s", resp.status_code)
-    except Exception as e:
-        logger.warning("GitHub API request failed: %s", e)
-    return None
-
-
 def _fetch_version_json() -> dict | None:
     try:
-        resp = requests.get(VERSION_JSON_URL, timeout=(5, 10))
-        if resp.status_code == 200:
-            return resp.json()
+        with open("version.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
     except Exception as e:
-        logger.warning("version.json request failed: %s", e)
+        logger.warning("version.json read failed: %s", e)
     return None
 
 
@@ -78,18 +66,18 @@ def check_update(force: bool = False) -> dict:
     if not force and not _should_check():
         return {"ok": True, "has_update": False, "message": "已是最新版或今日已检查"}
 
-    state = read_json(UPDATE_STATE_PATH, {})
+    state = _read_state()
     skipped = state.get("skipped_version", "")
 
-    info = _fetch_github()
-    if info is None:
-        info = _fetch_version_json()
+    info = _fetch_version_json()
 
     state["last_check"] = datetime.now(timezone.utc).isoformat()
     write_json(UPDATE_STATE_PATH, state)
 
     if info is None:
         return {"ok": False, "error": "无法获取版本信息", "has_update": False}
+    if not isinstance(info, dict):
+        return {"ok": False, "error": "版本信息格式无效", "has_update": False}
 
     latest = info.get("version", "")
     if not latest or _version_gte(VERSION, latest):
@@ -110,16 +98,16 @@ def check_update(force: bool = False) -> dict:
 
 
 def skip_version(version: str):
-    import re
-    if not re.match(r'^\d+\.\d+\.\d+$', version):
+    normalized = _normalize_version(version)
+    if normalized is None:
         logger.warning("Invalid version format in skip_version: %s", version)
         return
-    state = read_json(UPDATE_STATE_PATH, {})
-    state["skipped_version"] = version
+    state = _read_state()
+    state["skipped_version"] = normalized
     write_json(UPDATE_STATE_PATH, state)
 
 
 def set_update_check(enabled: bool):
-    state = read_json(UPDATE_STATE_PATH, {})
+    state = _read_state()
     state["check_enabled"] = enabled
     write_json(UPDATE_STATE_PATH, state)

@@ -1,8 +1,8 @@
 {
-  "version": "5.2.0",
+  "version": "5.2.1",
   "min_version": "5.0.0",
-  "download_url": "https://github.com/Ja-son-WU/CIE-Downloader/releases/tag/v5.2.0",
-  "release_notes": "- 新增插件系统\n- 新增自动更新检查",
+  "download_url": "https://github.com/Ja-son-WU/CIE-Downloader/releases/tag/v5.2.1",
+  "release_notes": "- 清理 v6 实验功能与过期计划\n- 收敛为桌面搜索、预览、批量下载主线",
   "force_update": false,
   "published_at": "2026-05-13T00:00:00Z"
 }

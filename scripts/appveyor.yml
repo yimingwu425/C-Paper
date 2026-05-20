@@ -1,10 +1,10 @@
-# AppVeyor CI — Windows EXE build for CIE 试卷下载器
+# AppVeyor CI — Windows EXE build for C-Paper
 # Free for open-source repos.
-# Sign up at https://www.appveyor.com/  → "New project" → connect GitHub → pick CIE-Downloader
+# Sign up at https://www.appveyor.com/  → "New project" → connect GitHub → pick C-Paper
 # Artifacts can be downloaded from the AppVeyor build dashboard.
 # Set GITHUB_TOKEN in AppVeyor "Environment" settings to auto-publish to GitHub Releases.
 
-version: 5.0.{build}
+version: 5.2.{build}
 
 # Only build main branch and version tags
 branches:
@@ -26,7 +26,7 @@ init:
 # ── Install deps ───────────────────────────────────────────
 install:
   - python -m pip install --quiet --upgrade pip
-  - pip install --quiet pywebview pyinstaller requests
+  - pip install --quiet pywebview pyinstaller requests urllib3
 
 # ── Build ──────────────────────────────────────────────────
 build_script:
@@ -34,13 +34,24 @@ build_script:
     pyinstaller
     --windowed
     --noconfirm
-    --name "CIE下载器"
+    --name "C-Paper"
     --distpath dist
     --workpath build
     --collect-all webview
     --hidden-import webview
     --hidden-import webview.platforms.winforms
     --hidden-import webview.platforms.edgechromium
+    --hidden-import backend
+    --hidden-import backend.const
+    --hidden-import backend.cache
+    --hidden-import backend.limiter
+    --hidden-import backend.engine
+    --hidden-import backend.parser
+    --hidden-import backend.api
+    --add-data "src\ui_v2.html;."
+    --add-data "src\ui_v2.css;."
+    --add-data "src\ui_v2.js;."
+    --add-data "version.json;."
     --exclude-module tkinter
     --exclude-module numpy
     --exclude-module pandas
@@ -51,25 +62,25 @@ build_script:
     --exclude-module PyQt6
     --exclude-module PySide2
     --exclude-module PySide6
-    cie_downloader_v5.py
+    src\main.py
 
-  - ps: Compress-Archive -Path "dist\CIE下载器" -DestinationPath "dist\CIE下载器_win.zip" -Force
-  - ps: $size = [math]::Round((Get-Item "dist\CIE下载器_win.zip").Length / 1MB, 1); Write-Host "ZIP 大小：$size MB"
+  - ps: Compress-Archive -Path "dist\C-Paper" -DestinationPath "dist\C-Paper_win.zip" -Force
+  - ps: $size = [math]::Round((Get-Item "dist\C-Paper_win.zip").Length / 1MB, 1); Write-Host "ZIP 大小：$size MB"
 
 # ── Artifacts (downloadable from AppVeyor dashboard) ───────
 artifacts:
-  - path: dist\CIE下载器_win.zip
-    name: CIE下载器-Windows
+  - path: dist\C-Paper_win.zip
+    name: C-Paper-Windows
 
 # ── Deploy to GitHub Releases (only for v* tags) ───────────
 deploy:
   - provider: GitHub
     auth_token:
       secure: ""        # same encrypted GITHUB_TOKEN from AppVeyor's Encrypt tool
-    artifact: CIE下载器-Windows
+    artifact: C-Paper-Windows
     tag: $(APPVEYOR_REPO_TAG_NAME)
-    release: "CIE 试卷下载器 $(APPVEYOR_REPO_TAG_NAME)"
-    description: "Windows EXE 版本。解压后运行 CIE下载器.exe（需要 Windows 10 v1803+ 或 Edge WebView2）"
+    release: "C-Paper $(APPVEYOR_REPO_TAG_NAME)"
+    description: "Windows EXE 版本。解压后运行 C-Paper.exe（需要 Windows 10 v1803+ 或 Edge WebView2）"
     draft: false
     prerelease: false
     on:

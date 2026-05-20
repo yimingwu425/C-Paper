@@ -1,16 +1,16 @@
-"""Plugin Manager — supports Python hooks and external command plugins"""
+"""Plugin Manager — supports Python hooks"""
 import importlib.util
 import json
 import logging
 import os
-import subprocess
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from .cache import read_json, write_json
 
 logger = logging.getLogger(__name__)
-PLUGIN_TIMEOUT = 10.0
+SUPPORTED_PLUGIN_TYPES = {"python"}
 
 
 class Plugin:
@@ -24,7 +24,7 @@ class Plugin:
         self.version = manifest.get("version", "0.0.0")
         self.author = manifest.get("author", "")
         self.description = manifest.get("description", "")
-        self.type = manifest["type"]  # "python" or "command"
+        self.type = manifest["type"]
         self.entry = manifest["entry"]
         self.hooks = set(manifest.get("hooks", []))
         self.enabled = manifest.get("enabled", True)
@@ -43,42 +43,22 @@ class Plugin:
         self._instance = mod.Plugin(self.config)
 
     def initialize(self):
-        if self.type == "python":
-            self._load_python()
+        if self.type != "python":
+            raise ValueError(f"Unsupported plugin type: {self.type}")
+        self._load_python()
 
     def execute(self, hook_name: str, data: dict) -> dict:
         if hook_name not in self.hooks:
             return {"ok": True, "skipped": True}
         try:
-            if self.type == "python":
-                if self._instance is None:
-                    self.initialize()
-                handler = getattr(self._instance, hook_name, None)
-                if handler is None:
-                    return {"ok": False, "error": f"Handler {hook_name} not found"}
-                return handler(data) or {"ok": True}
-            else:
-                # Command plugin
-                entry_path = os.path.join(self.plugin_dir, self.entry)
-                if not os.path.exists(entry_path):
-                    return {"ok": False, "error": f"Entry not found: {entry_path}"}
-                # Verify entry_path stays within plugin directory (path traversal protection)
-                real_entry = os.path.realpath(entry_path)
-                real_dir = os.path.realpath(self.plugin_dir)
-                if os.path.commonpath([real_entry, real_dir]) != real_dir:
-                    return {"ok": False, "error": "Plugin entry path escapes plugin directory"}
-                payload = json.dumps({"event": hook_name, "data": data}, ensure_ascii=False)
-                result = subprocess.run(
-                    [entry_path],
-                    input=payload.encode("utf-8"),
-                    capture_output=True,
-                    timeout=PLUGIN_TIMEOUT,
-                )
-                if result.returncode != 0:
-                    return {"ok": False, "error": result.stderr.decode("utf-8", errors="replace")[:200]}
-                return json.loads(result.stdout.decode("utf-8"))
-        except subprocess.TimeoutExpired:
-            return {"ok": False, "error": "Plugin execution timed out"}
+            if self.type != "python":
+                return {"ok": False, "error": f"Unsupported plugin type: {self.type}"}
+            if self._instance is None:
+                self.initialize()
+            handler = getattr(self._instance, hook_name, None)
+            if handler is None:
+                return {"ok": False, "error": f"Handler {hook_name} not found"}
+            return handler(data) or {"ok": True}
         except Exception as e:
             logger.exception("Plugin %s failed on %s", self.id, hook_name)
             return {"ok": False, "error": str(e)}
@@ -102,6 +82,8 @@ class PluginManager:
         self._plugins_dir = plugins_dir
         self._plugins: dict[str, Plugin] = {}
         self._lock = threading.Lock()
+        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="plugin-manager")
+        self._closed = False
         self._loaded = False
         os.makedirs(plugins_dir, exist_ok=True)
         if not lazy:
@@ -123,6 +105,9 @@ class PluginManager:
                 if not manifest or not manifest.get("id") or not manifest.get("type"):
                     logger.warning("Invalid plugin.json in %s (missing id or type)", name)
                     continue
+                if manifest.get("type") not in SUPPORTED_PLUGIN_TYPES:
+                    logger.warning("Invalid plugin.json in %s (unsupported type: %s)", name, manifest.get("type"))
+                    continue
                 plugin = Plugin(manifest, plugin_dir)
                 plugin.initialize()
                 loaded[plugin.id] = plugin
@@ -135,23 +120,40 @@ class PluginManager:
         logger.info("PluginManager lazy load complete: %d plugins loaded", len(loaded))
 
     def dispatch(self, hook_name: str, data: dict):
-        """Dispatch event to all subscribed plugins in parallel."""
+        """Dispatch event to all subscribed plugins in the background."""
+        self.ensure_loaded()
         with self._lock:
             targets = [p for p in self._plugins.values() if p.enabled and hook_name in p.hooks]
-        if not targets:
-            return
+            if self._closed or not targets:
+                return
 
-        def _run(plugin: Plugin):
-            try:
-                result = plugin.execute(hook_name, data)
-                if not result.get("ok"):
-                    logger.warning("Plugin %s error on %s: %s", plugin.id, hook_name, result.get("error"))
-            except Exception:
-                logger.exception("Plugin %s crashed on %s", plugin.id, hook_name)
+            def _run(plugin: Plugin):
+                try:
+                    result = plugin.execute(hook_name, data)
+                    if not result.get("ok"):
+                        logger.warning("Plugin %s error on %s: %s", plugin.id, hook_name, result.get("error"))
+                except Exception:
+                    logger.exception("Plugin %s crashed on %s", plugin.id, hook_name)
 
-        with ThreadPoolExecutor(max_workers=min(len(targets), 4)) as ex:
             for plugin in targets:
-                ex.submit(_run, plugin)
+                self._executor.submit(_run, plugin)
+
+    def ensure_loaded(self):
+        """Block until initial plugin discovery has completed."""
+        while True:
+            with self._lock:
+                if self._loaded:
+                    return
+            time.sleep(0.01)
+
+    def close(self, wait: bool = True):
+        """Shut down background plugin workers."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            executor = self._executor
+        executor.shutdown(wait=wait)
 
     def list_plugins(self) -> list[dict]:
         with self._lock:
@@ -172,31 +174,4 @@ class PluginManager:
             write_json(manifest_path, manifest)
         except Exception:
             logger.exception("Failed to persist plugin state")
-        return True
-
-    def get_plugin_config(self, plugin_id: str) -> dict:
-        with self._lock:
-            plugin = self._plugins.get(plugin_id)
-        return plugin.config if plugin else {}
-
-    def set_plugin_config(self, plugin_id: str, config: dict):
-        with self._lock:
-            plugin = self._plugins.get(plugin_id)
-        if not plugin:
-            return False
-        plugin.config = config
-        manifest_path = os.path.join(plugin.plugin_dir, "plugin.json")
-        try:
-            manifest = read_json(manifest_path, {})
-            manifest["config"] = config
-            write_json(manifest_path, manifest)
-        except Exception:
-            logger.exception("Failed to persist plugin config")
-        # Re-initialize python plugins with new config
-        if plugin.type == "python":
-            try:
-                plugin._instance = None
-                plugin.initialize()
-            except Exception:
-                logger.exception("Failed to re-initialize plugin %s", plugin_id)
         return True

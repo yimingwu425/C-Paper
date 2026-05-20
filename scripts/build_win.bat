@@ -1,21 +1,21 @@
 @echo off
 :: ============================================================
-::  CIE 试卷下载器 — Windows 打包脚本
-::  产出: dist\CIE下载器_win.zip
+::  C-Paper — Windows 打包脚本
+::  产出: dist\C-Paper_win.zip
 ::  用法: 双击运行 或 build_win.bat
 :: ============================================================
 setlocal EnableDelayedExpansion
-cd /d "%~dp0"
+cd /d "%~dp0\.."
 
-set APP_NAME=CIE下载器
-set ENTRY=cie_downloader_v5.py
+set APP_NAME=C-Paper
+set ENTRY=src\main.py
 set DIST=dist
 set BUILD=build
 set VENV=.build_venv_win
 
 echo.
 echo ======================================
-echo  CIE 下载器 Windows 打包工具
+echo  C-Paper Windows 打包工具
 echo ======================================
 echo.
 
@@ -30,9 +30,9 @@ if errorlevel 1 (
 call %VENV%\Scripts\activate.bat
 
 :: ── Step 2: 安装最小依赖 ──────────────────────────────────
-echo [2/5] 安装依赖（pywebview + pyinstaller）...
+echo [2/5] 安装依赖（pywebview + pyinstaller + requests）...
 pip install --quiet --upgrade pip
-pip install --quiet pywebview pyinstaller
+pip install --quiet pywebview pyinstaller requests urllib3
 if errorlevel 1 (
     echo [错误] 安装依赖失败
     pause & exit /b 1
@@ -51,10 +51,15 @@ echo [4/5] PyInstaller 打包...
 echo block_cipher = None
 echo.
 echo a = Analysis^(
-echo     ['cie_downloader_v5.py'],
+echo     ['src\\main.py'],
 echo     pathex=[],
 echo     binaries=[],
-echo     datas=[],
+echo     datas=[
+echo         ('src\\ui_v2.html', '.'^),
+echo         ('src\\ui_v2.css', '.'^),
+echo         ('src\\ui_v2.js', '.'^),
+echo         ('version.json', '.'^),
+echo     ],
 echo     hiddenimports=[
 echo         'webview',
 echo         'webview.platforms.winforms',
@@ -62,6 +67,15 @@ echo         'webview.platforms.edgechromium',
 echo         'webview.http',
 echo         'webview.js',
 echo         'webview.util',
+echo         'backend',
+echo         'backend.const',
+echo         'backend.cache',
+echo         'backend.limiter',
+echo         'backend.engine',
+echo         'backend.parser',
+echo         'backend.api',
+echo         'requests',
+echo         'urllib3',
 echo         'clr',
 echo     ],
 echo     hookspath=[],
@@ -124,6 +138,17 @@ pyinstaller ^
     --hidden-import webview ^
     --hidden-import webview.platforms.winforms ^
     --hidden-import webview.platforms.edgechromium ^
+    --hidden-import backend ^
+    --hidden-import backend.const ^
+    --hidden-import backend.cache ^
+    --hidden-import backend.limiter ^
+    --hidden-import backend.engine ^
+    --hidden-import backend.parser ^
+    --hidden-import backend.api ^
+    --add-data "src\ui_v2.html;." ^
+    --add-data "src\ui_v2.css;." ^
+    --add-data "src\ui_v2.js;." ^
+    --add-data "version.json;." ^
     %ENTRY%
 
 if errorlevel 1 (

@@ -12,6 +12,7 @@ const S={
   poll:null,dlRendered:false,mode:'search',
   theme:'light',favorites:[],currentCode:'',currentName:'',
   downloadHistory:new Set(),settingsDebounce:null,
+  previewUrl:'',
 };
 
 window.addEventListener('pywebviewready',()=>doInit());
@@ -73,8 +74,12 @@ async function doInit(){
       document.getElementById('b-thr-batch').value=settings.threads||4;
       document.getElementById('b-merge').checked=!!settings.merge;
       document.getElementById('b-merge-batch').checked=!!settings.merge;
+      document.getElementById('dup-mode').value=settings.dup_mode||'overwrite';
+      document.getElementById('dup-mode-batch').value=settings.dup_mode||'overwrite';
       syncCB(document.getElementById('b-merge'));
       syncCB(document.getElementById('b-merge-batch'));
+      syncMS(document.getElementById('dl-ms'));
+      syncMS(document.getElementById('dl-ms-batch'));
 
       if(settings.proxy_url){
         document.getElementById('proxy-url-side').value=settings.proxy_url;
@@ -136,9 +141,40 @@ async function saveSettingsNow(){
     rate:+document.getElementById('b-rate').value,
     threads:+document.getElementById('b-thr').value,
     merge:document.getElementById('b-merge').checked,
+    dup_mode:document.getElementById('dup-mode').value,
     proxy_url:document.getElementById('proxy-url-side').value||'',
     last_mode:S.mode,
   }));}catch(e){}
+}
+
+function syncDownloadSettings(sourceId){
+  const pairs=[
+    ['b-rate','b-rate-batch'],
+    ['b-thr','b-thr-batch'],
+    ['b-merge','b-merge-batch'],
+    ['dup-mode','dup-mode-batch'],
+    ['dl-ms','dl-ms-batch'],
+  ];
+  pairs.forEach(([mainId,batchId])=>{
+    const main=document.getElementById(mainId);
+    const batch=document.getElementById(batchId);
+    if(!main||!batch)return;
+    const from=sourceId===batchId?batch:main;
+    if(from.type==='checkbox'){
+      main.checked=from.checked;
+      batch.checked=from.checked;
+    }else{
+      main.value=from.value;
+      batch.value=from.value;
+    }
+  });
+  document.getElementById('rv').textContent=document.getElementById('b-rate').value+'/s';
+  document.getElementById('rv-batch').textContent=document.getElementById('b-rate-batch').value+'/s';
+  syncCB(document.getElementById('b-merge'));
+  syncCB(document.getElementById('b-merge-batch'));
+  syncMS(document.getElementById('dl-ms'));
+  syncMS(document.getElementById('dl-ms-batch'));
+  autoSaveSettings();
 }
 
 async function saveProxySide(){
@@ -177,8 +213,10 @@ async function clearHistory(){
 }
 
 function switchMode(name){
+  const modes=['search','batch','downloads'];
+  if(!modes.includes(name))name='search';
   S.mode=name;
-  ['search','batch','downloads','collab','ai','fts'].forEach(n=>{
+  modes.forEach(n=>{
     const btn=document.getElementById('mode-'+n);
     const pnl=document.getElementById('pnl-'+n);
     if(btn)btn.classList.toggle('on',n===name);
@@ -186,19 +224,14 @@ function switchMode(name){
   });
   const dlbtn=document.getElementById('dlbtn');
   const dockRetryBtn=document.getElementById('dock-retry-btn');
-  if(name==='collab'||name==='ai'||name==='fts'){
-    dlbtn.style.display='none';
-    if(dockRetryBtn)dockRetryBtn.style.display='none';
+  dlbtn.style.display='';
+  if(dockRetryBtn)dockRetryBtn.style.display='';
+  if(name==='batch'){
+    dlbtn.onclick=doBatchDL;
+    dlbtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 批量下载';
   }else{
-    dlbtn.style.display='';
-    if(dockRetryBtn)dockRetryBtn.style.display='';
-    if(name==='batch'){
-      dlbtn.onclick=doBatchDL;
-      dlbtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 批量下载';
-    }else{
-      dlbtn.onclick=doDownloadSel;
-      dlbtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载选中';
-    }
+    dlbtn.onclick=doDownloadSel;
+    dlbtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载选中';
   }
   autoSaveSettings();
 }
@@ -446,8 +479,7 @@ function renderPreview(groups){
     if(badge){badge.style.display='none';}
     return;
   }
-  const totalFiles=groups.reduce((a,g)=>(g.qp?1:0)+(g.ms?1:0)+a,0);
-  if(badge){badge.textContent=totalFiles+' 个文件';badge.style.display='';}
+  updateBatchPreviewSummary(groups);
   const byY={};
   groups.forEach((g,i)=>{
     const sy=g.sy||'';let y=sy.length>1?sy.slice(1):'?';
@@ -475,8 +507,8 @@ function renderPreview(groups){
         '<button class="preview-btn" title="预览" data-pfname="'+esc(g.qp||'')+'">'+ICO.eye+'</button>';
       row.querySelectorAll('.res-fname')[0].textContent=qp||'\u2014';
       row.querySelectorAll('.res-fname')[1].textContent=ms||'\u2014';
-      row.querySelector('.cb').onclick=e=>{e.stopPropagation();toggleCBB(i,'qp');e.target.innerHTML=S.bSelected[i].qp?ICO.check:''};
-      if(g.ms)row.querySelectorAll('.cb')[1].onclick=e=>{e.stopPropagation();toggleCBB(i,'ms');e.target.innerHTML=S.bSelected[i].ms?ICO.check:''};
+      row.querySelector('.cb').onclick=e=>{e.stopPropagation();toggleCBB(i,'qp');};
+      if(g.ms)row.querySelectorAll('.cb')[1].onclick=e=>{e.stopPropagation();toggleCBB(i,'ms');};
       row.querySelectorAll('.res-fname').forEach(el=>{
         const fn=el.dataset.fname;
         if(fn)el.onclick=e=>{e.stopPropagation();openPreview(fn);};
@@ -488,7 +520,32 @@ function renderPreview(groups){
     el.appendChild(grp);
   });
 }
-function toggleCBB(i,ftype){if(!S.bSelected[i])S.bSelected[i]={};S.bSelected[i][ftype]=!(S.bSelected[i][ftype]);}
+function updateBatchPreviewSummary(groups){
+  const badge=document.getElementById('batch-badge');
+  groups=groups||S.bGroups||[];
+  if(!badge)return;
+  if(!groups.length){badge.style.display='none';return;}
+  let qpN=0,msN=0;
+  groups.forEach((g,i)=>{
+    const sel=S.bSelected&&S.bSelected[i];
+    if(sel&&sel.qp&&g.qp)qpN++;
+    if(sel&&sel.ms&&g.ms)msN++;
+  });
+  badge.textContent='QP '+qpN+' / MS '+msN+' / 共 '+(qpN+msN);
+  badge.style.display='';
+}
+function toggleCBB(i,ftype){
+  if(!S.bSelected[i])S.bSelected[i]={};
+  S.bSelected[i][ftype]=!(S.bSelected[i][ftype]);
+  const row=document.querySelector('#prev .res-row[data-i="'+i+'"]');
+  if(row){
+    const cb=row.querySelectorAll('.cb')[ftype==='qp'?0:1];
+    const on=S.bSelected[i][ftype];
+    cb.classList.toggle('on',on);
+    cb.innerHTML=on?ICO.check:'';
+  }
+  updateBatchPreviewSummary();
+}
 function selAllB(){S.bGroups.forEach((g,i)=>{S.bSelected[i]={};if(g.qp)S.bSelected[i].qp=true;if(g.ms)S.bSelected[i].ms=true;});renderPreview(S.bGroups);}
 function deselAllB(){S.bGroups.forEach((_,i)=>{S.bSelected[i]={qp:false,ms:false};});renderPreview(S.bGroups);}
 function selQPB(){S.bGroups.forEach((g,i)=>{S.bSelected[i]={qp:!!g.qp,ms:false};});renderPreview(S.bGroups);}
@@ -547,6 +604,8 @@ function showConfirm(groups,options){
   const msN=groups.filter(g=>g.ms).length;
   const histSet=new Set();S.downloadHistory.forEach(f=>histSet.add(f));
   const dupN=groups.filter(g=>(g.qp&&histSet.has(g.qp))||(g.ms&&histSet.has(g.ms))).length;
+  const currentDupMode=document.getElementById('dup-mode').value||'overwrite';
+  const dupLabels={overwrite:'覆盖下载',skip:'跳过已下载',missing:'只补缺失'};
   let html='<div class="set-dialog" style="max-width:420px">'+
     '<button class="close-btn" onclick="document.getElementById(\'confirm-overlay\').classList.remove(\'on\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
     '<h3 style="font-size:15px;font-weight:700">确认下载</h3>'+
@@ -554,17 +613,21 @@ function showConfirm(groups,options){
       '<div>题卷 QP：'+qpN+' 个 &nbsp; 答案 MS：'+msN+' 个 &nbsp; 合计：'+(qpN+msN)+' 个</div>'+
       (dupN>0?'<div style="color:var(--warn)">\u26a0 其中 '+dupN+' 个已在下载历史中</div>':'')+
       '<div style="margin-top:4px;font-size:10px">保存到：'+esc(S.saveDir)+'</div>'+
+      '<label style="display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--text)"><span style="font-size:11px;color:var(--text2)">重复处理</span>'+
+        '<select id="confirm-dup-mode" style="flex:1;font-size:11px"><option value="overwrite">覆盖下载</option><option value="skip">跳过已下载</option><option value="missing">只补缺失</option></select></label>'+
+      '<div style="font-size:10px;color:var(--text3);margin-top:4px">当前设置：'+esc(dupLabels[currentDupMode]||'覆盖下载')+'</div>'+
     '</div>'+
     '<div style="display:flex;gap:8px;justify-content:flex-end">'+
       '<button class="btn btn-sec btn-sm" onclick="document.getElementById(\'confirm-overlay\').classList.remove(\'on\')">取消</button>'+
-      (dupN>0?'<button class="btn btn-warn btn-sm" onclick="document.getElementById(\'confirm-overlay\').classList.remove(\'on\');beginDL(S._confirmGroups,S._confirmOptions,\'skip\')">跳过重复</button>':'')+
-      '<button class="btn btn-pri btn-sm" onclick="document.getElementById(\'confirm-overlay\').classList.remove(\'on\');beginDL(S._confirmGroups,S._confirmOptions,\'overwrite\')">确认下载</button>'+
+      '<button class="btn btn-pri btn-sm" onclick="document.getElementById(\'confirm-overlay\').classList.remove(\'on\');beginDL(S._confirmGroups,S._confirmOptions,document.getElementById(\'confirm-dup-mode\').value)">确认下载</button>'+
     '</div></div>';
   document.getElementById('confirm-content').innerHTML=html;
+  const sel=document.getElementById('confirm-dup-mode');
+  if(sel)sel.value=currentDupMode;
   document.getElementById('confirm-overlay').classList.add('on');
 }
 async function beginDL(groups,options,dup_mode){
-  options.dup_mode=dup_mode||'overwrite';
+  options.dup_mode=dup_mode||document.getElementById('dup-mode').value||'overwrite';
   options.rate=+document.getElementById('b-rate').value;
   options.threads=+document.getElementById('b-thr').value;
   options.merge=document.getElementById('b-merge').checked;
@@ -590,8 +653,14 @@ async function cancelDownload(){
 }
 function resetDLBtn(){
   const b=document.getElementById('dlbtn');b.disabled=false;
-  b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载选中';
-  b.className='dock-btn primary';b.onclick=doDownloadSel;
+  b.className='dock-btn primary';
+  if(S.mode==='batch'){
+    b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 批量下载';
+    b.onclick=doBatchDL;
+  }else{
+    b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载选中';
+    b.onclick=doDownloadSel;
+  }
 }
 
 function startPoll(){if(S.poll)clearInterval(S.poll);S.poll=setInterval(doPoll,700);}
@@ -743,23 +812,82 @@ async function openPreview(filename){
   const iframe=document.getElementById('preview-iframe');
   const empty=document.getElementById('preview-empty');
   const title=document.getElementById('preview-title');
+  const openBtn=document.getElementById('preview-open-btn');
+  const copyBtn=document.getElementById('preview-copy-btn');
   title.textContent=filename.replace('.pdf','');
   panel.classList.add('on');
   empty.style.display='none';
   iframe.style.display='block';
+  iframe.removeAttribute('src');
+  if(openBtn)openBtn.style.display='none';
+  if(copyBtn)copyBtn.style.display='none';
+  S.previewUrl='';
   const loading=document.createElement('div');loading.className='preview-loading';
   loading.innerHTML='<span class="spin"></span>';
   document.getElementById('preview-body').appendChild(loading);
   try{
     const r=JSON.parse(await pywebview.api.get_pdf_url(filename));
     if(!r.ok)throw new Error(r.error);
+    S.previewUrl=r.url;
+    if(openBtn)openBtn.style.display='';
+    if(copyBtn)copyBtn.style.display='';
     iframe.src=r.url;
     iframe.onload=()=>{if(loading.parentNode)loading.remove();};
-    setTimeout(()=>{if(loading.parentNode)loading.remove();},8000);
+    setTimeout(()=>{
+      if(loading.parentNode){
+        loading.remove();
+        toast('预览加载较慢，可用右上角按钮打开或复制链接','info');
+      }
+    },8000);
   }catch(e){
     if(loading.parentNode)loading.remove();
-    toast('预览失败: '+e.message,'err');
-    closePreview();
+    showPreviewFallback('预览失败: '+e.message);
+    toast('预览失败，可尝试浏览器打开','err');
+  }
+}
+function showPreviewFallback(message){
+  const iframe=document.getElementById('preview-iframe');
+  const empty=document.getElementById('preview-empty');
+  iframe.style.display='none';iframe.removeAttribute('src');
+  const actions=S.previewUrl
+    ? '<div class="preview-fallback-actions">'+
+        '<button class="btn btn-sec btn-sm" onclick="openCurrentPreviewUrl()">浏览器打开</button>'+
+        '<button class="btn btn-sec btn-sm" onclick="copyCurrentPreviewUrl()">复制链接</button>'+
+      '</div>'
+    : '';
+  empty.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="12" y1="19" x2="12.01" y2="19"/></svg>'+
+    '<div>'+esc(message||'内嵌预览不可用')+'</div>'+actions;
+  empty.style.display='flex';
+}
+async function openCurrentPreviewUrl(){
+  if(!S.previewUrl)return toast('暂无可打开链接','err');
+  try{
+    const r=JSON.parse(await pywebview.api.open_url(S.previewUrl));
+    if(!r.ok)toast('打开失败: '+r.error,'err');
+  }catch(e){
+    toast('打开失败: '+e.message,'err');
+  }
+}
+async function copyCurrentPreviewUrl(){
+  if(!S.previewUrl)return toast('暂无可复制链接','err');
+  try{
+    await navigator.clipboard.writeText(S.previewUrl);
+    toast('链接已复制','ok');
+  }catch(e){
+    const ta=document.createElement('textarea');
+    ta.value=S.previewUrl;
+    ta.style.position='fixed';
+    ta.style.left='-9999px';
+    document.body.appendChild(ta);
+    ta.focus();ta.select();
+    try{
+      if(document.execCommand('copy'))toast('链接已复制','ok');
+      else toast('复制失败，请用浏览器打开','err');
+    }catch(_){
+      toast('复制失败，请用浏览器打开','err');
+    }finally{
+      ta.remove();
+    }
   }
 }
 function closePreview(){
@@ -767,8 +895,14 @@ function closePreview(){
   const iframe=document.getElementById('preview-iframe');
   const empty=document.getElementById('preview-empty');
   const title=document.getElementById('preview-title');
+  const openBtn=document.getElementById('preview-open-btn');
+  const copyBtn=document.getElementById('preview-copy-btn');
   panel.classList.remove('on');
   iframe.style.display='none';iframe.src='';
+  S.previewUrl='';
+  if(openBtn)openBtn.style.display='none';
+  if(copyBtn)copyBtn.style.display='none';
+  empty.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div>点击文件名或预览按钮查看 PDF</div>';
   empty.style.display='';title.textContent='PDF 预览';
 }
 
@@ -861,322 +995,3 @@ async function toggleAutoUpdate(enabled){
     await pywebview.api.set_update_check(JSON.stringify(enabled));
   }catch(e){}
 }
-
-// === Collaboration ===
-function switchCollabTab(tab) {
-  ['shares', 'groups', 'reviews'].forEach(t => {
-    const el = document.getElementById('ctab-content-' + t);
-    const btn = document.getElementById('ctab-' + t);
-    if (el) el.style.display = t === tab ? 'block' : 'none';
-    if (btn) btn.classList.toggle('on', t === tab);
-  });
-}
-
-async function checkCollabLogin() {
-  try {
-    const r = JSON.parse(await pywebview.api.collab_is_logged_in());
-    if (r.logged_in) {
-      document.getElementById('collab-login-card').style.display = 'none';
-      document.getElementById('collab-main').style.display = 'block';
-      const me = JSON.parse(await pywebview.api.collab_get_me());
-      if (me.nickname) document.getElementById('collab-user-info').textContent = me.nickname;
-    }
-  } catch(e) {}
-}
-
-async function doCollabLogin() {
-  const email = document.getElementById('collab-email').value.trim();
-  const password = document.getElementById('collab-password').value;
-  if (!email || !password) { document.getElementById('collab-login-error').textContent = '请填写邮箱和密码'; return; }
-  try {
-    const r = JSON.parse(await pywebview.api.collab_login(email, password));
-    if (r.ok === false || r.error) {
-      document.getElementById('collab-login-error').textContent = r.error || '登录失败';
-    } else {
-      document.getElementById('collab-login-error').textContent = '';
-      checkCollabLogin();
-    }
-  } catch(e) { document.getElementById('collab-login-error').textContent = '网络错误'; }
-}
-
-async function doCollabRegister() {
-  const email = document.getElementById('collab-email').value.trim();
-  const password = document.getElementById('collab-password').value;
-  const nickname = document.getElementById('collab-nickname').value.trim() || email.split('@')[0];
-  if (!email || !password) { document.getElementById('collab-login-error').textContent = '请填写邮箱和密码'; return; }
-  if (password.length < 8) { document.getElementById('collab-login-error').textContent = '密码至少8位'; return; }
-  try {
-    const r = JSON.parse(await pywebview.api.collab_register(email, password, nickname));
-    if (r.ok === false || r.error) {
-      document.getElementById('collab-login-error').textContent = r.error || '注册失败';
-    } else {
-      document.getElementById('collab-login-error').textContent = '';
-      checkCollabLogin();
-    }
-  } catch(e) { document.getElementById('collab-login-error').textContent = '网络错误'; }
-}
-
-async function doCollabLogout() {
-  await pywebview.api.collab_logout();
-  document.getElementById('collab-login-card').style.display = 'block';
-  document.getElementById('collab-main').style.display = 'none';
-}
-
-async function doCreateShare() {
-  if (!S.lastResults || S.lastResults.length === 0) { alert('请先搜索试卷'); return; }
-  const p = S.lastResults[0];
-  const expiry = prompt('过期时间: 1d / 7d / 30d / never', '7d');
-  if (!expiry) return;
-  try {
-    const r = JSON.parse(await pywebview.api.collab_create_share(p.subject, p.year, p.season, p.paper_type || '', expiry));
-    if (r.code) {
-      alert('分享码: ' + r.code + '\n链接: https://cpaper.fly.dev/share/' + r.code);
-    } else {
-      alert('创建失败: ' + (r.error || '未知错误'));
-    }
-  } catch(e) { alert('网络错误'); }
-}
-
-async function doLoadMyShares() {
-  try {
-    const shares = JSON.parse(await pywebview.api.collab_list_my_shares());
-    const el = document.getElementById('shares-list');
-    if (!shares || shares.length === 0) { el.innerHTML = '<div style="color:var(--text2);padding:12px">暂无分享</div>'; return; }
-    el.innerHTML = shares.map(s => `<div style="padding:8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <span><b>${s.code}</b> — ${s.subject} ${s.year} ${s.season} · 浏览 ${s.view_count}</span>
-      <button class="btn" onclick="doDeleteShare('${s.code}')" style="font-size:11px;opacity:0.7">删除</button>
-    </div>`).join('');
-  } catch(e) {}
-}
-
-async function doDeleteShare(code) {
-  if (!confirm('删除分享 ' + code + '?')) return;
-  await pywebview.api.collab_delete_share(code);
-  doLoadMyShares();
-}
-
-async function doOpenShare() {
-  const code = document.getElementById('share-open-code').value.trim();
-  if (!code) return;
-  try {
-    const r = JSON.parse(await pywebview.api.collab_get_share(code));
-    if (r.subject) {
-      alert('分享内容: ' + r.subject + ' ' + r.year + ' ' + r.season + '\n浏览次数: ' + r.view_count);
-    } else {
-      alert('分享不存在或已过期');
-    }
-  } catch(e) { alert('网络错误'); }
-}
-
-async function doCreateGroup() {
-  const name = prompt('小组名称');
-  if (!name) return;
-  const desc = prompt('小组描述（可选）') || '';
-  try {
-    const r = JSON.parse(await pywebview.api.collab_create_group(name, desc));
-    if (r.invite_code) {
-      alert('小组已创建！邀请码: ' + r.invite_code);
-      doLoadGroups();
-    } else {
-      alert('创建失败: ' + (r.error || ''));
-    }
-  } catch(e) { alert('网络错误'); }
-}
-
-async function doJoinGroup() {
-  const code = document.getElementById('group-join-code').value.trim();
-  if (!code) return;
-  try {
-    const r = JSON.parse(await pywebview.api.collab_join_group(code));
-    if (r.ok) { alert('已加入小组'); doLoadGroups(); }
-    else alert('加入失败: ' + (r.error || ''));
-  } catch(e) { alert('网络错误'); }
-}
-
-async function doLoadGroups() {
-  try {
-    const groups = JSON.parse(await pywebview.api.collab_list_groups());
-    const el = document.getElementById('groups-list');
-    if (!groups || groups.length === 0) { el.innerHTML = '<div style="color:var(--text2);padding:12px">暂无小组</div>'; return; }
-    el.innerHTML = groups.map(g => `<div style="padding:8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <span>${g.name} · 邀请码: <code>${g.invite_code}</code></span>
-      <button class="btn" onclick="doViewGroup(${g.id})" style="font-size:11px">查看</button>
-    </div>`).join('');
-  } catch(e) {}
-}
-
-async function doViewGroup(id) {
-  try {
-    const r = JSON.parse(await pywebview.api.collab_get_group(id));
-    const el = document.getElementById('group-detail');
-    el.style.display = 'block';
-    let html = '<div style="padding:12px"><h3>' + (r.group?.name || '小组') + '</h3>';
-    html += '<h4>成员</h4><ul>';
-    (r.members || []).forEach(m => { html += '<li>' + m.nickname + ' (' + m.role + ')</li>'; });
-    html += '</ul><h4>共享试卷</h4>';
-    (r.papers || []).forEach(p => { html += '<div>' + p.filename + ' (by user ' + p.added_by + ')</div>'; });
-    html += '<button class="btn" onclick="document.getElementById(\'group-detail\').style.display=\'none\'" style="margin-top:8px">关闭</button></div>';
-    el.innerHTML = html;
-  } catch(e) { alert('加载失败'); }
-}
-
-async function doLoadReviews() {
-  const subject = prompt('输入科目代码查看评价（如 9709）');
-  if (!subject) return;
-  try {
-    const reviews = JSON.parse(await pywebview.api.collab_list_reviews(subject, '0', ''));
-    const el = document.getElementById('reviews-list');
-    if (!reviews || reviews.length === 0) { el.innerHTML = '<div style="color:var(--text2);padding:12px">暂无评价</div>'; return; }
-    el.innerHTML = reviews.map(r => `<div style="padding:8px;border-bottom:1px solid var(--border)">
-      <div><b>${r.user_nickname || '匿名'}</b> · 评分 ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)} · 难度 ${r.difficulty}/5</div>
-      ${r.comment ? '<div style="color:var(--text2);font-size:13px;margin-top:4px">' + r.comment + '</div>' : ''}
-    </div>`).join('');
-  } catch(e) {}
-}
-
-async function doSubmitReview() {
-  const subject = prompt('科目代码');
-  if (!subject) return;
-  const year = prompt('年份');
-  const season = prompt('季节 (Mar/Jun/Nov)');
-  const rating = prompt('评分 (1-5)');
-  const difficulty = prompt('难度 (1-5)');
-  const comment = prompt('评语（可选）') || '';
-  try {
-    const r = JSON.parse(await pywebview.api.collab_create_review(subject, year, season, '', '', rating, difficulty, [], comment));
-    if (r.ok === false || r.error) alert('提交失败: ' + (r.error || ''));
-    else alert('评价已提交');
-  } catch(e) { alert('网络错误'); }
-}
-
-// Call on init
-document.addEventListener('pywebviewready', () => {
-  setTimeout(checkCollabLogin, 500);
-  setTimeout(aiInit, 1500);
-});
-
-// === AI (Claude Code) ===
-let aiMessages = [];
-let aiPolling = null;
-
-async function aiInit() {
-  try {
-    const r = JSON.parse(await pywebview.api.ai_status());
-    if (r.has_key) {
-      document.getElementById('ai-setup-card').style.display = 'none';
-      document.getElementById('ai-chat-card').style.display = 'block';
-      if (!r.running) aiStartSession();
-    }
-  } catch(e) {}
-}
-
-async function aiSaveKey() {
-  const key = document.getElementById('ai-api-key').value.trim();
-  if (!key) { document.getElementById('ai-setup-status').textContent = '请输入 API Key'; return; }
-  try {
-    const r = JSON.parse(await pywebview.api.ai_set_key(key));
-    if (r.ok) {
-      document.getElementById('ai-setup-card').style.display = 'none';
-      document.getElementById('ai-chat-card').style.display = 'block';
-      aiStartSession();
-    }
-  } catch(e) { document.getElementById('ai-setup-status').textContent = '保存失败'; }
-}
-
-async function aiStartSession() {
-  try {
-    const r = JSON.parse(await pywebview.api.ai_start());
-    if (!r.ok) {
-      document.getElementById('ai-setup-status').textContent = r.error;
-      document.getElementById('ai-setup-card').style.display = 'block';
-      document.getElementById('ai-chat-card').style.display = 'none';
-    }
-  } catch(e) {}
-}
-
-async function aiSend() {
-  const input = document.getElementById('ai-chat-input');
-  const msg = input.value.trim();
-  if (!msg) return;
-  input.value = '';
-  aiMessages.push({role: 'user', content: msg, complete: true});
-  renderAI();
-  try { await pywebview.api.ai_send(msg); } catch(e) {}
-  aiStartPolling();
-}
-
-function aiStartPolling() {
-  if (aiPolling) clearInterval(aiPolling);
-  aiPolling = setInterval(async () => {
-    try {
-      const r = JSON.parse(await pywebview.api.ai_get_messages());
-      if (r.messages) {
-        aiMessages = r.messages;
-        renderAI();
-        const last = aiMessages[aiMessages.length - 1];
-        if (last && last.complete) clearInterval(aiPolling);
-      }
-    } catch(e) {}
-  }, 300);
-}
-
-function renderAI() {
-  const el = document.getElementById('ai-messages');
-  el.innerHTML = aiMessages.map(m => {
-    const isUser = m.role === 'user';
-    const bg = isUser ? 'var(--accent-dim, rgba(217,119,87,0.1))' : 'var(--surface3)';
-    const align = isUser ? 'margin-left:40px' : 'margin-right:40px';
-    return `<div style="margin-bottom:8px;padding:10px 12px;border-radius:10px;background:${bg};${align}">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">${isUser?'你':'AI'}</div>
-      <div style="white-space:pre-wrap;font-size:13px;line-height:1.6">${esc(m.content)}${m.streaming?'  \u258c':''}</div>
-    </div>`;
-  }).join('');
-  el.scrollTop = el.scrollHeight;
-}
-
-function aiQuick(msg) {
-  document.getElementById('ai-chat-input').value = msg;
-  aiSend();
-}
-
-function aiShowSettings() {
-  document.getElementById('ai-chat-card').style.display = 'none';
-  document.getElementById('ai-setup-card').style.display = 'block';
-}
-
-async function aiNewSession() {
-  if (aiPolling) clearInterval(aiPolling);
-  aiMessages = [];
-  renderAI();
-  await aiStartSession();
-}
-
-// === FTS Search ===
-async function doFTSSearch() {
-  const query = document.getElementById('fts-query').value.trim();
-  if (!query) return;
-  try {
-    const r = JSON.parse(await pywebview.api.fts_search(query));
-    const el = document.getElementById('fts-results');
-    if (!r.results || r.results.length === 0) {
-      el.innerHTML = '<div style="color:var(--text2);padding:12px">无匹配结果</div>';
-      return;
-    }
-    el.innerHTML = r.results.map(item =>
-      `<div style="padding:8px;border-bottom:1px solid var(--border)">
-        <div style="font-size:12px;color:var(--text2)">${esc(item.paper_id)} \u00b7 Q${esc(String(item.question_number))}</div>
-        <div style="margin-top:4px">${esc(item.snippet)}</div>
-      </div>`
-    ).join('');
-  } catch(e) {}
-}
-
-async function loadFTSStats() {
-  try {
-    const r = JSON.parse(await pywebview.api.fts_stats());
-    document.getElementById('fts-stats').textContent = `${r.total_papers} 份试卷 \u00b7 ${r.total_questions} 道题已索引`;
-  } catch(e) {}
-}
-
-// Load on init
-document.addEventListener('pywebviewready', () => { setTimeout(loadFTSStats, 1000); });

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""C-Paper v5.1 — three-column desktop app (pywebview + requests)"""
+"""C-Paper v5.2.1 — three-column desktop app (pywebview + requests)"""
 import os
 import webview
 from backend.api import API

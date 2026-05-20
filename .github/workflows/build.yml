@@ -1,7 +1,7 @@
 name: Build (macOS DMG + Windows EXE)
 
 # 触发方式：
-#   1. 打 tag（如 v3.0.1）→ 自动构建 + 发布 Release
+#   1. 打 tag（如 v5.2.1）→ 自动构建 + 发布 Release
 #   2. GitHub 网页手动触发（Actions → Run workflow）
 on:
   workflow_dispatch:
@@ -23,12 +23,12 @@ jobs:
           python-version: '3.11'   # 稳定版本，避免 3.13 兼容性问题
 
       - name: Build DMG
-        run: bash build_mac.sh
+        run: bash scripts/build_mac.sh
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CIE下载器-macOS
+          name: C-Paper-macOS
           path: dist/*.dmg
           retention-days: 30
 
@@ -49,12 +49,11 @@ jobs:
         run: |
           python -m venv .build_venv_win
           .build_venv_win\Scripts\Activate.ps1
-          pip install --quiet pywebview pyinstaller requests
-          Copy-Item -Path "src\*" -Destination "." -Recurse -Force
+          pip install --quiet pywebview pyinstaller requests urllib3
           pyinstaller `
             --windowed `
             --noconfirm `
-            --name "CIE下载器" `
+            --name "C-Paper" `
             --distpath dist `
             --workpath build `
             --collect-all webview `
@@ -87,15 +86,15 @@ jobs:
       - name: Zip output
         shell: pwsh
         run: |
-          Compress-Archive -Path dist\CIE下载器 -DestinationPath dist\CIE下载器_win.zip -Force
-          $size = (Get-Item dist\CIE下载器_win.zip).Length / 1MB
+          Compress-Archive -Path dist\C-Paper -DestinationPath dist\C-Paper_win.zip -Force
+          $size = (Get-Item dist\C-Paper_win.zip).Length / 1MB
           Write-Host ("ZIP 大小: {0:F1} MB" -f $size)
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CIE下载器-Windows
-          path: dist\CIE下载器_win.zip
+          name: C-Paper-Windows
+          path: dist\C-Paper_win.zip
           retention-days: 30
 
   # ══════════════════════════════════════════════════════════
@@ -112,26 +111,26 @@ jobs:
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
-          name: CIE下载器-macOS
+          name: C-Paper-macOS
           path: artifacts/mac
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: CIE下载器-Windows
+          name: C-Paper-Windows
           path: artifacts/win
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "CIE 试卷下载器 ${{ github.ref_name }}"
+          name: "C-Paper ${{ github.ref_name }}"
           body: |
             ## 下载
 
             | 平台 | 文件 | 说明 |
             |------|------|------|
-            | 🍎 macOS | `CIE下载器.dmg` | 打开后拖入 Applications |
-            | 🪟 Windows | `CIE下载器_win.zip` | 解压后运行 `CIE下载器.exe` |
+            | 🍎 macOS | `C-Paper.dmg` | 打开后拖入 Applications |
+            | 🪟 Windows | `C-Paper_win.zip` | 解压后运行 `C-Paper.exe` |
 
             ### Windows 说明
             需要 **Windows 10 v1803+**（已内置 Edge WebView2）

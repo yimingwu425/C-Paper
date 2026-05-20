@@ -73,16 +73,22 @@ class DownloadEngine:
             raise RuntimeError("CB open — server overloaded")
         self.bucket.acquire()
         self._acquire_slot()
+        tmp_path = f"{save_path}.part.{threading.get_ident()}"
         try:
             url = f"{BASE_URL}/obj/Common/Fetch/redir/{filename}"
             try:
                 with self._get_worker_session().get(url, timeout=(10, 60), stream=True) as resp:
                     resp.raise_for_status()
                     os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
-                    with open(save_path, "wb") as f:
+                    with open(tmp_path, "wb") as f:
                         shutil.copyfileobj(resp.raw, f, length=1024 * 1024)
+                    os.replace(tmp_path, save_path)
                 self.breaker.record_success()
             except requests.exceptions.HTTPError as e:
+                try:
+                    os.unlink(tmp_path)
+                except FileNotFoundError:
+                    pass
                 code = e.response.status_code if e.response is not None else 0
                 if code == 429:
                     self.bucket.drain()
@@ -90,7 +96,17 @@ class DownloadEngine:
                     self.breaker.record_failure()
                 raise
             except requests.exceptions.RequestException:
+                try:
+                    os.unlink(tmp_path)
+                except FileNotFoundError:
+                    pass
                 self.breaker.record_failure()
+                raise
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except FileNotFoundError:
+                    pass
                 raise
         finally:
             self._release_slot()

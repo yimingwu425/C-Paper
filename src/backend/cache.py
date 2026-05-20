@@ -9,6 +9,20 @@ from .const import CACHE_DIR, CACHE_MAX, CACHE_TTL
 logger = logging.getLogger(__name__)
 
 
+def _move_corrupt_json(path):
+    timestamp = time.strftime("%Y%m%d%H%M%S")
+    backup_path = f"{path}.corrupt.{timestamp}"
+    suffix = 1
+    while os.path.exists(backup_path):
+        backup_path = f"{path}.corrupt.{timestamp}.{suffix}"
+        suffix += 1
+    try:
+        os.replace(path, backup_path)
+        logger.warning("Moved corrupt JSON %s to %s", path, backup_path)
+    except Exception:
+        logger.warning("Failed to move corrupt JSON %s", path, exc_info=True)
+
+
 def read_json(path, default=None):
     if os.path.exists(path):
         try:
@@ -16,12 +30,15 @@ def read_json(path, default=None):
                 return json.load(f)
         except Exception:
             logger.warning("Failed to read JSON from %s", path, exc_info=True)
+            _move_corrupt_json(path)
     return default
 
 
 def write_json(path, data):
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        dirname = os.path.dirname(path)
+        if dirname:
+            os.makedirs(dirname, exist_ok=True)
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)

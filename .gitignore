@@ -4,8 +4,7 @@ dist/
 *.spec
 .build_venv/
 .build_venv_win/
-bin/claude-haha
-bin/claude-haha.exe
+bin/
 
 # Python
 __pycache__/
@@ -42,10 +41,22 @@ tox.ini
 .idea/
 *.swp
 
+# Retired server/local generated artifacts
+server/
+archive/
+extension/
+examples/plugins/
+C-Paper-*.zip
+
 # Go
 server/server
+server/cpaper-server
 server/*.db
+server/*.db-shm
+server/*.db-wal
 server/dev.db
+server/test.db
+server/data.db
 server/tmp/
 
 # iOS

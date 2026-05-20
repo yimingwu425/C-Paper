@@ -6,21 +6,16 @@ import subprocess
 import threading
 import time
 import webbrowser
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
 
 import requests
 
 from .cache import read_json, write_json
-from .const import BASE_URL, CACHE_DIR, HISTORY_MAX, PLUGINS_DIR, VERSION, AI_KEY_PATH
+from .const import BASE_URL, CACHE_DIR, HISTORY_MAX, PLUGINS_DIR, VERSION
 from .engine import DownloadEngine, create_session
 from .parser import build_folders, fetch_subjects, get_year, group_papers, search_papers
-from .collab_client import CollabClient
 from .plugin_manager import PluginManager
 from .updater import check_update, skip_version, set_update_check
-from .ocr_engine import OCREngine
-from .claude_engine import ClaudeEngine
-from .dedup_engine import DedupEngine
-from .fts_engine import FTSEngine
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +38,7 @@ class API:
         self._persist_lock = threading.Lock()
         self._hist_set: set = set()
         self.plugin_manager = PluginManager(PLUGINS_DIR, lazy=True)
-        self._collab = CollabClient()
         self._hist_loaded = False
-
-        # v6.0-beta: AI/OCR/FTS/Dedup lazy-init
-        self._ocr = None
-        self._claude = None
-        self._dedup = None
-        self._fts = FTSEngine()
-        self._fts.initialize()
 
     def _ensure_hist_loaded(self):
         if self._hist_loaded:
@@ -250,33 +237,60 @@ class API:
                 items = failed
                 current_round += 1
             else:
-                with self._dl_lock:
-                    total_done = sum(1 for i in self._dl_items if i["status"] == "done")
-                    failed_count = sum(1 for i in self._dl_items if i["status"] == "failed")
-                    skipped_count = sum(1 for i in self._dl_items if i["status"] == "skipped")
+                counts = self._download_counts()
                 # Dispatch batch_complete hook before marking phase done
                 self.plugin_manager.dispatch("on_batch_complete", {
                     "total": batch_total,
-                    "success": total_done,
-                    "failed": failed_count,
-                    "skipped": skipped_count,
+                    "success": counts["done"],
+                    "failed": counts["failed"],
+                    "skipped": counts["skipped"],
+                    "cancelled": counts["cancelled"],
                     "retry_rounds": current_round,
                 })
                 with self._status_lock:
                     self._status["phase"] = "done"
                     self._status["total"] = batch_total
-                    self._status["success"] = total_done
-                    msg = f"完成 ({total_done}/{batch_total} 成功)"
+                    self._status["done"] = counts["completed"]
+                    self._status["success"] = counts["done"]
+                    self._status["failed"] = counts["failed"]
+                    self._status["cancelled"] = counts["cancelled"]
+                    msg = f"完成 ({counts['done']}/{batch_total} 成功)"
                     if current_round > 0:
                         msg += f" (经过{current_round}轮重试)"
                     self._status["message"] = msg
                 return
+
+    def _download_counts(self):
+        with self._dl_lock:
+            done_count = sum(1 for i in self._dl_items if i["status"] == "done")
+            failed_count = sum(1 for i in self._dl_items if i["status"] == "failed")
+            skipped_count = sum(1 for i in self._dl_items if i["status"] == "skipped")
+            cancelled_count = sum(1 for i in self._dl_items if i["status"] == "cancelled")
+        return {
+            "done": done_count,
+            "failed": failed_count,
+            "skipped": skipped_count,
+            "cancelled": cancelled_count,
+            "completed": done_count + failed_count + skipped_count + cancelled_count,
+        }
+
+    def _update_download_progress(self, batch_total):
+        counts = self._download_counts()
+        with self._status_lock:
+            self._status["done"] = counts["completed"]
+            self._status["total"] = batch_total
+            self._status["success"] = counts["done"]
+            self._status["failed"] = counts["failed"]
+            self._status["cancelled"] = counts["cancelled"]
+            self._status["message"] = f"下载中... ({counts['completed']}/{batch_total})"
 
     def _create_download_worker(self):
         def worker(item):
             if self._cancel.is_set():
                 return None
             with self._dl_lock:
+                if self._cancel.is_set() or item.get("status") == "cancelled":
+                    return None
                 item["status"] = "downloading"
             self.plugin_manager.dispatch("on_download_start", {
                 "filename": item["filename"],
@@ -289,6 +303,10 @@ class API:
             try:
                 self.engine.download_one(item["filename"], item["save_path"])
                 with self._dl_lock:
+                    if self._cancel.is_set() or item.get("status") == "cancelled":
+                        item["status"] = "cancelled"
+                        item["error"] = "用户取消"
+                        return None
                     item["status"] = "done"
                     item["error"] = ""
                 self._record_one_history(item["filename"], item["label"], item["year"], item["save_path"])
@@ -296,6 +314,10 @@ class API:
                 return True
             except requests.exceptions.Timeout:
                 with self._dl_lock:
+                    if self._cancel.is_set() or item.get("status") == "cancelled":
+                        item["status"] = "cancelled"
+                        item["error"] = "用户取消"
+                        return None
                     item["status"] = "failed"
                     item["error"] = "网络超时"
                     item["error_type"] = "network"
@@ -303,6 +325,10 @@ class API:
                 return False
             except requests.exceptions.ConnectionError:
                 with self._dl_lock:
+                    if self._cancel.is_set() or item.get("status") == "cancelled":
+                        item["status"] = "cancelled"
+                        item["error"] = "用户取消"
+                        return None
                     item["status"] = "failed"
                     item["error"] = "连接失败"
                     item["error_type"] = "network"
@@ -311,6 +337,10 @@ class API:
             except requests.exceptions.HTTPError as e:
                 code = e.response.status_code if e.response is not None else 0
                 with self._dl_lock:
+                    if self._cancel.is_set() or item.get("status") == "cancelled":
+                        item["status"] = "cancelled"
+                        item["error"] = "用户取消"
+                        return None
                     item["status"] = "failed"
                     if code == 404:
                         item["error"] = "文件不存在 (404)"
@@ -329,6 +359,10 @@ class API:
             except Exception as e:
                 msg = str(e)
                 with self._dl_lock:
+                    if self._cancel.is_set() or item.get("status") == "cancelled":
+                        item["status"] = "cancelled"
+                        item["error"] = "用户取消"
+                        return None
                     item["status"] = "failed"
                     item["error"] = msg
                     if "proxy" in msg.lower() or "代理" in msg:
@@ -365,32 +399,38 @@ class API:
     def _execute_download_batch(self, items, batch_total):
         worker = self._create_download_worker()
         max_w = getattr(self.engine, '_max_concurrent', 4)
-        done_count = 0
-        fail_count = 0
         with ThreadPoolExecutor(max_workers=max_w) as ex:
-            futures = [ex.submit(worker, item) for item in items]
-            for fut in as_completed(futures):
-                if self._cancel.is_set():
-                    break
-                result = fut.result()
-                if result is not None:
-                    self.engine.record_result(result)
-                if result is True:
-                    done_count += 1
-                elif result is False:
-                    fail_count += 1
-                with self._status_lock:
-                    self._status["done"] = done_count + fail_count
-                    self._status["total"] = batch_total
-                    self._status["success"] = done_count
-                    self._status["message"] = f"下载中... ({done_count+fail_count}/{batch_total})"
+            pending_items = iter(items)
+            futures = set()
+
+            def submit_until_full():
+                while len(futures) < max_w and not self._cancel.is_set():
+                    try:
+                        item = next(pending_items)
+                    except StopIteration:
+                        return
+                    if self._cancel.is_set():
+                        return
+                    futures.add(ex.submit(worker, item))
+
+            submit_until_full()
+            while futures:
+                done_futures, futures = wait(futures, return_when=FIRST_COMPLETED)
+                for fut in done_futures:
+                    result = fut.result()
+                    if result is not None:
+                        self.engine.record_result(result)
+                    if self._cancel.is_set():
+                        self._mark_all_cancelled(items)
+                        return
+                    self._update_download_progress(batch_total)
+                submit_until_full()
 
     def _handle_auto_retry(self, failed, current_round):
         delay = min(5 * (2 ** current_round), 30)
         with self._status_lock:
             self._status["message"] = f"{len(failed)} 失败, {delay}s 后自动重试 (第{current_round+1}轮)..."
-        time.sleep(delay)
-        if self._cancel.is_set():
+        if self._cancel.wait(delay):
             return
         with self._dl_lock:
             for item in failed:
@@ -409,6 +449,7 @@ class API:
 
     def cancel_download(self):
         self._cancel.set()
+        self._mark_all_cancelled(self._dl_items)
         return json.dumps({"ok": True})
 
     # ── Download history ──
@@ -436,7 +477,7 @@ class API:
         try:
             hist = read_json(self._hist_path, {"items": []})
             items = hist.get("items", [])
-            # Only return filenames — that's all the frontend needs for dedup
+            # Only return filenames; the frontend uses them for history checks.
             filenames = [item.get("filename") for item in items if item.get("filename")]
             return json.dumps(filenames, ensure_ascii=False)
         except Exception:
@@ -537,7 +578,7 @@ class API:
             "theme": "light", "save_dir": self.get_default_dir(),
             "include_ms": True, "rate": 5, "threads": 4,
             "merge": False, "proxy_url": "", "last_subject": "",
-            "last_mode": "search",
+            "last_mode": "search", "dup_mode": "overwrite",
         }
         saved = read_json(self._settings_path, {})
         defaults.update(saved)
@@ -578,7 +619,7 @@ class API:
 
     def test_proxy(self, proxy_url):
         try:
-            s = create_session(proxy_url)
+            s = create_session(proxy_url, max_retries=0)
             t0 = time.time()
             resp = s.post(f"{BASE_URL}/obj/Common/Subject/combo", timeout=(5, 10))
             resp.raise_for_status()
@@ -672,21 +713,6 @@ class API:
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
 
-    def get_plugin_config(self, plugin_id):
-        try:
-            config = self.plugin_manager.get_plugin_config(plugin_id)
-            return json.dumps({"ok": True, "config": config}, ensure_ascii=False)
-        except Exception as e:
-            return json.dumps({"ok": False, "error": str(e)})
-
-    def set_plugin_config(self, plugin_id, config_json):
-        try:
-            config = json.loads(config_json)
-            ok = self.plugin_manager.set_plugin_config(plugin_id, config)
-            return json.dumps({"ok": ok})
-        except Exception as e:
-            return json.dumps({"ok": False, "error": str(e)})
-
     def open_plugins_dir(self):
         try:
             import sys
@@ -699,169 +725,3 @@ class API:
             return json.dumps({"ok": True})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
-
-    # === Collaboration ===
-
-    def collab_register(self, email, password, nickname):
-        return json.dumps(self._collab.register(email, password, nickname))
-
-    def collab_login(self, email, password):
-        return json.dumps(self._collab.login(email, password))
-
-    def collab_logout(self):
-        return json.dumps(self._collab.logout())
-
-    def collab_is_logged_in(self):
-        return json.dumps({"ok": True, "logged_in": self._collab.is_logged_in()})
-
-    def collab_get_me(self):
-        return json.dumps(self._collab.get_me())
-
-    def collab_update_me(self, nickname, avatar_url):
-        return json.dumps(self._collab.update_me(nickname, avatar_url))
-
-    def collab_create_share(self, subject, year, season, paper_type, expiry):
-        return json.dumps(self._collab.create_share(subject, int(year), season, paper_type, expiry))
-
-    def collab_get_share(self, code):
-        return json.dumps(self._collab.get_share(code))
-
-    def collab_delete_share(self, code):
-        return json.dumps(self._collab.delete_share(code))
-
-    def collab_list_my_shares(self):
-        return json.dumps(self._collab.list_my_shares())
-
-    def collab_create_group(self, name, description):
-        return json.dumps(self._collab.create_group(name, description))
-
-    def collab_join_group(self, invite_code):
-        return json.dumps(self._collab.join_group(invite_code))
-
-    def collab_leave_group(self, group_id):
-        return json.dumps(self._collab.leave_group(group_id))
-
-    def collab_list_groups(self):
-        return json.dumps(self._collab.list_groups())
-
-    def collab_get_group(self, group_id):
-        return json.dumps(self._collab.get_group(group_id))
-
-    def collab_add_group_paper(self, group_id, subject, year, season, paper_type, filename, download_url):
-        return json.dumps(self._collab.add_group_paper(group_id, subject, year, season, paper_type, filename, download_url))
-
-    def collab_remove_group_paper(self, group_id, paper_id):
-        return json.dumps(self._collab.remove_group_paper(group_id, paper_id))
-
-    def collab_get_progress(self, group_id):
-        return json.dumps(self._collab.get_progress(group_id))
-
-    def collab_update_progress(self, group_id, group_paper_id, status):
-        return json.dumps(self._collab.update_progress(group_id, group_paper_id, status))
-
-    def collab_create_review(self, subject, year, season, paper_type, filename, rating, difficulty, tags, comment):
-        return json.dumps(self._collab.create_review(subject, year, season, paper_type, filename, rating, difficulty, tags, comment))
-
-    def collab_list_reviews(self, subject, year, season):
-        return json.dumps(self._collab.list_reviews(subject, int(year) if year else 0, season))
-
-    def collab_get_review_stats(self, subject):
-        return json.dumps(self._collab.get_review_stats(subject))
-
-    def collab_delete_review(self, review_id):
-        return json.dumps(self._collab.delete_review(review_id))
-
-    # === OCR ===
-
-    def ocr_paper(self, pdf_path):
-        if not self._ocr:
-            self._ocr = OCREngine()
-        result = self._ocr.extract_text(pdf_path)
-        return json.dumps({"ok": True, "result": result.to_dict()})
-
-    def get_ocr_status(self):
-        if not self._ocr:
-            return json.dumps({"ok": True, "available": False})
-        return json.dumps({"ok": True, "available": self._ocr.is_available()})
-
-    # === AI (Claude Code) ===
-
-    def ai_status(self):
-        if not self._claude:
-            self._claude = ClaudeEngine()
-        key_data = read_json(AI_KEY_PATH, {})
-        return json.dumps({
-            "ok": True,
-            "available": self._claude.is_available(),
-            "has_key": bool(key_data.get("api_key")),
-            "running": self._claude.is_running,
-        })
-
-    def ai_set_key(self, api_key):
-        write_json(AI_KEY_PATH, {"api_key": api_key})
-        return json.dumps({"ok": True})
-
-    def ai_start(self):
-        if not self._claude:
-            self._claude = ClaudeEngine()
-        if not self._claude.is_available():
-            return json.dumps({"ok": False, "error": "未找到 Claude Code 引擎"})
-        key_data = read_json(AI_KEY_PATH, {})
-        api_key = key_data.get("api_key", "")
-        if not api_key:
-            return json.dumps({"ok": False, "error": "请先配置 API Key"})
-        return json.dumps(self._claude.start_session(api_key))
-
-    def ai_send(self, message):
-        if not self._claude:
-            return json.dumps({"ok": False, "error": "请先启动会话"})
-        return json.dumps(self._claude.send_message(message))
-
-    def ai_get_messages(self):
-        if not self._claude:
-            return json.dumps({"ok": True, "messages": []})
-        return json.dumps({"ok": True, "messages": self._claude.get_messages()})
-
-    def ai_stop(self):
-        if self._claude:
-            self._claude.stop_session()
-        return json.dumps({"ok": True})
-
-    # === Dedup ===
-
-    def init_dedup(self):
-        if not self._dedup:
-            self._dedup = DedupEngine()
-        return json.dumps(self._dedup.initialize())
-
-    def get_dedup_status(self):
-        if not self._dedup:
-            self._dedup = DedupEngine()
-        return json.dumps(self._dedup.get_stats())
-
-    def find_similar_questions(self, question_text, top_k=10):
-        if not self._dedup:
-            self._dedup = DedupEngine()
-            self._dedup.initialize()
-        return json.dumps(self._dedup.find_similar(question_text, int(top_k)))
-
-    def add_to_dedup(self, paper_id, questions_json, metadata_json="{}"):
-        if not self._dedup:
-            self._dedup = DedupEngine()
-            self._dedup.initialize()
-        questions = json.loads(questions_json) if isinstance(questions_json, str) else questions_json
-        metadata = json.loads(metadata_json) if metadata_json else {}
-        return json.dumps(self._dedup.add_paper(paper_id, questions, metadata))
-
-    # === FTS ===
-
-    def fts_search(self, query, limit=20):
-        return json.dumps(self._fts.search(query, int(limit)))
-
-    def fts_index_paper(self, paper_id, full_text, questions_json, metadata_json="{}"):
-        questions = json.loads(questions_json) if isinstance(questions_json, str) else questions_json
-        metadata = json.loads(metadata_json) if metadata_json else {}
-        return json.dumps(self._fts.index_paper(paper_id, full_text, questions, metadata))
-
-    def fts_stats(self):
-        return json.dumps(self._fts.get_stats())
