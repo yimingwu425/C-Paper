@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import SwiftUI
 
 enum BackendConnectionState: Equatable {
     case checking
@@ -234,11 +233,9 @@ final class AppModel {
             let params = SearchParams(subject: selectedSubject.code, year: selectedYear, season: selectedSeason.rawValue)
             let payload = try await bridge.send(method: "search", params: params, payloadType: SearchPayload.self)
             markBackendConnected()
-            withAnimation(CPDesign.Motion.standard) {
-                searchResults = payload.files
-                expandedPaperComponents = Set(payload.files.compactMap { $0.componentKey }.prefix(3))
-                selectedPreview = nil
-            }
+            searchResults = payload.files
+            expandedPaperComponents = Set(payload.files.compactMap { $0.componentKey }.prefix(3))
+            selectedPreview = nil
         } catch {
             handleBridgeError(error)
         }
@@ -259,11 +256,9 @@ final class AppModel {
             )
             let payload = try await bridge.send(method: "batch_preview", params: params, payloadType: BatchPreviewPayload.self)
             markBackendConnected()
-            withAnimation(CPDesign.Motion.standard) {
-                batchGroups = payload.groups
-                batchPreview = payload.files
-                selectedPreview = nil
-            }
+            batchGroups = payload.groups
+            batchPreview = payload.files
+            selectedPreview = nil
             if let warning = payload.warnings.first {
                 errorMessage = warning
             }

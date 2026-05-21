@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "C-Paper"
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unifiedCompact
+        window.backgroundColor = .clear
+        window.isMovableByWindowBackground = true
         window.minSize = NSSize(width: 1100, height: 720)
         window.isReleasedWhenClosed = false
         window.center()

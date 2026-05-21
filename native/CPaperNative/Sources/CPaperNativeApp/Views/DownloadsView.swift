@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DownloadsView: View {
     @Bindable var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: CPDesign.Spacing.lg) {
@@ -10,14 +11,17 @@ struct DownloadsView: View {
             table
         }
         .padding(28)
+        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.downloads)
+        .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: model.downloadSnapshot)
     }
 
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("下载队列")
-                    .font(.title.weight(.semibold))
+                    .font(.title2.weight(.semibold))
                 Text(model.downloadSnapshot.message)
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -27,13 +31,14 @@ struct DownloadsView: View {
                 } label: {
                     Label("取消", systemImage: "stop.circle")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(GlassButtonStyle(.destructive))
+                .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
             }
         }
     }
 
     private var summary: some View {
-        GlassSurface {
+        GlassSurface(role: .floating) {
             VStack(alignment: .leading, spacing: CPDesign.Spacing.md) {
                 HStack(spacing: CPDesign.Spacing.md) {
                     summaryBlock(title: "总数", value: "\(model.downloadSnapshot.total)", symbol: "tray.full")
@@ -44,46 +49,55 @@ struct DownloadsView: View {
 
                 ProgressView(value: progressValue)
                     .progressViewStyle(.linear)
+                    .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: progressValue)
             }
         }
     }
 
     private var table: some View {
-        Table(model.downloads) {
-            TableColumn("文件") { item in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.filename)
-                        .lineLimit(1)
-                    Text([item.year, item.ftype, item.label].filter { !$0.isEmpty }.joined(separator: " · "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+        GlassSurface(role: .base, padding: CPDesign.Spacing.sm) {
+            Table(model.downloads) {
+                TableColumn("文件") { item in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.filename)
+                            .lineLimit(1)
+                        Text([item.year, item.ftype, item.label].filter { !$0.isEmpty }.joined(separator: " · "))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .width(min: 320)
+
+                TableColumn("状态") { item in
+                    StatusBadge(text: item.status.title, systemImage: item.status.symbolName, tint: item.status.tint, prominence: .tinted)
+                }
+                .width(110)
+
+                TableColumn("进度") { item in
+                    ProgressView(value: item.progress)
+                        .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: item.progress)
+                }
+                .width(140)
+
+                TableColumn("信息") { item in
+                    Text(item.message)
+                        .lineLimit(2)
+                        .foregroundStyle(item.status == .failed ? .red : .secondary)
                 }
             }
-            .width(min: 320)
-
-            TableColumn("状态") { item in
-                Text(item.status.title)
-            }
-            .width(90)
-
-            TableColumn("进度") { item in
-                ProgressView(value: item.progress)
-            }
-            .width(140)
-
-            TableColumn("信息") { item in
-                Text(item.message)
-                    .lineLimit(2)
-            }
-        }
-        .overlay {
-            if model.downloads.isEmpty {
-                ContentUnavailableView(
-                    "没有下载任务",
-                    systemImage: "arrow.down.circle",
-                    description: Text("批量预览后可以在这里查看下载进度。")
-                )
+            .scrollContentBackground(.hidden)
+            .background(.background.opacity(0.58), in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+            .overlay {
+                if model.downloads.isEmpty {
+                    ContentUnavailableView(
+                        "没有下载任务",
+                        systemImage: "arrow.down.circle",
+                        description: Text("批量预览后可以在这里查看下载进度。")
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
+                }
             }
         }
     }
@@ -102,11 +116,35 @@ struct DownloadsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(value)
-                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .font(.headline.weight(.semibold).monospacedDigit())
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(CPDesign.Spacing.sm)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+        .liquidGlassSurface(.control, strokeOpacity: 0.38)
+    }
+}
+
+private extension DownloadStatus {
+    var symbolName: String {
+        switch self {
+        case .pending: "clock"
+        case .downloading: "arrow.down.circle"
+        case .done: "checkmark.circle.fill"
+        case .failed: "xmark.circle.fill"
+        case .cancelled: "stop.circle"
+        case .skipped: "forward.circle"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .pending: .secondary
+        case .downloading: .accentColor
+        case .done: .green
+        case .failed: .red
+        case .cancelled: .orange
+        case .skipped: .secondary
+        }
     }
 }

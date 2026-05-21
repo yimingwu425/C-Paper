@@ -2,15 +2,20 @@ import SwiftUI
 
 struct SearchView: View {
     @Bindable var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: CPDesign.Spacing.lg) {
             SearchHeader(model: model)
-            HStack(alignment: .top, spacing: CPDesign.Spacing.lg) {
-                SearchFilterPanel(model: model)
-                    .frame(width: 260)
+            HStack(alignment: .top, spacing: 20) {
+                GlassSurface(role: .content, padding: 14) {
+                    SearchFilterPanel(model: model)
+                }
+                .frame(width: 240)
                 SearchResultsPanel(model: model)
             }
+            .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.searchResults)
+            .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.selectedPreview)
         }
         .padding(28)
     }
@@ -23,18 +28,17 @@ private struct SearchHeader: View {
         HStack(alignment: .lastTextBaseline) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("搜索试卷")
-                    .font(.title.weight(.semibold))
+                    .font(.title2.weight(.semibold))
                 Text(model.selectedSubject?.displayName ?? "选择一个科目后开始检索")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text("\(model.searchResults.count) 个文件")
-                .font(.headline.monospacedDigit())
-                .foregroundStyle(.secondary)
+            HeaderCount(value: model.searchResults.count, unit: "个文件")
             if model.isLoading {
                 ProgressView()
                     .controlSize(.small)
+                    .transition(.opacity)
             }
         }
     }
@@ -44,98 +48,89 @@ private struct SearchFilterPanel: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CPDesign.Spacing.md) {
+        VStack(alignment: .leading, spacing: 12) {
             FieldBlock("科目") {
-                Picker("科目", selection: $model.selectedSubject) {
-                    ForEach(model.subjects) { subject in
-                        Text(subject.displayName).tag(Optional(subject))
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
+                SubjectPicker(subjects: model.subjects, selection: $model.selectedSubject)
             }
 
             FieldBlock("考季") {
-                Picker("考季", selection: $model.selectedSeason) {
-                    ForEach(Season.allCases) { season in
-                        Text(season.label).tag(season)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
+                SeasonPillPicker(selection: $model.selectedSeason)
             }
 
             FieldBlock("年份") {
-                Stepper("\(model.selectedYear)", value: $model.selectedYear, in: 2000...2035)
+                CompactYearField(value: $model.selectedYear, range: 2000...2035)
             }
 
             Divider()
 
-            Button {
-                Task {
-                    if model.isSelectedSubjectFavorite, let subject = model.selectedSubject {
-                        await model.removeFavorite(subject)
-                    } else {
-                        await model.addSelectedSubjectToFavorites()
-                    }
+            VStack(spacing: CPDesign.Spacing.sm) {
+                Button {
+                    Task { await model.search() }
+                } label: {
+                    Label(model.isLoading ? "搜索中" : "搜索", systemImage: "magnifyingglass")
+                        .frame(maxWidth: .infinity)
                 }
-            } label: {
-                Label(model.isSelectedSubjectFavorite ? "取消收藏" : "收藏科目", systemImage: model.isSelectedSubjectFavorite ? "star.fill" : "star")
-            }
-            .disabled(model.selectedSubject == nil || !model.backendState.isAvailable)
+                .buttonStyle(GlassButtonStyle(.primary))
+                .disabled(model.selectedSubject == nil || model.isLoading || !model.backendState.isAvailable)
 
-            Button {
-                Task { await model.search() }
-            } label: {
-                Label("搜索", systemImage: "magnifyingglass")
+                Button {
+                    Task {
+                        if model.isSelectedSubjectFavorite, let subject = model.selectedSubject {
+                            await model.removeFavorite(subject)
+                        } else {
+                            await model.addSelectedSubjectToFavorites()
+                        }
+                    }
+                } label: {
+                    Label(model.isSelectedSubjectFavorite ? "取消收藏" : "收藏科目", systemImage: model.isSelectedSubjectFavorite ? "star.fill" : "star")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(GlassButtonStyle(.subtle))
+                .disabled(model.selectedSubject == nil || !model.backendState.isAvailable)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(model.selectedSubject == nil || model.isLoading || !model.backendState.isAvailable)
-        }
-        .padding(CPDesign.Spacing.md)
-        .background(.bar, in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
         }
     }
 }
 
 private struct SearchResultsPanel: View {
     @Bindable var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
-            HStack {
-                Text("检索结果")
-                    .font(.headline)
-                Spacer()
-                Text("\(model.searchResults.count) 个文件")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
+        GlassSurface(role: .base, padding: CPDesign.Spacing.sm) {
+            VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
+                HStack {
+                    Text("检索结果")
+                        .font(.headline)
+                    Spacer()
+                }
+                .padding(.horizontal, CPDesign.Spacing.sm)
 
-            List(selection: $model.selectedPreview) {
-                ForEach(paperGroups) { group in
-                    DisclosureGroup(isExpanded: expandedBinding(for: group.id)) {
-                        ForEach(group.files) { file in
-                            PaperRow(file: file)
-                                .tag(Optional(file))
+                List(selection: $model.selectedPreview) {
+                    ForEach(paperGroups) { group in
+                        DisclosureGroup(isExpanded: expandedBinding(for: group.id)) {
+                            ForEach(group.files) { file in
+                                PaperRow(file: file)
+                                    .tag(Optional(file))
+                            }
+                        } label: {
+                            PaperGroupHeader(group: group)
                         }
-                    } label: {
-                        PaperGroupHeader(group: group)
                     }
                 }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
-            .overlay {
-                if model.searchResults.isEmpty {
-                    ContentUnavailableView(
-                        "暂无结果",
-                        systemImage: "doc.text.magnifyingglass",
-                        description: Text(model.backendState.isAvailable ? "选择筛选条件后点击搜索。" : "先连接 Python bridge。")
-                    )
+                .listStyle(.inset)
+                .scrollContentBackground(.hidden)
+                .background(.background.opacity(0.58), in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+                .overlay {
+                    if model.searchResults.isEmpty {
+                        ContentUnavailableView(
+                            "暂无结果",
+                            systemImage: "doc.text.magnifyingglass",
+                            description: Text(model.backendState.isAvailable ? "选择筛选条件后点击搜索。" : "先连接 Python bridge。")
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
+                    }
                 }
             }
         }
@@ -190,9 +185,93 @@ struct FieldBlock<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.caption.weight(.semibold))
+                .font(.caption)
                 .foregroundStyle(.secondary)
             content
+        }
+    }
+}
+
+struct SubjectPicker: View {
+    let subjects: [Subject]
+    @Binding var selection: Subject?
+
+    var body: some View {
+        Picker("科目", selection: $selection) {
+            Text(subjects.isEmpty ? "正在载入科目" : "选择科目")
+                .tag(Optional<Subject>.none)
+            ForEach(subjects) { subject in
+                Text(subject.displayName).tag(Optional(subject))
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .controlSize(.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct CompactYearField: View {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField("Year", text: textBinding)
+            .textFieldStyle(.plain)
+            .font(.callout.monospacedDigit())
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(width: 58)
+            .background {
+                RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
+                    .fill(Color.primary.opacity(0.035))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
+                    .stroke(isFocused ? Color.accentColor.opacity(0.42) : Color.secondary.opacity(0.16), lineWidth: 1)
+            }
+            .focused($isFocused)
+    }
+
+    private var textBinding: Binding<String> {
+        Binding(
+            get: { String(value) },
+            set: { newValue in
+                let digits = newValue.filter(\.isNumber)
+                guard let parsed = Int(digits) else { return }
+                value = min(max(parsed, range.lowerBound), range.upperBound)
+            }
+        )
+    }
+}
+
+struct SeasonPillPicker: View {
+    @Binding var selection: Season
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Season.allCases) { season in
+                Button {
+                    selection = season
+                } label: {
+                    Text(season.label)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(selection == season ? .primary : .secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background {
+                            RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
+                                .fill(Color.primary.opacity(selection == season ? 0.070 : 0.025))
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
+                                .stroke(selection == season ? Color.accentColor.opacity(0.26) : Color.secondary.opacity(0.14), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }
@@ -221,6 +300,7 @@ struct PaperGroupHeader: View {
         HStack(spacing: CPDesign.Spacing.sm) {
             Image(systemName: "doc.on.doc")
                 .foregroundStyle(.secondary)
+                .symbolRenderingMode(.hierarchical)
             Text(group.title)
                 .font(.headline)
             Text(group.detail)
@@ -234,11 +314,15 @@ struct PaperGroupHeader: View {
 
 struct PaperRow: View {
     let file: PaperFile
+    @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: CPDesign.Spacing.sm) {
             Image(systemName: file.paperType == "MS" ? "checklist" : "doc.text")
                 .foregroundStyle(.secondary)
+                .symbolRenderingMode(.hierarchical)
             VStack(alignment: .leading, spacing: 2) {
                 Text(file.filename)
                     .font(.body.weight(.medium))
@@ -250,6 +334,24 @@ struct PaperRow: View {
             }
             Spacer()
         }
-        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
+                .fill(hoverFill)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
+                .stroke(.quaternary.opacity(isHovering ? 0.65 : 0), lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+        .scaleEffect(isHovering && !reduceMotion ? 1.004 : 1)
+        .animation(CPDesign.Motion.tactile(reduceMotion: reduceMotion), value: isHovering)
+        .onHover { isHovering = $0 }
+    }
+
+    private var hoverFill: Color {
+        guard isHovering else { return .clear }
+        return colorScheme == .dark ? .white.opacity(0.06) : .black.opacity(0.035)
     }
 }

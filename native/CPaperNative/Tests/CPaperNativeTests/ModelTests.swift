@@ -5,7 +5,7 @@ import XCTest
 final class ModelTests: XCTestCase {
     func testRouteMetadata() {
         XCTAssertEqual(AppRoute.search.title, "搜索")
-        XCTAssertEqual(AppRoute.batch.symbolName, "tray.and.arrow.down")
+        XCTAssertEqual(AppRoute.batch.symbolName, "square.stack.3d.down.right")
     }
 
     func testDownloadCounts() {

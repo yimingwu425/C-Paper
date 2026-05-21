@@ -18,7 +18,7 @@ enum AppRoute: String, CaseIterable, Identifiable, Codable {
     var symbolName: String {
         switch self {
         case .search: "magnifyingglass"
-        case .batch: "tray.and.arrow.down"
+        case .batch: "square.stack.3d.down.right"
         case .downloads: "arrow.down.circle"
         }
     }

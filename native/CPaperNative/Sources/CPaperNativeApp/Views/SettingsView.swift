@@ -3,12 +3,12 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var proxyStatus = ""
 
     var body: some View {
         VStack(spacing: 0) {
             SettingsHeader()
-            Divider()
 
             VStack(alignment: .leading, spacing: 22) {
                 SaveSettingsSection(model: model)
@@ -16,30 +16,37 @@ struct SettingsView: View {
                 DownloadSettingsSection(model: model)
             }
             .padding(24)
+            .liquidGlassSurface(.modal, strokeOpacity: 0.42)
+            .padding(.horizontal, CPDesign.Spacing.md)
 
             Spacer(minLength: 0)
-            Divider()
             footer
         }
         .controlSize(.small)
         .frame(width: 580, height: 420)
+        .nativeContentBackground()
+        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: proxyStatus)
     }
 
     private var footer: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: CPDesign.Spacing.sm) {
             Spacer()
             Button("取消") {
                 dismiss()
             }
+            .buttonStyle(GlassButtonStyle(.normal))
+
             Button("保存") {
                 Task {
                     await model.saveSettings()
                     dismiss()
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(GlassButtonStyle(.primary))
         }
-        .padding(CPDesign.Spacing.md)
+        .padding(.horizontal, CPDesign.Spacing.md)
+        .padding(.vertical, CPDesign.Spacing.sm)
+        .background(.bar)
     }
 }
 
@@ -60,6 +67,7 @@ private struct SettingsHeader: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
+        .background(.bar)
     }
 }
 
@@ -75,6 +83,7 @@ private struct SaveSettingsSection: View {
                     Button("浏览") {
                         Task { await model.chooseSaveDirectory() }
                     }
+                    .buttonStyle(GlassButtonStyle(.subtle))
                 }
             }
         }
@@ -84,6 +93,7 @@ private struct SaveSettingsSection: View {
 private struct ProxySettingsSection: View {
     @Bindable var model: AppModel
     @Binding var proxyStatus: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         SettingsSection(title: "网络", systemImage: "network") {
@@ -99,10 +109,12 @@ private struct ProxySettingsSection: View {
                     Button("测试代理") {
                         Task { proxyStatus = await model.testProxy() }
                     }
+                    .buttonStyle(GlassButtonStyle(.subtle))
                     if !proxyStatus.isEmpty {
                         Text(proxyStatus)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+                            .transition(.opacity.combined(with: .move(edge: reduceMotion ? .bottom : .trailing)))
                     }
                 }
             }

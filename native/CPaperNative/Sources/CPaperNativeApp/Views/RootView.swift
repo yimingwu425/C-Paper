@@ -2,32 +2,47 @@ import SwiftUI
 
 struct RootView: View {
     @State private var model = AppModel()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model)
         } detail: {
-            VStack(spacing: 0) {
-                if !model.backendState.isAvailable {
-                    BackendStatusBanner(model: model)
-                        .padding(.horizontal, CPDesign.Spacing.lg)
-                        .padding(.top, CPDesign.Spacing.md)
+            ZStack(alignment: .bottom) {
+                VStack(spacing: 0) {
+                    if !model.backendState.isAvailable {
+                        BackendStatusBanner(model: model)
+                            .padding(.horizontal, CPDesign.Spacing.lg)
+                            .padding(.top, CPDesign.Spacing.md)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+
+                    Group {
+                        switch model.route {
+                        case .search:
+                            SearchView(model: model)
+                        case .batch:
+                            BatchView(model: model)
+                        case .downloads:
+                            DownloadsView(model: model)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.992, anchor: .center)))
+                    .id(model.route)
                 }
 
-                Group {
-                    switch model.route {
-                    case .search:
-                        SearchView(model: model)
-                    case .batch:
-                        BatchView(model: model)
-                    case .downloads:
-                        DownloadsView(model: model)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                StatusToast(model: model)
+                    .padding(.bottom, CPDesign.Spacing.lg)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            .nativeContentBackground()
         }
         .frame(minWidth: 1100, minHeight: 720)
+        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.route)
+        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.backendState.isAvailable)
+        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.isLoading)
+        .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: model.downloadSnapshot.phase)
         .task {
             await model.bootstrap()
         }
@@ -51,9 +66,12 @@ struct RootView: View {
                 } label: {
                     Label("刷新", systemImage: "arrow.clockwise")
                 }
+                .disabled(model.isLoading || !model.backendState.isAvailable)
 
                 Button {
-                    model.route = .downloads
+                    withAnimation(CPDesign.Motion.standard(reduceMotion: reduceMotion)) {
+                        model.route = .downloads
+                    }
                     Task { await model.refreshDownloads() }
                 } label: {
                     Label("下载", systemImage: "arrow.down.circle")
@@ -68,10 +86,12 @@ struct RootView: View {
         }
         .sheet(isPresented: $model.isSettingsPresented) {
             SettingsView(model: model)
+                .presentationBackground(.regularMaterial)
         }
         .sheet(item: selectedPreviewBinding) { file in
             PDFPreviewView(file: file)
                 .frame(minWidth: 760, minHeight: 640)
+                .presentationBackground(.regularMaterial)
         }
         .alert(
             "C-Paper",
@@ -106,17 +126,7 @@ private struct BackendStatusPill: View {
     let state: BackendConnectionState
 
     var body: some View {
-        Label(state.title, systemImage: symbolName)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(foregroundStyle)
-            .labelStyle(.titleAndIcon)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(.thinMaterial, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(.quaternary, lineWidth: 1)
-            }
+        StatusBadge(text: state.title, systemImage: symbolName, tint: foregroundStyle)
     }
 
     private var symbolName: String {
@@ -171,14 +181,10 @@ private struct BackendStatusBanner: View {
             } label: {
                 Label("重试", systemImage: "arrow.clockwise")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(GlassButtonStyle(.primary))
         }
         .padding(CPDesign.Spacing.md)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
-        }
+        .liquidGlassSurface(.floating)
     }
 
     @ViewBuilder
@@ -193,6 +199,52 @@ private struct BackendStatusBanner: View {
         case .failed:
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
+        }
+    }
+}
+
+private struct StatusToast: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        if isVisible {
+            HStack(spacing: CPDesign.Spacing.sm) {
+                icon
+                    .frame(width: 18, height: 18)
+                Text(message)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+            }
+            .padding(.horizontal, CPDesign.Spacing.md)
+            .padding(.vertical, CPDesign.Spacing.sm)
+            .liquidGlassSurface(.floating, strokeOpacity: 0.72)
+            .frame(maxWidth: 460)
+        }
+    }
+
+    private var isVisible: Bool {
+        model.isLoading || model.downloadSnapshot.isRunning || model.backendState == .checking
+    }
+
+    private var message: String {
+        if model.downloadSnapshot.isRunning {
+            return model.downloadSnapshot.message
+        }
+        if model.isLoading {
+            return "正在更新试卷数据"
+        }
+        return model.backendState.detail
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        if model.downloadSnapshot.isRunning || model.isLoading || model.backendState == .checking {
+            ProgressView()
+                .controlSize(.small)
+        } else {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
         }
     }
 }
