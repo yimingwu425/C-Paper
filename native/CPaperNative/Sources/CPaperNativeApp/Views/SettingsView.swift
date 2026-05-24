@@ -7,29 +7,36 @@ struct SettingsView: View {
     @State private var proxyStatus = ""
 
     var body: some View {
-        VStack(spacing: 0) {
-            SettingsHeader()
+        ZStack {
+            ProductBackdrop()
 
-            VStack(alignment: .leading, spacing: 22) {
-                SaveSettingsSection(model: model)
-                ProxySettingsSection(model: model, proxyStatus: $proxyStatus)
-                DownloadSettingsSection(model: model)
+            VStack(spacing: 16) {
+                SettingsHeader()
+
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        SaveSettingsSection(model: model)
+                        ProxySettingsSection(model: model, proxyStatus: $proxyStatus)
+                        DownloadSettingsSection(model: model)
+                    }
+                    .padding(.vertical, 2)
+                }
+                .frame(maxHeight: .infinity)
+
+                footer
             }
-            .padding(24)
-            .liquidGlassSurface(.modal, strokeOpacity: 0.42)
-            .padding(.horizontal, CPDesign.Spacing.md)
-
-            Spacer(minLength: 0)
-            footer
+            .padding(20)
         }
         .controlSize(.small)
-        .frame(width: 580, height: 420)
-        .nativeContentBackground()
+        .frame(width: 720, height: 560)
         .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: proxyStatus)
     }
 
     private var footer: some View {
         HStack(spacing: CPDesign.Spacing.sm) {
+            Label("设置保存后会立即用于下一次搜索和下载。", systemImage: "checkmark.seal")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Spacer()
             Button("取消") {
                 dismiss()
@@ -44,30 +51,67 @@ struct SettingsView: View {
             }
             .buttonStyle(GlassButtonStyle(.primary))
         }
-        .padding(.horizontal, CPDesign.Spacing.md)
-        .padding(.vertical, CPDesign.Spacing.sm)
-        .background(.bar)
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.ultraThinMaterial)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.44), lineWidth: 1)
+        }
     }
 }
 
 private struct SettingsHeader: View {
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "gearshape")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .center, spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.accentColor.opacity(0.22), Color(red: 0.56, green: 0.45, blue: 1.0).opacity(0.15)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Image(systemName: "gearshape.2")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .frame(width: 56, height: 56)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Preferences")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
                 Text("设置")
-                    .font(.headline.weight(.semibold))
-                Text("保存位置、代理和下载行为")
-                    .font(.caption)
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                Text("管理保存位置、网络代理和下载并发。批量文件整理规则已移到批量下载页。")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
+
             Spacer()
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 18)
-        .background(.bar)
+        .padding(18)
+        .background {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.38), Color.accentColor.opacity(0.055)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.46), lineWidth: 1)
+        }
+        .shadow(color: Color.accentColor.opacity(0.08), radius: 22, x: 0, y: 14)
     }
 }
 
@@ -75,7 +119,11 @@ private struct SaveSettingsSection: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        SettingsSection(title: "保存", systemImage: "folder") {
+        SettingsSection(
+            title: "保存",
+            subtitle: "决定下载文件最终落在哪里。",
+            systemImage: "folder"
+        ) {
             SettingsRow(label: "保存目录") {
                 HStack(spacing: 8) {
                     TextField("保存目录", text: $model.settings.saveDirectory)
@@ -86,6 +134,7 @@ private struct SaveSettingsSection: View {
                     .buttonStyle(GlassButtonStyle(.subtle))
                 }
             }
+            SettingsHint("批量下载和单份下载都会写入这个目录。建议使用独立文件夹，避免和手动整理的资料混在一起。")
         }
     }
 }
@@ -96,16 +145,21 @@ private struct ProxySettingsSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        SettingsSection(title: "网络", systemImage: "network") {
+        SettingsSection(
+            title: "网络",
+            subtitle: "用于学校网络、地区访问不稳定时的连接修正。",
+            systemImage: "network"
+        ) {
             VStack(alignment: .leading, spacing: 10) {
                 SettingsRow(label: "代理 URL") {
                     TextField("http://127.0.0.1:7890", text: $model.settings.proxyURL)
                         .textFieldStyle(.roundedBorder)
                 }
+                SettingsHint("如果学校网络或地区访问不稳定，可在这里填本机代理地址。留空则直连。")
 
                 HStack(spacing: 10) {
                     Spacer()
-                        .frame(width: 84)
+                        .frame(width: 86)
                     Button("测试代理") {
                         Task { proxyStatus = await model.testProxy() }
                     }
@@ -126,7 +180,11 @@ private struct DownloadSettingsSection: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        SettingsSection(title: "下载", systemImage: "arrow.down.circle") {
+        SettingsSection(
+            title: "下载",
+            subtitle: "控制下载速度和并发数量。",
+            systemImage: "arrow.down.circle"
+        ) {
             VStack(alignment: .leading, spacing: 12) {
                 SettingsRow(label: "速率") {
                     HStack(spacing: 10) {
@@ -152,12 +210,7 @@ private struct DownloadSettingsSection: View {
                     .frame(width: 180)
                 }
 
-                HStack(spacing: 18) {
-                    Spacer()
-                        .frame(width: 84)
-                    Toggle("包含 Mark Scheme", isOn: $model.settings.includeMarkSchemes)
-                    Toggle("合并年份文件夹", isOn: $model.settings.mergeFolders)
-                }
+                SettingsHint("并发越高下载越快，但网络波动时建议降低到 3-4。")
             }
         }
     }
@@ -165,22 +218,57 @@ private struct DownloadSettingsSection: View {
 
 private struct SettingsSection<Content: View>: View {
     let title: String
+    let subtitle: String
     let systemImage: String
     let content: Content
 
-    init(title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+    init(title: String, subtitle: String, systemImage: String, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.subtitle = subtitle
         self.systemImage = systemImage
         self.content = content()
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
-                .frame(width: 92, alignment: .leading)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 36, height: 36)
+                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline.weight(.semibold))
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .background {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.30), Color.accentColor.opacity(0.045)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.42), lineWidth: 1)
         }
     }
 }
@@ -195,11 +283,30 @@ private struct SettingsRow<Content: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(label)
                 .foregroundStyle(.secondary)
-                .frame(width: 84, alignment: .trailing)
+                .frame(width: 74, alignment: .trailing)
             content
+        }
+    }
+}
+
+private struct SettingsHint: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        HStack {
+            Spacer()
+                .frame(width: 86)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

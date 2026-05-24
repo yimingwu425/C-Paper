@@ -9,6 +9,9 @@ struct RootView: View {
             SidebarView(model: model)
         } detail: {
             ZStack(alignment: .bottom) {
+                ProductBackdrop()
+                    .ignoresSafeArea()
+
                 VStack(spacing: 0) {
                     if !model.backendState.isAvailable {
                         BackendStatusBanner(model: model)

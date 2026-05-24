@@ -5,19 +5,30 @@ struct SearchView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CPDesign.Spacing.lg) {
-            SearchHeader(model: model)
-            HStack(alignment: .top, spacing: 20) {
-                GlassSurface(role: .content, padding: 14) {
-                    SearchFilterPanel(model: model)
+        ZStack {
+            ProductBackdrop()
+
+            VStack(alignment: .leading, spacing: 26) {
+                SearchHeader(model: model)
+                HStack(alignment: .top, spacing: 28) {
+                    GlassSurface(role: .content, padding: 20) {
+                        SearchFilterPanel(model: model)
+                    }
+                    .frame(width: 322)
+                    .overlay(alignment: .topTrailing) {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.18))
+                            .frame(width: 84, height: 84)
+                            .blur(radius: 28)
+                            .offset(x: 26, y: -30)
+                    }
+                    SearchResultsPanel(model: model)
                 }
-                .frame(width: 240)
-                SearchResultsPanel(model: model)
+                .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.searchResults)
+                .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.selectedPreview)
             }
-            .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.searchResults)
-            .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.selectedPreview)
+            .padding(34)
         }
-        .padding(28)
     }
 }
 
@@ -25,15 +36,12 @@ private struct SearchHeader: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        HStack(alignment: .lastTextBaseline) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("搜索试卷")
-                    .font(.title2.weight(.semibold))
-                Text(model.selectedSubject?.displayName ?? "选择一个科目后开始检索")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+        PageHero(
+            eyebrow: "Smart Search",
+            title: "搜索试卷",
+            subtitle: model.selectedSubject?.displayName ?? "选择科目、年份和考季，快速定位可下载试卷。",
+            symbolName: "doc.text.magnifyingglass"
+        ) {
             HeaderCount(value: model.searchResults.count, unit: "个文件")
             if model.isLoading {
                 ProgressView()
@@ -48,7 +56,13 @@ private struct SearchFilterPanel: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
+            ControlPanelHeader(
+                title: "检索条件",
+                subtitle: "先选科目，再用考季和年份收窄范围。",
+                symbolName: "slider.horizontal.3"
+            )
+
             FieldBlock("科目") {
                 SubjectPicker(subjects: model.subjects, selection: $model.selectedSubject)
             }
@@ -88,6 +102,11 @@ private struct SearchFilterPanel: View {
                 .buttonStyle(GlassButtonStyle(.subtle))
                 .disabled(model.selectedSubject == nil || !model.backendState.isAvailable)
             }
+
+            GuidanceCard(
+                title: "结果会自动分组",
+                text: "同一套 Paper 的 Question Paper 和 Mark Scheme 会靠在一起，方便成套下载。"
+            )
         }
     }
 }
@@ -97,14 +116,23 @@ private struct SearchResultsPanel: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        GlassSurface(role: .base, padding: CPDesign.Spacing.sm) {
-            VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
-                HStack {
-                    Text("检索结果")
-                        .font(.headline)
+        GlassSurface(role: .base, padding: 18) {
+            VStack(alignment: .leading, spacing: 16) {
+                ResultPanelToolbar(
+                    title: "检索结果",
+                    subtitle: model.searchResults.isEmpty ? "等待搜索条件" : "\(paperGroups.count) 组试卷组件",
+                    symbolName: "tray.full"
+                ) {
+                    if !model.searchResults.isEmpty {
+                        Text("\(model.searchResults.count)")
+                            .font(.headline.weight(.semibold).monospacedDigit())
+                        Text("files")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Spacer()
                 }
-                .padding(.horizontal, CPDesign.Spacing.sm)
+                .padding(.horizontal, 2)
 
                 List(selection: $model.selectedPreview) {
                     ForEach(paperGroups) { group in
@@ -120,14 +148,37 @@ private struct SearchResultsPanel: View {
                 }
                 .listStyle(.inset)
                 .scrollContentBackground(.hidden)
-                .background(.background.opacity(0.58), in: RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.control, style: .continuous))
+                .background {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.white.opacity(0.58))
+                        .overlay {
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.18), Color.accentColor.opacity(0.055)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
+                }
                 .overlay {
                     if model.searchResults.isEmpty {
-                        ContentUnavailableView(
-                            "暂无结果",
+                        WorkflowEmptyState(
+                            title: "暂无结果",
                             systemImage: "doc.text.magnifyingglass",
-                            description: Text(model.backendState.isAvailable ? "选择筛选条件后点击搜索。" : "先连接 Python bridge。")
+                            steps: model.backendState.isAvailable ? [
+                                "选择科目",
+                                "确认年份和考季",
+                                "点击搜索并等待分组"
+                            ] : [
+                                "等待 Python bridge 连接",
+                                "检查脚本路径",
+                                "连接后重新搜索"
+                            ]
                         )
                         .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
                     }
@@ -170,6 +221,194 @@ private struct SearchResultsPanel: View {
                 }
             }
         )
+    }
+}
+
+struct ProductBackdrop: View {
+    var body: some View {
+        LinearGradient(
+            colors: [
+                Color(nsColor: .windowBackgroundColor),
+                Color(red: 0.90, green: 0.95, blue: 1.0).opacity(0.62),
+                Color(red: 0.77, green: 0.84, blue: 1.0).opacity(0.28)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay(alignment: .topTrailing) {
+            Circle()
+                .fill(Color(red: 0.47, green: 0.58, blue: 1.0).opacity(0.16))
+                .frame(width: 360, height: 360)
+                .blur(radius: 90)
+                .offset(x: 120, y: -150)
+        }
+        .overlay(alignment: .bottomLeading) {
+            Circle()
+                .fill(Color(red: 0.45, green: 0.83, blue: 0.94).opacity(0.10))
+                .frame(width: 420, height: 420)
+                .blur(radius: 110)
+                .offset(x: -160, y: 140)
+        }
+    }
+}
+
+struct PageHero<Accessory: View>: View {
+    let eyebrow: String
+    let title: String
+    let subtitle: String
+    let symbolName: String
+    let accessory: Accessory
+
+    init(
+        eyebrow: String,
+        title: String,
+        subtitle: String,
+        symbolName: String,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.subtitle = subtitle
+        self.symbolName = symbolName
+        self.accessory = accessory()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 20) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.accentColor.opacity(0.20), Color(red: 0.56, green: 0.45, blue: 1.0).opacity(0.14)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Image(systemName: symbolName)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .frame(width: 58, height: 58)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(eyebrow.uppercased())
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text(title)
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                Text(subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 20)
+            HStack(spacing: 10) {
+                accessory
+            }
+        }
+        .padding(24)
+        .background {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.38), Color.accentColor.opacity(0.055)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.46), lineWidth: 1)
+        }
+        .shadow(color: Color.accentColor.opacity(0.08), radius: 22, x: 0, y: 14)
+    }
+}
+
+struct ControlPanelHeader: View {
+    let title: String
+    let subtitle: String
+    let symbolName: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbolName)
+                .font(.headline)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 28, height: 28)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+struct GuidanceCard: View {
+    let title: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.accentColor.opacity(0.06))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.12), lineWidth: 1)
+        }
+    }
+}
+
+struct ResultPanelToolbar<Accessory: View>: View {
+    let title: String
+    let subtitle: String
+    let symbolName: String
+    let accessory: Accessory
+
+    init(title: String, subtitle: String, symbolName: String, @ViewBuilder accessory: () -> Accessory) {
+        self.title = title
+        self.subtitle = subtitle
+        self.symbolName = symbolName
+        self.accessory = accessory()
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbolName)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 34, height: 34)
+                .background {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.12))
+                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline.weight(.semibold))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            accessory
+        }
+        .padding(.vertical, 8)
     }
 }
 
@@ -353,5 +592,66 @@ struct PaperRow: View {
     private var hoverFill: Color {
         guard isHovering else { return .clear }
         return colorScheme == .dark ? .white.opacity(0.06) : .black.opacity(0.035)
+    }
+}
+
+struct WorkflowEmptyState: View {
+    let title: String
+    let systemImage: String
+    let steps: [String]
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.12))
+                    .frame(width: 78, height: 78)
+                Circle()
+                    .stroke(Color.white.opacity(0.44), lineWidth: 1)
+                    .frame(width: 78, height: 78)
+                Image(systemName: systemImage)
+                    .font(.system(size: 34, weight: .regular))
+                    .foregroundStyle(Color.accentColor)
+            }
+
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                Text("按下面顺序操作，列表会在这里更新。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                    HStack(spacing: 7) {
+                        Text("\(index + 1)")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 20, height: 20)
+                            .background {
+                                Circle()
+                                    .fill(Color.accentColor.opacity(0.14))
+                            }
+                        Text(step)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background {
+                        Capsule(style: .continuous)
+                            .fill(Color.white.opacity(0.50))
+                    }
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.10), lineWidth: 1)
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: 640)
     }
 }
