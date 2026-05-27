@@ -22,6 +22,7 @@ enum PythonBridgeError: LocalizedError {
     case invalidResponse(String)
     case backend(String)
     case missingScript(String)
+    case missingExecutable(String)
 
     var errorDescription: String? {
         switch self {
@@ -37,6 +38,8 @@ enum PythonBridgeError: LocalizedError {
             message
         case .missingScript(let path):
             "找不到 Python bridge 脚本：\(path)"
+        case .missingExecutable(let path):
+            "找不到 Python bridge 可执行文件：\(path)"
         }
     }
 }
@@ -44,15 +47,21 @@ enum PythonBridgeError: LocalizedError {
 actor PythonBridge {
     private let pythonPath: String
     private let bridgeScript: URL
+    private let bridgeExecutable: URL?
     private var process: Process?
     private var input: FileHandle?
     private var output: FileHandle?
     private var errorOutput: FileHandle?
     private var buffer = Data()
 
-    init(pythonPath: String = PythonBridge.defaultPythonPath(), bridgeScript: URL = PythonBridge.defaultBridgeScriptURL()) {
+    init(
+        pythonPath: String = PythonBridge.defaultPythonPath(),
+        bridgeScript: URL = PythonBridge.defaultBridgeScriptURL(),
+        bridgeExecutable: URL? = PythonBridge.defaultBridgeExecutableURL()
+    ) {
         self.pythonPath = pythonPath
         self.bridgeScript = bridgeScript
+        self.bridgeExecutable = bridgeExecutable
     }
 
     nonisolated static func defaultPythonPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
@@ -119,6 +128,10 @@ actor PythonBridge {
             roots.append(URL(fileURLWithPath: explicitRoot))
         }
 
+        if let resourceURL = Bundle.main.resourceURL {
+            roots.append(resourceURL)
+        }
+
         roots.append(contentsOf: [
             currentDirectory,
             currentDirectory.deletingLastPathComponent(),
@@ -149,6 +162,44 @@ actor PythonBridge {
             .appendingPathComponent("bridge/cpaper_bridge.py")
     }
 
+    nonisolated static func defaultBridgeExecutableURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        currentDirectory: URL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+        bundleURL: URL = Bundle.main.bundleURL
+    ) -> URL? {
+        let fileManager = FileManager.default
+
+        if let explicitExecutable = environment["CPAPER_BRIDGE_EXECUTABLE"], !explicitExecutable.isEmpty {
+            let url = URL(fileURLWithPath: explicitExecutable)
+            if fileManager.isExecutableFile(atPath: url.path) {
+                return url
+            }
+        }
+
+        var roots: [URL] = []
+        if let resourceURL = Bundle.main.resourceURL {
+            roots.append(resourceURL)
+        }
+        roots.append(contentsOf: [
+            currentDirectory,
+            currentDirectory.deletingLastPathComponent(),
+            bundleURL.deletingLastPathComponent()
+        ])
+
+        for root in roots {
+            let candidates = [
+                root.appendingPathComponent("Bridge/CPaperBridge/CPaperBridge"),
+                root.appendingPathComponent("CPaperBridge/CPaperBridge"),
+                root.appendingPathComponent("CPaperBridge")
+            ]
+            if let existing = candidates.first(where: { fileManager.isExecutableFile(atPath: $0.path) }) {
+                return existing
+            }
+        }
+
+        return nil
+    }
+
     nonisolated var bridgeScriptPath: String {
         bridgeScript.path
     }
@@ -162,16 +213,28 @@ actor PythonBridge {
             return
         }
 
-        guard FileManager.default.fileExists(atPath: bridgeScript.path) else {
-            throw PythonBridgeError.missingScript(bridgeScript.path)
+        let executableURL: URL
+        let arguments: [String]
+        if let bridgeExecutable {
+            guard FileManager.default.isExecutableFile(atPath: bridgeExecutable.path) else {
+                throw PythonBridgeError.missingExecutable(bridgeExecutable.path)
+            }
+            executableURL = bridgeExecutable
+            arguments = []
+        } else {
+            guard FileManager.default.fileExists(atPath: bridgeScript.path) else {
+                throw PythonBridgeError.missingScript(bridgeScript.path)
+            }
+            executableURL = URL(fileURLWithPath: pythonPath)
+            arguments = [bridgeScript.path]
         }
 
         let process = Process()
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: pythonPath)
-        process.arguments = [bridgeScript.path]
+        process.executableURL = executableURL
+        process.arguments = arguments
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe

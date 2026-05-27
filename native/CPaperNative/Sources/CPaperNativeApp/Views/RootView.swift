@@ -92,7 +92,7 @@ struct RootView: View {
                 .presentationBackground(.regularMaterial)
         }
         .sheet(item: selectedPreviewBinding) { file in
-            PDFPreviewView(file: file)
+            PDFPreviewView(model: model, file: file)
                 .frame(minWidth: 760, minHeight: 640)
                 .presentationBackground(.regularMaterial)
         }

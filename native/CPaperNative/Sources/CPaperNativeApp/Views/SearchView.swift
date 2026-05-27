@@ -101,6 +101,17 @@ private struct SearchFilterPanel: View {
                 }
                 .buttonStyle(GlassButtonStyle(.subtle))
                 .disabled(model.selectedSubject == nil || !model.backendState.isAvailable)
+
+                if !model.searchResults.isEmpty {
+                    Button {
+                        Task { await model.startSearchDownload() }
+                    } label: {
+                        Label("下载当前结果", systemImage: "arrow.down.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(GlassButtonStyle(.primary))
+                    .disabled(model.searchGroups.isEmpty || model.isLoading || !model.backendState.isAvailable)
+                }
             }
 
             GuidanceCard(
@@ -124,13 +135,22 @@ private struct SearchResultsPanel: View {
                     symbolName: "tray.full"
                 ) {
                     if !model.searchResults.isEmpty {
-                        Text("\(model.searchResults.count)")
-                            .font(.headline.weight(.semibold).monospacedDigit())
-                        Text("files")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 10) {
+                            Text("\(model.searchResults.count)")
+                                .font(.headline.weight(.semibold).monospacedDigit())
+                            Text("files")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                Task { await model.startSearchDownload() }
+                            } label: {
+                                Label("下载全部", systemImage: "arrow.down.circle")
+                            }
+                            .buttonStyle(GlassButtonStyle(.primary))
+                            .controlSize(.small)
+                        }
                     }
-                    Spacer()
                 }
                 .padding(.horizontal, 2)
 

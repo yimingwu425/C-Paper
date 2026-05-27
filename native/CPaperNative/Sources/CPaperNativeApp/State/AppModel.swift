@@ -44,6 +44,7 @@ final class AppModel {
     var batchSeasons: Set<Season> = Set(Season.allCases)
     var batchPaperGroups: Set<Int> = [1, 2, 3, 4, 5, 6]
     var searchResults: [PaperFile] = []
+    var searchGroups: [BackendPaperGroup] = []
     var batchPreview: [PaperFile] = []
     var batchGroups: [BackendPaperGroup] = []
     var downloads: [DownloadTaskItem] = []
@@ -234,6 +235,7 @@ final class AppModel {
             let payload = try await bridge.send(method: "search", params: params, payloadType: SearchPayload.self)
             markBackendConnected()
             searchResults = payload.files
+            searchGroups = payload.groups
             expandedPaperComponents = Set(payload.files.compactMap { $0.componentKey }.prefix(3))
             selectedPreview = nil
         } catch {
@@ -262,6 +264,34 @@ final class AppModel {
             if let warning = payload.warnings.first {
                 errorMessage = warning
             }
+        } catch {
+            handleBridgeError(error)
+        }
+    }
+
+    func startSearchDownload() async {
+        guard !searchGroups.isEmpty else { return }
+
+        do {
+            let chosenDirectory = try await bridge.send(method: "choose_directory", params: EmptyParams(), payloadType: String.self)
+            guard !chosenDirectory.isEmpty else {
+                return
+            }
+            settings.saveDirectory = chosenDirectory
+
+            let params = DownloadStartParams(
+                groups: searchGroups,
+                saveDir: settings.saveDirectory,
+                options: settings.downloadOptions
+            )
+            let result = try await bridge.send(method: "start_download", params: params, payloadType: DownloadStartResult.self)
+            guard result.ok else {
+                throw PythonBridgeError.backend("下载任务启动失败")
+            }
+            markBackendConnected()
+            route = .downloads
+            await refreshDownloads()
+            startPollingDownloads()
         } catch {
             handleBridgeError(error)
         }
@@ -361,7 +391,7 @@ final class AppModel {
         }
 
         switch bridgeError {
-        case .launchFailed, .processUnavailable, .invalidResponse, .missingScript:
+        case .launchFailed, .processUnavailable, .invalidResponse, .missingScript, .missingExecutable:
             backendState = .failed(message)
         case .encodingFailed, .backend:
             if !backendState.isAvailable {
