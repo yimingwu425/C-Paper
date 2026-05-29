@@ -192,3 +192,20 @@ This file is a concise running log of meaningful code, configuration, and docume
 - `003ec4c` `fix(legacy): use nsis-compatible windows icon`
 - There is an uncommitted follow-up change that removes the NSIS installer-shell icon requirement and applies the legacy icon through `build_win.bat`; it should be committed before the next rerun.
 - The next person should fetch the full failed log for run `26615489670`, job `78430150249`, specifically the `Build legacy Windows installer` step, before changing the workflow again.
+
+### 2026-05-29 — Fix NSIS source path for legacy Windows installer
+
+**Task**
+- Fix the remaining Windows installer packaging failure after NSIS could not find the packaged application directory during GitHub Actions.
+
+**Changed**
+- Updated `.github/workflows/legacy-release.yml` so the NSIS step runs from `legacy/pywebview/` and passes `dist\\C-Paper` and `dist\\C-Paper-legacy-5.2.1-setup.exe` as local paths instead of repo-root-relative paths.
+
+**Reason**
+- The failing run `26615919694` showed that NSIS resolved `legacy\\pywebview\\dist\\C-Paper\\*.*` against the wrong working-directory base and aborted with `no files found`.
+
+**Tested**
+- Reviewed failed Actions log for run `26615919694`, job `78431499217`, step `Build legacy Windows installer`.
+
+**Risks / Notes**
+- This fix only changes the NSIS invocation base path; it does not change the packaged app contents or release naming.

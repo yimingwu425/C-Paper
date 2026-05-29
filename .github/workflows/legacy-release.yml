@@ -68,11 +68,13 @@ jobs:
       - name: Build legacy Windows installer
         shell: pwsh
         run: |
+          Push-Location legacy\pywebview
           & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" `
             /DAPP_VERSION=5.2.1 `
-            /DSOURCE_DIR=legacy\pywebview\dist\C-Paper `
-            /DOUTPUT_FILE=legacy\pywebview\dist\C-Paper-legacy-5.2.1-setup.exe `
-            legacy\pywebview\packaging\legacy_installer.nsi
+            /DSOURCE_DIR=dist\C-Paper `
+            /DOUTPUT_FILE=dist\C-Paper-legacy-5.2.1-setup.exe `
+            packaging\legacy_installer.nsi
+          Pop-Location
 
       - name: Collect legacy Windows installer
         shell: pwsh
