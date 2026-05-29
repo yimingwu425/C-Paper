@@ -24,9 +24,11 @@ struct SearchView: View {
                     }
                     SearchResultsPanel(model: model)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.searchResults)
                 .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.selectedPreview)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(34)
         }
     }
@@ -155,22 +157,24 @@ private struct SearchResultsPanel: View {
                 }
                 .padding(.horizontal, 2)
 
-                HStack(spacing: 14) {
+                HStack(alignment: .top, spacing: 14) {
                     resultsList
 
                     if let selectedPreview = model.selectedPreview {
                         PDFPreviewView(model: model, file: selectedPreview)
-                            .frame(minWidth: 360, idealWidth: 430, maxWidth: 520)
-                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .frame(minWidth: 360, idealWidth: 410, maxWidth: 460, maxHeight: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.floating, style: .continuous))
                             .overlay {
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                RoundedRectangle(cornerRadius: CPDesign.Radius.floating, style: .continuous)
                                     .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
                             }
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var resultsList: some View {
@@ -231,7 +235,7 @@ private struct SearchResultsPanel: View {
                 .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
             }
         }
-        .frame(minWidth: 360)
+        .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var paperGroups: [PaperComponentGroup] {

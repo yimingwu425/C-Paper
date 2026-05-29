@@ -308,3 +308,22 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - The workflow release build will be validated by GitHub Actions after pushing the `v5.2.2` tag.
+
+### 2026-05-29 — Tighten native PDF preview layout
+
+**Task**
+- Fix the native 5.2.2 PDF preview layout after the inline preview appeared cramped and visually unbalanced.
+
+**Changed**
+- Updated `macos/Sources/CPaperNativeApp/Views/PDFPreviewView.swift` with a compact preview header, icon-only preview actions, a stable PDF content area, and safer PDFView document updates.
+- Updated `macos/Sources/CPaperNativeApp/Views/SearchView.swift` and `macos/Sources/CPaperNativeApp/Views/BatchView.swift` so results lists and inline previews fill the available panel height consistently.
+
+**Reason**
+- The previous inline preview reused a full-width toolbar inside a narrow side panel, which compressed the file controls and left the PDF area undersized.
+
+**Tested**
+- `swift package clean`
+- `swift test`
+
+**Risks / Notes**
+- Visual behavior was verified by code review and Swift tests; a live native window screenshot was not captured in this session.
