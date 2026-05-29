@@ -1,3 +1,4 @@
+import AppKit
 import PDFKit
 import SwiftUI
 
@@ -27,9 +28,16 @@ struct PDFPreviewView: View {
                         }
                         Spacer()
                         HStack(spacing: 8) {
+                            Button {
+                                model.selectedPreview = nil
+                            } label: {
+                                Label("关闭", systemImage: "xmark.circle")
+                            }
+                            .buttonStyle(GlassButtonStyle(.subtle))
+
                             if let localURL {
                                 Button {
-                                    model.bridge.open_folder(path: localURL.deletingLastPathComponent().path)
+                                    NSWorkspace.shared.activateFileViewerSelecting([localURL])
                                 } label: {
                                     Label("定位", systemImage: "folder")
                                 }
@@ -43,7 +51,7 @@ struct PDFPreviewView: View {
 
                             Button {
                                 Task {
-                                    await downloadSingleFile(file)
+                                    await model.startSingleFileDownload(file)
                                 }
                             } label: {
                                 Label("下载", systemImage: "arrow.down.circle")
@@ -159,94 +167,6 @@ struct PDFPreviewView: View {
         }
 
         return nil
-    }
-
-    private func downloadSingleFile(_ file: PaperFile) async {
-        do {
-            let chosenDirectory = try await model.bridge.send(method: "choose_directory", params: EmptyParams(), payloadType: String.self)
-            guard !chosenDirectory.isEmpty else {
-                return
-            }
-            model.settings.saveDirectory = chosenDirectory
-
-            let group = createBackendGroup(from: file)
-            let params = DownloadStartParams(
-                groups: [group],
-                saveDir: model.settings.saveDirectory,
-                options: model.settings.downloadOptions
-            )
-
-            let result = try await model.bridge.send(method: "start_download", params: params, payloadType: DownloadStartResult.self)
-            guard result.ok else {
-                throw PythonBridgeError.backend("下载任务启动失败")
-            }
-
-            model.route = .downloads
-            await model.refreshDownloads()
-            model.startPollingDownloads()
-
-            // 关闭 sheet
-            model.selectedPreview = nil
-        } catch {
-            model.errorMessage = error.localizedDescription
-        }
-    }
-
-    private func createBackendGroup(from file: PaperFile) -> BackendPaperGroup {
-        let syCode = getSyCode(season: file.season, year: file.year)
-        let type = file.paperType?.uppercased()
-
-        if type == "QP" {
-            return BackendPaperGroup(
-                subject: file.subjectCode,
-                sy: syCode,
-                number: file.number,
-                paperGroup: nil,
-                qp: file.filename,
-                ms: nil,
-                filename: nil,
-                ftype: nil,
-                label: file.label
-            )
-        } else if type == "MS" {
-            return BackendPaperGroup(
-                subject: file.subjectCode,
-                sy: syCode,
-                number: file.number,
-                paperGroup: nil,
-                qp: nil,
-                ms: file.filename,
-                filename: nil,
-                ftype: nil,
-                label: file.label
-            )
-        } else {
-            return BackendPaperGroup(
-                subject: file.subjectCode,
-                sy: syCode,
-                number: file.number,
-                paperGroup: nil,
-                qp: nil,
-                ms: nil,
-                filename: file.filename,
-                ftype: file.paperType?.lowercased(),
-                label: file.label
-            )
-        }
-    }
-
-    private func getSyCode(season: String?, year: Int?) -> String? {
-        guard let season, let year else { return nil }
-        let prefix: String
-        switch season {
-        case "Mar": prefix = "m"
-        case "Jun": prefix = "s"
-        case "Nov": prefix = "w"
-        default: prefix = "w"
-        }
-        let yearShort = String(year % 100)
-        let yearStr = yearShort.count == 1 ? "0\(yearShort)" : yearShort
-        return "\(prefix)\(yearStr)"
     }
 }
 

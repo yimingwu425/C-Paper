@@ -8,7 +8,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0\.."
 
 set APP_NAME=C-Paper
-set ENTRY=src\main.py
+set ENTRY=main.py
 set DIST=dist
 set BUILD=build
 set VENV=.build_venv_win
@@ -51,14 +51,14 @@ echo [4/5] PyInstaller 打包...
 echo block_cipher = None
 echo.
 echo a = Analysis^(
-echo     ['src\\main.py'],
-echo     pathex=[],
+echo     ['main.py'],
+echo     pathex=['..\\..'],
 echo     binaries=[],
 echo     datas=[
-echo         ('src\\ui_v2.html', '.'^),
-echo         ('src\\ui_v2.css', '.'^),
-echo         ('src\\ui_v2.js', '.'^),
-echo         ('version.json', '.'^),
+echo         ('ui_v2.html', '.'^),
+echo         ('ui_v2.css', '.'^),
+echo         ('ui_v2.js', '.'^),
+echo         ('..\\..\\version.json', '.'^),
 echo     ],
 echo     hiddenimports=[
 echo         'webview',
@@ -122,6 +122,7 @@ pyinstaller ^
     --noconfirm ^
     --distpath %DIST% ^
     --workpath %BUILD% ^
+    --paths ..\.. ^
     --collect-all webview ^
     --windowed ^
     --name "%APP_NAME%" ^
@@ -145,10 +146,10 @@ pyinstaller ^
     --hidden-import backend.engine ^
     --hidden-import backend.parser ^
     --hidden-import backend.api ^
-    --add-data "src\ui_v2.html;." ^
-    --add-data "src\ui_v2.css;." ^
-    --add-data "src\ui_v2.js;." ^
-    --add-data "version.json;." ^
+    --add-data "ui_v2.html;." ^
+    --add-data "ui_v2.css;." ^
+    --add-data "ui_v2.js;." ^
+    --add-data "..\..\version.json;." ^
     %ENTRY%
 
 if errorlevel 1 (

@@ -7,7 +7,7 @@ BUNDLE_ID="com.yimingwu.CPaperNative"
 MIN_SYSTEM_VERSION="14.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PACKAGE_DIR="$ROOT_DIR/native/CPaperNative"
+PACKAGE_DIR="$ROOT_DIR"
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
@@ -70,7 +70,7 @@ cat >"$INFO_PLIST" <<PLIST
     <key>CPAPER_ROOT</key>
     <string>$ROOT_DIR</string>
     <key>CPAPER_BRIDGE_SCRIPT</key>
-    <string>$ROOT_DIR/native/bridge/cpaper_bridge.py</string>
+    <string>$ROOT_DIR/bridge/cpaper_bridge.py</string>
     <key>CPAPER_PYTHON</key>
     <string>$PYTHON_BIN</string>
   </dict>

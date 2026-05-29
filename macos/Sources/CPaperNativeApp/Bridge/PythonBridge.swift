@@ -149,8 +149,8 @@ actor PythonBridge {
 
         for root in roots {
             let candidates = [
-                root.appendingPathComponent("native/bridge/cpaper_bridge.py"),
-                root.appendingPathComponent("bridge/cpaper_bridge.py")
+                root.appendingPathComponent("bridge/cpaper_bridge.py"),
+                root.appendingPathComponent("native/bridge/cpaper_bridge.py")
             ]
             if let existing = candidates.first(where: { fileManager.fileExists(atPath: $0.path) }) {
                 return existing

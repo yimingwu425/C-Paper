@@ -25,6 +25,7 @@ struct BatchView: View {
                     BatchPreviewPanel(model: model)
                 }
                 .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.batchPreview)
+                .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.selectedPreview)
             }
             .padding(34)
         }
@@ -233,50 +234,76 @@ private struct BatchPreviewPanel: View {
                 }
                 .padding(.horizontal, 2)
 
-                List(selection: $model.selectedPreview) {
-                    ForEach(model.batchPreview) { file in
-                        PaperRow(file: file)
-                            .tag(Optional(file))
-                    }
-                }
-                .listStyle(.inset)
-                .scrollContentBackground(.hidden)
-                .background {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.white.opacity(0.58))
-                        .overlay {
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.18), Color.accentColor.opacity(0.055)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                HStack(spacing: 14) {
+                    previewList
+
+                    if let selectedPreview = model.selectedPreview {
+                        PDFPreviewView(model: model, file: selectedPreview)
+                            .frame(minWidth: 360, idealWidth: 430, maxWidth: 520)
                             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
-                }
-                .overlay {
-                    if model.batchPreview.isEmpty {
-                        WorkflowEmptyState(
-                            title: "暂无预览",
-                            systemImage: "tray.and.arrow.down",
-                            steps: model.backendState.isAvailable ? [
-                                "选择科目和年份",
-                                "勾选考季与 Paper",
-                                "预览清单后下载"
-                            ] : [
-                                "等待 Python bridge 连接",
-                                "检查网络代理",
-                                "连接后重新预览"
-                            ]
-                        )
-                        .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
                 }
             }
         }
+    }
+
+    private var previewList: some View {
+        List(selection: $model.selectedPreview) {
+            ForEach(model.batchPreview) { file in
+                PaperRow(
+                    file: file,
+                    onPreview: {
+                        model.selectedPreview = file
+                    },
+                    onDownload: {
+                        Task { await model.startSingleFileDownload(file) }
+                    }
+                )
+                .tag(Optional(file))
+            }
+        }
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .background {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.58))
+                .overlay {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.18), Color.accentColor.opacity(0.055)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
+        }
+        .overlay {
+            if model.batchPreview.isEmpty {
+                WorkflowEmptyState(
+                    title: "暂无预览",
+                    systemImage: "tray.and.arrow.down",
+                    steps: model.backendState.isAvailable ? [
+                        "选择科目和年份",
+                        "勾选考季与 Paper",
+                        "预览清单后下载"
+                    ] : [
+                        "等待 Python bridge 连接",
+                        "检查网络代理",
+                        "连接后重新预览"
+                    ]
+                )
+                .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
+            }
+        }
+        .frame(minWidth: 360)
     }
 }

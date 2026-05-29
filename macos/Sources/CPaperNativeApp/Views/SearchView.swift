@@ -154,57 +154,83 @@ private struct SearchResultsPanel: View {
                 }
                 .padding(.horizontal, 2)
 
-                List(selection: $model.selectedPreview) {
-                    ForEach(paperGroups) { group in
-                        DisclosureGroup(isExpanded: expandedBinding(for: group.id)) {
-                            ForEach(group.files) { file in
-                                PaperRow(file: file)
-                                    .tag(Optional(file))
-                            }
-                        } label: {
-                            PaperGroupHeader(group: group)
-                        }
-                    }
-                }
-                .listStyle(.inset)
-                .scrollContentBackground(.hidden)
-                .background {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.white.opacity(0.58))
-                        .overlay {
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.18), Color.accentColor.opacity(0.055)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                HStack(spacing: 14) {
+                    resultsList
+
+                    if let selectedPreview = model.selectedPreview {
+                        PDFPreviewView(model: model, file: selectedPreview)
+                            .frame(minWidth: 360, idealWidth: 430, maxWidth: 520)
                             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
-                }
-                .overlay {
-                    if model.searchResults.isEmpty {
-                        WorkflowEmptyState(
-                            title: "暂无结果",
-                            systemImage: "doc.text.magnifyingglass",
-                            steps: model.backendState.isAvailable ? [
-                                "选择科目",
-                                "确认年份和考季",
-                                "点击搜索并等待分组"
-                            ] : [
-                                "等待 Python bridge 连接",
-                                "检查脚本路径",
-                                "连接后重新搜索"
-                            ]
-                        )
-                        .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
                 }
             }
         }
+    }
+
+    private var resultsList: some View {
+        List(selection: $model.selectedPreview) {
+            ForEach(paperGroups) { group in
+                DisclosureGroup(isExpanded: expandedBinding(for: group.id)) {
+                    ForEach(group.files) { file in
+                        PaperRow(
+                            file: file,
+                            onPreview: {
+                                model.selectedPreview = file
+                            },
+                            onDownload: {
+                                Task { await model.startSingleFileDownload(file) }
+                            }
+                        )
+                        .tag(Optional(file))
+                    }
+                } label: {
+                    PaperGroupHeader(group: group)
+                }
+            }
+        }
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .background {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.58))
+                .overlay {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.18), Color.accentColor.opacity(0.055)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
+        }
+        .overlay {
+            if model.searchResults.isEmpty {
+                WorkflowEmptyState(
+                    title: "暂无结果",
+                    systemImage: "doc.text.magnifyingglass",
+                    steps: model.backendState.isAvailable ? [
+                        "选择科目",
+                        "确认年份和考季",
+                        "点击搜索并等待分组"
+                    ] : [
+                        "等待 Python bridge 连接",
+                        "检查脚本路径",
+                        "连接后重新搜索"
+                    ]
+                )
+                .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
+            }
+        }
+        .frame(minWidth: 360)
     }
 
     private var paperGroups: [PaperComponentGroup] {
@@ -573,6 +599,8 @@ struct PaperGroupHeader: View {
 
 struct PaperRow: View {
     let file: PaperFile
+    let onPreview: () -> Void
+    let onDownload: () -> Void
     @State private var isHovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -592,6 +620,20 @@ struct PaperRow: View {
                     .lineLimit(1)
             }
             Spacer()
+            HStack(spacing: 6) {
+                PaperRowActionButton(
+                    title: "预览",
+                    systemImage: "eye",
+                    isVisible: isHovering,
+                    action: onPreview
+                )
+                PaperRowActionButton(
+                    title: "下载",
+                    systemImage: "arrow.down.circle",
+                    isVisible: isHovering,
+                    action: onDownload
+                )
+            }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 7)
@@ -607,11 +649,38 @@ struct PaperRow: View {
         .scaleEffect(isHovering && !reduceMotion ? 1.004 : 1)
         .animation(CPDesign.Motion.tactile(reduceMotion: reduceMotion), value: isHovering)
         .onHover { isHovering = $0 }
+        .onTapGesture(perform: onPreview)
     }
 
     private var hoverFill: Color {
         guard isHovering else { return .clear }
         return colorScheme == .dark ? .white.opacity(0.06) : .black.opacity(0.035)
+    }
+}
+
+private struct PaperRowActionButton: View {
+    let title: String
+    let systemImage: String
+    let isVisible: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 28, height: 28)
+                .background {
+                    Circle()
+                        .fill(Color.accentColor.opacity(isVisible ? 0.12 : 0))
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(isVisible ? 1 : 0)
+        .disabled(!isVisible)
+        .help(title)
+        .accessibilityLabel(title)
     }
 }
 

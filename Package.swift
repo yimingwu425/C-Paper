@@ -12,12 +12,12 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "CPaperNativeApp",
-            path: "Sources/CPaperNativeApp"
+            path: "macos/Sources/CPaperNativeApp"
         ),
         .testTarget(
             name: "CPaperNativeTests",
             dependencies: ["CPaperNativeApp"],
-            path: "Tests/CPaperNativeTests"
+            path: "macos/Tests/CPaperNativeTests"
         )
     ]
 )

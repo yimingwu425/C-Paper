@@ -1,21 +1,18 @@
-# C-Paper Native
+# C-Paper Native (Moved)
 
-Native macOS SwiftUI front end for C-Paper.
+The native macOS project is now rooted at the repository top level.
 
 ## Run
 
 ```bash
-cd native/CPaperNative
 swift run CPaperNative
 ```
 
 ## Test
 
 ```bash
-cd native/CPaperNative
 swift test
-cd ../..
 pytest
 ```
 
-The native app uses `native/bridge/cpaper_bridge.py` to call the existing Python backend.
+The active Python bridge now lives at `bridge/cpaper_bridge.py`, and the shared Python backend lives at `backend/`.

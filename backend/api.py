@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -74,17 +75,30 @@ class API:
 
     # ── Window Control APIs ──
 
+    def _dispatch_window_action(self, action_name):
+        if not self.window:
+            return
+
+        action = getattr(self.window, action_name)
+        if sys.platform != "darwin":
+            action()
+            return
+
+        try:
+            from PyObjCTools import AppHelper
+            AppHelper.callAfter(action)
+        except Exception:
+            logger.exception("AppHelper.callAfter failed for %s", action_name)
+            action()
+
     def close_window(self):
-        if self.window:
-            self.window.destroy()
+        self._dispatch_window_action("destroy")
 
     def minimize_window(self):
-        if self.window:
-            self.window.minimize()
+        self._dispatch_window_action("minimize")
 
     def toggle_fullscreen(self):
-        if self.window:
-            self.window.toggle_fullscreen()
+        self._dispatch_window_action("toggle_fullscreen")
 
     def sync_maximize_state(self, is_maximized):
         self._is_maximized = is_maximized

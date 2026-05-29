@@ -3,6 +3,11 @@
 import os
 import sys
 import webview
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 from backend.api import API
 
 _UI_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,8 +31,8 @@ if __name__ == "__main__":
 
     def _on_loaded():
         if is_mac:
-            # 1. Add class namespace to HTML body
-            window.evaluate_js("document.body.classList.add('mac-os');")
+            # 1. Add class namespace to HTML documentElement and body
+            window.evaluate_js("document.documentElement.classList.add('mac-os'); document.body.classList.add('mac-os');")
             
             # 2. Thread-safe Cocoa / PyObjC Vibrancy & Shadow Injector
             try:
@@ -62,23 +67,23 @@ if __name__ == "__main__":
                             except Exception as e:
                                 print(f"[Cocoa] WebView setUnderPageBackgroundColor failed: {e}")
                             
-                            # Create custom high-fidelity NSVisualEffectView
+                            # Create one native vibrancy layer and keep WebKit pixels clear.
                             frame = wk_webview.bounds()
                             vfx = AppKit.NSVisualEffectView.alloc().initWithFrame_(frame)
                             vfx.setAutoresizingMask_(AppKit.NSViewWidthSizable | AppKit.NSViewHeightSizable)
                             vfx.setWantsLayer_(True)
                             
-                            # State: 1 = NSVisualEffectStateActive (always vibrant, even in background)
-                            vfx.setState_(1)
+                            # Let macOS adapt vibrancy when the window becomes inactive.
+                            vfx.setState_(0)
                             # Blending Mode: 0 = NSVisualEffectBlendingModeBehindWindow
                             vfx.setBlendingMode_(0)
-                            # Material: 7 = NSVisualEffectMaterialSidebar (ultra-clear, premium glass blur)
+                            # Material: 7 = NSVisualEffectMaterialSidebar, a stable native macOS surface.
                             vfx.setMaterial_(7)
                             
-                            # Insert under the WebView
-                            wk_webview.addSubview_positioned_relativeTo_(vfx, AppKit.NSWindowBelow, wk_webview)
+                            # Insert under all other views (relativeTo: None)
+                            wk_webview.addSubview_positioned_relativeTo_(vfx, AppKit.NSWindowBelow, None)
                             
-                            print("[Cocoa] Successfully injected premium vibrancy and drop shadow on main thread!")
+                            print("[Cocoa] Successfully injected native vibrancy and drop shadow on main thread!")
                     except Exception as inner_e:
                         print(f"[Cocoa] Error inside main thread injector: {inner_e}")
                 
@@ -102,4 +107,3 @@ if __name__ == "__main__":
         window.events.maximized += _on_maximized
         window.events.restored += _on_restored
     webview.start(debug=False)
-

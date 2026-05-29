@@ -1943,10 +1943,16 @@ select:focus, input:focus {
 
 /* ══════════════════════════════════════════════════
    macOS Native Vibrancy Adaptive Overrides
-   Active only when Python injects body.mac-os
+   Active only when Python injects body.mac-os.
+   Keep WebKit surfaces calm and legible; AppKit owns vibrancy.
    ══════════════════════════════════════════════════ */
 
 body.mac-os {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+html.mac-os {
   background: transparent !important;
   background-image: none !important;
 }
@@ -1968,78 +1974,130 @@ body.mac-os .glow {
   display: none;
 }
 
-/* Sleek translucent sidebar — desktop bleeds through beautifully */
 body.mac-os .rail {
-  background: rgba(var(--surface-rgb), 0.02) !important;
-  border-right: 1px solid rgba(var(--surface-rgb), 0.06);
+  background: rgba(var(--surface-rgb), 0.36) !important;
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.16);
 }
 
-/* Main content area gets an ultra-thin frosted tint for absolute clarity */
 body.mac-os .main-wrap {
-  background: rgba(var(--surface-rgb), 0.06) !important;
+  background: rgba(var(--surface-rgb), 0.18) !important;
 }
 
-/* Cards float delicately with light backing and sharp sub-pixel borders */
-body.mac-os .card {
-  background: rgba(var(--surface-rgb), 0.25) !important;
-  border: 1px solid rgba(var(--surface-rgb), 0.1) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-/* Topbar blends into native frame */
 body.mac-os .topbar {
   background: transparent !important;
 }
 
-/* Dock floats over native vibrancy with a subtle frosted glass backing */
+body.mac-os .card,
+body.mac-os .dock,
+body.mac-os .set-dialog,
+body.mac-os .preview-panel,
+body.mac-os .toast,
+body.mac-os .update-toast {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.mac-os .card {
+  background: rgba(var(--surface-rgb), 0.68) !important;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07) !important;
+}
+
+body.mac-os .card:hover {
+  border-color: rgba(15, 23, 42, 0.16) !important;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.1) !important;
+}
+
 body.mac-os .dock {
-  background: rgba(var(--surface-rgb), 0.25) !important;
-  backdrop-filter: blur(25px) saturate(1.4);
-  -webkit-backdrop-filter: blur(25px) saturate(1.4);
-  border: 1px solid rgba(var(--surface-rgb), 0.12) !important;
+  background: rgba(var(--surface-rgb), 0.78) !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12) !important;
 }
 
-/* Settings overlay with heavier backdrop on native transparency */
-body.mac-os .set-overlay.on {
-  background: rgba(0, 0, 0, 0.25);
+body.mac-os .set-overlay,
+body.mac-os .confirm-overlay {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
+
+body.mac-os .set-overlay.on,
+body.mac-os .confirm-overlay.on {
+  background: rgba(0, 0, 0, 0.28);
+}
+
 body.mac-os .set-dialog {
-  background: rgba(var(--surface-rgb), 0.5);
-  backdrop-filter: blur(40px) saturate(1.5);
-  -webkit-backdrop-filter: blur(40px) saturate(1.5);
-  border: 1px solid rgba(var(--surface-rgb), 0.15);
+  background: rgba(var(--surface-rgb), 0.9) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
 }
 
-/* Preview panel with native-blended backdrop */
 body.mac-os .preview-panel {
-  background: rgba(var(--surface-rgb), 0.3);
-  backdrop-filter: blur(35px) saturate(1.3);
-  -webkit-backdrop-filter: blur(35px) saturate(1.3);
-  border-left: 1px solid rgba(var(--surface-rgb), 0.1);
+  background: rgba(var(--surface-rgb), 0.82) !important;
+  border-left: 1px solid rgba(15, 23, 42, 0.1);
 }
 
-/* Dark theme refinements on macOS — deep translucent tones matching native macOS apps */
+body.mac-os .splash {
+  background: rgba(var(--surface-rgb), 0.82) !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.mac-os select,
+body.mac-os input:not([type="checkbox"]):not([type="range"]),
+body.mac-os .btn {
+  border-radius: 8px !important;
+}
+
+body.mac-os .setting-row input[type="range"] {
+  accent-color: var(--accent);
+}
+
+body.mac-os .btn:hover,
+body.mac-os .dock-btn:hover,
+body.mac-os .close-btn:hover {
+  transform: none;
+}
+
+body.mac-os .close-btn:hover {
+  background: rgba(var(--surface-rgb), 0.6);
+  color: var(--text);
+  border-color: var(--border2);
+}
+
 [data-theme="dark"] body.mac-os .rail,
 body.mac-os [data-theme="dark"] .rail {
-  background: rgba(0, 0, 0, 0.15) !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(10, 14, 28, 0.42) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
 }
 [data-theme="dark"] body.mac-os .main-wrap,
 body.mac-os [data-theme="dark"] .main-wrap {
-  background: rgba(0, 0, 0, 0.05) !important;
+  background: rgba(10, 14, 28, 0.16) !important;
 }
 [data-theme="dark"] body.mac-os .card,
 body.mac-os [data-theme="dark"] .card {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background: rgba(13, 18, 34, 0.76) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28) !important;
 }
 [data-theme="dark"] body.mac-os .dock,
 body.mac-os [data-theme="dark"] .dock {
-  background: rgba(0, 0, 0, 0.2) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background: rgba(13, 18, 34, 0.86) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.38) !important;
 }
-
+[data-theme="dark"] body.mac-os .set-dialog,
+body.mac-os [data-theme="dark"] .set-dialog,
+[data-theme="dark"] body.mac-os .preview-panel,
+body.mac-os [data-theme="dark"] .preview-panel {
+  background: rgba(13, 18, 34, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.1);
+}
 
 /* ══════════════════════════════════════════════════
    System Accessibility: Reduce Transparency
@@ -2052,22 +2110,27 @@ body.mac-os [data-theme="dark"] .dock {
     background: var(--bg);
   }
   body.mac-os .rail {
-    background: var(--surface3);
+    background: var(--surface3) !important;
   }
   body.mac-os .main-wrap {
-    background: var(--surface2);
+    background: var(--surface2) !important;
   }
   body.mac-os .card {
-    background: var(--surface3);
+    background: var(--surface3) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   body.mac-os .dock {
-    background: var(--surface2);
+    background: var(--surface2) !important;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
   body.mac-os .set-dialog {
-    background: var(--surface3);
+    background: var(--surface3) !important;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+  body.mac-os .preview-panel {
+    background: var(--surface3) !important;
   }
 }

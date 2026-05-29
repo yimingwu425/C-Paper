@@ -8,7 +8,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP_NAME="C-Paper"
-ENTRY="../src/main.py"
+ENTRY="../main.py"
 BUNDLE_ID="cn.fraft.cpaper"
 DIST_DIR="dist"
 BUILD_DIR="build"
@@ -116,14 +116,14 @@ EXCLUDES = [
 ]
 
 a = Analysis(
-    ['../src/main.py'],
+    ['../main.py'],
     datas=[
-        ('../src/ui_v2.html', '.'),
-        ('../src/ui_v2.css', '.'),
-        ('../src/ui_v2.js', '.'),
-        ('../version.json', '.'),
+        ('../ui_v2.html', '.'),
+        ('../ui_v2.css', '.'),
+        ('../ui_v2.js', '.'),
+        ('../../../version.json', '.'),
     ] + collect_data_files('webview'),
-    pathex=[],
+    pathex=['../../..'],
     binaries=[],
     hiddenimports=[
         'webview',

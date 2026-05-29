@@ -9,7 +9,7 @@ MIN_SYSTEM_VERSION="14.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PACKAGE_DIR="$ROOT_DIR/native/CPaperNative"
+PACKAGE_DIR="$ROOT_DIR"
 DIST_DIR="$ROOT_DIR/dist"
 BUILD_ROOT="$ROOT_DIR/build/native_dmg"
 VENV_DIR="$BUILD_ROOT/venv"
@@ -177,7 +177,7 @@ cd "$PACKAGE_DIR"
 SWIFT_BINARY="$(find "$PACKAGE_DIR/.build" -path "*/$CONFIGURATION/$APP_NAME" -type f -perm -111 | head -1 || true)"
 if [ "${SKIP_SWIFT_BUILD:-0}" = "1" ] && [ -n "$SWIFT_BINARY" ] && [ -x "$SWIFT_BINARY" ]; then
   echo "Skipping Swift build and reusing current binary: $SWIFT_BINARY"
-elif [ -n "$SWIFT_BINARY" ] && [ -x "$SWIFT_BINARY" ] && ! find "$PACKAGE_DIR/Sources" -type f -newer "$SWIFT_BINARY" | grep -q .; then
+elif [ -n "$SWIFT_BINARY" ] && [ -x "$SWIFT_BINARY" ] && ! find "$PACKAGE_DIR/macos/Sources" -type f -newer "$SWIFT_BINARY" | grep -q .; then
   echo "Reusing current Swift binary: $SWIFT_BINARY"
 else
   swift build -c "$CONFIGURATION" --product "$APP_NAME"
@@ -200,7 +200,7 @@ echo "[2/6] Building frozen Python bridge..."
   --name CPaperBridge \
   --distpath "$BRIDGE_DIST_DIR" \
   --workpath "$BRIDGE_BUILD_DIR" \
-  --paths "$ROOT_DIR/src" \
+  --paths "$ROOT_DIR" \
   --hidden-import backend \
   --hidden-import backend.api \
   --hidden-import backend.cache \
@@ -210,7 +210,7 @@ echo "[2/6] Building frozen Python bridge..."
   --hidden-import backend.parser \
   --hidden-import backend.plugin_manager \
   --hidden-import backend.updater \
-  "$ROOT_DIR/native/bridge/cpaper_bridge.py"
+  "$ROOT_DIR/bridge/cpaper_bridge.py"
 
 BRIDGE_APP="$BRIDGE_DIST_DIR/CPaperBridge"
 BRIDGE_EXEC="$BRIDGE_APP/CPaperBridge"

@@ -297,6 +297,29 @@ final class AppModel {
         }
     }
 
+    func startSingleFileDownload(_ file: PaperFile) async {
+        do {
+            guard let saveDirectory = try await resolvedSaveDirectory() else {
+                return
+            }
+
+            let params = DownloadStartParams(
+                groups: [backendGroup(for: file)],
+                saveDir: saveDirectory,
+                options: settings.downloadOptions
+            )
+            let result = try await bridge.send(method: "start_download", params: params, payloadType: DownloadStartResult.self)
+            guard result.ok else {
+                throw PythonBridgeError.backend("下载任务启动失败")
+            }
+            markBackendConnected()
+            await refreshDownloads()
+            startPollingDownloads()
+        } catch {
+            handleBridgeError(error)
+        }
+    }
+
     func startBatchDownload() async {
         guard !batchGroups.isEmpty else { return }
 
@@ -377,6 +400,86 @@ final class AppModel {
         if backendState != .connected {
             backendState = .connected
         }
+    }
+
+    private func resolvedSaveDirectory() async throws -> String? {
+        let expandedPath = (settings.saveDirectory as NSString).expandingTildeInPath
+        var isDirectory: ObjCBool = false
+        if !expandedPath.isEmpty,
+           FileManager.default.fileExists(atPath: expandedPath, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return settings.saveDirectory
+        }
+
+        let chosenDirectory = try await bridge.send(method: "choose_directory", params: EmptyParams(), payloadType: String.self)
+        guard !chosenDirectory.isEmpty else {
+            return nil
+        }
+        settings.saveDirectory = chosenDirectory
+        await saveSettings()
+        return chosenDirectory
+    }
+
+    private func backendGroup(for file: PaperFile) -> BackendPaperGroup {
+        let type = file.paperType?.uppercased()
+        let sy = syCode(season: file.season, year: file.year)
+
+        if type == "QP" {
+            return BackendPaperGroup(
+                subject: file.subjectCode,
+                sy: sy,
+                number: file.number,
+                paperGroup: nil,
+                qp: file.filename,
+                ms: nil,
+                filename: nil,
+                ftype: nil,
+                label: file.label
+            )
+        }
+
+        if type == "MS" {
+            return BackendPaperGroup(
+                subject: file.subjectCode,
+                sy: sy,
+                number: file.number,
+                paperGroup: nil,
+                qp: nil,
+                ms: file.filename,
+                filename: nil,
+                ftype: nil,
+                label: file.label
+            )
+        }
+
+        return BackendPaperGroup(
+            subject: file.subjectCode,
+            sy: sy,
+            number: file.number,
+            paperGroup: nil,
+            qp: nil,
+            ms: nil,
+            filename: file.filename,
+            ftype: file.paperType?.lowercased(),
+            label: file.label
+        )
+    }
+
+    private func syCode(season: String?, year: Int?) -> String? {
+        guard let season, let year else { return nil }
+        let prefix: String
+        switch season {
+        case "Mar":
+            prefix = "m"
+        case "Jun":
+            prefix = "s"
+        case "Nov":
+            prefix = "w"
+        default:
+            prefix = "w"
+        }
+        let shortYear = String(year % 100)
+        return "\(prefix)\(shortYear.count == 1 ? "0\(shortYear)" : shortYear)"
     }
 
     private func handleBridgeError(_ error: Error) {

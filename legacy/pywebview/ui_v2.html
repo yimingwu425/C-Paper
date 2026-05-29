@@ -11,6 +11,8 @@
 --border:rgba(250,249,245,0.06);--text:#f0efe8;--text3:#706e66;
 --accent:#e8845a;--accent2:#6a9bcc;}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);margin:0;}
+html.mac-os, html.mac-os body { background: transparent !important; background-image: none !important; }
+html.mac-os .splash { background: rgba(var(--surface-rgb), 0.82) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .splash{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;
 align-items:center;justify-content:center;gap:10px;background:var(--bg);
 opacity:1;transition:opacity .5s var(--ease);}
