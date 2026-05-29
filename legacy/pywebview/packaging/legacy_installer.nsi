@@ -40,7 +40,7 @@ Unicode True
 
 Section "Install"
   SetOutPath "$INSTDIR"
-  File /r "${SOURCE_DIR}\\*.*"
+  File /r "${SOURCE_DIR}\*"
 
   WriteUninstaller "$INSTDIR\\Uninstall ${APP_NAME} Legacy.exe"
 

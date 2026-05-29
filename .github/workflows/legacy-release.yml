@@ -69,6 +69,8 @@ jobs:
         shell: pwsh
         run: |
           Push-Location legacy\pywebview
+          Get-ChildItem dist
+          Get-ChildItem dist\C-Paper | Select-Object -First 20
           & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" `
             /DAPP_VERSION=5.2.1 `
             /DSOURCE_DIR=dist\C-Paper `

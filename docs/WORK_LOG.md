@@ -209,3 +209,21 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - This fix only changes the NSIS invocation base path; it does not change the packaged app contents or release naming.
+
+### 2026-05-29 — Harden NSIS file copy pattern
+
+**Task**
+- Continue debugging the remaining legacy Windows installer failure after NSIS still reported `no files found` for the packaged app directory.
+
+**Changed**
+- Updated `legacy/pywebview/packaging/legacy_installer.nsi` to use `File /r "${SOURCE_DIR}\\*"` instead of the more brittle `*.*` pattern.
+- Updated `.github/workflows/legacy-release.yml` to print `dist\\C-Paper` contents before running `makensis` so the next failure, if any, includes direct evidence of the packaged app directory.
+
+**Reason**
+- The failing run `26616003953` showed that NSIS still aborted on the `File /r` line even after the invocation base path was corrected.
+
+**Tested**
+- Reviewed failed Actions log for run `26616003953`, job `78431754806`, step `Build legacy Windows installer`.
+
+**Risks / Notes**
+- This is still isolated to the legacy Windows installer flow and does not affect the native mainline release path.
