@@ -152,6 +152,7 @@ This file is a concise running log of meaningful code, configuration, and docume
 **Changed**
 - Added `legacy/pywebview/assets/icon.ico` derived from the legacy icon set for Windows installer branding.
 - Added `legacy/pywebview/packaging/legacy_installer.nsi` for NSIS-based Windows installer packaging.
+- Updated `legacy/pywebview/packaging/build_win.bat` so the packaged Windows app executable uses the legacy icon.
 - Updated `.github/workflows/legacy-release.yml` to install NSIS on `windows-latest`, build `C-Paper-legacy-5.2.1-setup.exe`, and publish that installer instead of the ZIP archive.
 - Updated `.github/release-notes/legacy-v5.2.1.md` to describe the Windows installer flow and final asset name.
 
@@ -164,3 +165,30 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - NSIS packaging is validated on GitHub Actions rather than locally because this macOS environment does not provide the Windows installer toolchain.
+- The installer shell no longer forces a custom icon; the legacy icon is applied to the packaged Windows app executable to keep the release stable.
+
+### 2026-05-29 — Legacy Windows installer handoff status
+
+**Task**
+- Record the current blocking state before handing off the remaining legacy Windows installer issue.
+
+**Changed**
+- No new product behavior changes were completed in this step.
+- Documented the latest GitHub Actions runs and the current suspected blocker for the Windows installer packaging.
+
+**Reason**
+- The session needed a clean handoff point with the current failure mode and next investigation steps written down before continuing.
+
+**Tested**
+- Reviewed failed GitHub Actions runs:
+- `26615356038`: Windows installer failed in NSIS while trying to load a custom installer icon.
+- `26615489670`: After removing the installer-shell icon and moving the legacy icon usage to the packaged Windows app executable, the Windows installer step still failed and needs the next log pull before further edits.
+
+**Risks / Notes**
+- Current branch: `codex/swift-native-ui`.
+- Latest pushed commits related to this issue include:
+- `9a9b535` `fix(ci): make legacy release publish idempotent`
+- `d0b4b17` `feat(legacy): publish final windows installer exe`
+- `003ec4c` `fix(legacy): use nsis-compatible windows icon`
+- There is an uncommitted follow-up change that removes the NSIS installer-shell icon requirement and applies the legacy icon through `build_win.bat`; it should be committed before the next rerun.
+- The next person should fetch the full failed log for run `26615489670`, job `78430150249`, specifically the `Build legacy Windows installer` step, before changing the workflow again.

@@ -20,10 +20,6 @@
   !define OUTPUT_FILE "dist\\C-Paper-legacy-${APP_VERSION}-setup.exe"
 !endif
 
-!ifndef ICON_FILE
-  !define ICON_FILE "assets\\icon.ico"
-!endif
-
 Name "${APP_NAME} Legacy ${APP_VERSION}"
 OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\\Programs\\${APP_NAME} Legacy"
@@ -31,8 +27,6 @@ RequestExecutionLevel user
 Unicode True
 
 !define MUI_ABORTWARNING
-!define MUI_ICON "${ICON_FILE}"
-!define MUI_UNICON "${ICON_FILE}"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY

@@ -106,7 +106,7 @@ echo     debug=False,
 echo     strip=False,
 echo     upx=True,
 echo     console=False,
-echo     icon=None,
+echo     icon='assets\\icon.ico',
 echo ^)
 echo.
 echo coll = COLLECT^(
@@ -126,6 +126,7 @@ pyinstaller ^
     --collect-all webview ^
     --windowed ^
     --name "%APP_NAME%" ^
+    --icon assets\icon.ico ^
     --exclude-module tkinter ^
     --exclude-module numpy ^
     --exclude-module pandas ^

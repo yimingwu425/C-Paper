@@ -72,7 +72,6 @@ jobs:
             /DAPP_VERSION=5.2.1 `
             /DSOURCE_DIR=legacy\pywebview\dist\C-Paper `
             /DOUTPUT_FILE=legacy\pywebview\dist\C-Paper-legacy-5.2.1-setup.exe `
-            /DICON_FILE=legacy\pywebview\assets\icon.ico `
             legacy\pywebview\packaging\legacy_installer.nsi
 
       - name: Collect legacy Windows installer
