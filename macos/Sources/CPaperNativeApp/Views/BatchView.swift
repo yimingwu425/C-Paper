@@ -128,7 +128,7 @@ private struct BatchFilterPanel: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GlassButtonStyle(.primary))
-                .disabled(model.batchGroups.isEmpty)
+                .disabled(model.batchGroups.isEmpty || model.isLoading || !model.backendState.isAvailable)
             }
 
             GuidanceCard(

@@ -149,6 +149,7 @@ private struct SearchResultsPanel: View {
                             }
                             .buttonStyle(GlassButtonStyle(.primary))
                             .controlSize(.small)
+                            .disabled(model.searchGroups.isEmpty || model.isLoading || !model.backendState.isAvailable)
                         }
                     }
                 }

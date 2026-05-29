@@ -1,4 +1,4 @@
-"""C-Paper v5.2.1 backend package"""
+"""C-Paper v5.2.2 backend package"""
 from .const import BASE_URL, CACHE_DIR, CACHE_TTL, CACHE_MAX, USER_AGENT, HISTORY_MAX
 from .cache import read_json, write_json, load_cache, save_cache
 from .limiter import TokenBucket, CircuitBreaker

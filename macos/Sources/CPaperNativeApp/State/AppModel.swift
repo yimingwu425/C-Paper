@@ -356,7 +356,7 @@ final class AppModel {
             downloadSnapshot = snapshot
             downloads = items.sorted { $0.id < $1.id }
             if snapshot.isRunning {
-                startPollingDownloads()
+                ensureDownloadPolling()
             } else {
                 stopPollingDownloads()
             }
@@ -389,6 +389,11 @@ final class AppModel {
                 try? await Task.sleep(nanoseconds: 750_000_000)
             }
         }
+    }
+
+    func ensureDownloadPolling() {
+        guard pollTask == nil else { return }
+        startPollingDownloads()
     }
 
     func stopPollingDownloads() {

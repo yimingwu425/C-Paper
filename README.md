@@ -1,68 +1,133 @@
 # C-Paper
 
-> C-Paper 当前的主维护版本是 macOS 原生版。仓库中的 Swift/macOS 客户端、Python bridge 和共享 Python backend 共同构成当前主线；旧的 Python + pywebview 桌面壳已归档到 `legacy/pywebview/`。
+> C-Paper 是面向 macOS 的 Cambridge International Education past paper 桌面工具，用来搜索、预览和批量下载试卷与 mark scheme。当前主线是原生 SwiftUI/AppKit 版本，适合学生、教师和需要批量整理 CIE 资料的学习场景。
 
-[![Build](https://github.com/yimingwu425/C-Paper/actions/workflows/build.yml/badge.svg)](https://github.com/yimingwu425/C-Paper/actions/workflows/build.yml)
+[![Build Native macOS](https://github.com/yimingwu425/C-Paper/actions/workflows/build.yml/badge.svg)](https://github.com/yimingwu425/C-Paper/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/yimingwu425/C-Paper?label=release)](https://github.com/yimingwu425/C-Paper/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## 当前维护方向
+## 30 秒上手
 
-- 主产品：macOS 原生 SwiftUI/AppKit 客户端
-- 主入口：仓库根目录 `Package.swift`
-- 运行时依赖：
-  - `macos/`：原生桌面客户端
-  - `bridge/`：native 调用的 Python bridge
-  - `backend/`：共享 Python backend
-- 归档实现：`legacy/pywebview/`
+下载安装：
 
-## 快速开始
+- 前往 [Releases](https://github.com/yimingwu425/C-Paper/releases) 下载最新的 `C-Paper-Native-*-standalone-*.dmg`
+- 打开 DMG 后把 `CPaperNative.app` 拖入 `Applications`
+- 首次运行如遇到 macOS 安全提示，右键应用图标，选择“打开”，再确认打开
 
-### 运行主线 macOS 版本
+本地开发运行：
 
 ```bash
 swift run CPaperNative
 ```
 
-### 运行测试
+## 当前版本
+
+当前 native 主线版本：`5.2.2`
+
+5.2.2 重点：
+
+- 修复 native 下载状态轮询抖动，避免下载队列刷新时反复重建轮询任务
+- 补齐搜索结果和批量下载按钮的可用性判断
+- 保持现有 native UI 风格不变
+- 继续使用 Swift/macOS 客户端、Python bridge 和共享 Python backend 的主线架构
+
+## 主要能力
+
+- 搜索试卷：按科目、年份、考季检索 CIE past papers
+- 结果分组：自动把 Question Paper、Mark Scheme 和相关组件组织在一起
+- PDF 预览：选择结果后在应用内缓存并预览 PDF，也可直接用浏览器打开
+- 批量下载：按年份范围、考季和 Paper 编号生成下载清单
+- 下载队列：集中查看下载进度、完成数、失败状态和取消状态
+- 收藏科目：把常用科目固定到侧边栏，减少重复选择
+- 本地设置：保存下载目录、代理、并发、速率和重复文件处理策略
+
+## 架构现状
+
+C-Paper 现在只维护 native macOS 主线。旧的 Python + pywebview 桌面壳已经归档，仅保留历史参考和必要维护。
+
+```text
+C-Paper/
+├── Package.swift                 # Swift Package Manager 入口
+├── macos/                        # active native macOS app source and Swift tests
+├── bridge/                       # native app 调用的 Python JSON-lines bridge
+├── backend/                      # 搜索、解析、下载、缓存、插件等共享 Python backend
+├── tests/                        # Python backend pytest 测试
+├── scripts/                      # native DMG 构建与发布脚本
+├── assets/                       # 应用图标和共享图片资产
+├── docs/                         # 项目索引、工作日志和内部文档
+├── site/                         # 静态项目站点
+└── legacy/pywebview/             # archived legacy desktop shell
+```
+
+运行关系：
+
+```text
+CPaperNative.app
+  -> bridge/cpaper_bridge.py
+    -> backend/api.py
+      -> parser / engine / cache / updater / plugin manager
+```
+
+## 开发环境
+
+需要：
+
+- macOS
+- Xcode command line tools / Swift Package Manager
+- Python 3
+- `requests`、`urllib3`、`pytest`
+
+安装 Python 依赖：
 
 ```bash
-swift test
+python3 -m pip install -r requirements.txt
+```
+
+运行 native app：
+
+```bash
+swift run CPaperNative
+```
+
+运行测试：
+
+```bash
+swift test --jobs 1
 pytest
 ```
 
-### 构建 macOS DMG
+构建 native DMG：
 
 ```bash
 bash scripts/build_native_dmg.sh
 ```
 
-## 项目结构
+如需 release 配置构建：
 
-```text
-C-Paper/
-├── Package.swift                 # Swift package root entrypoint
-├── macos/                        # Active macOS app source and tests
-├── bridge/                       # Active Python bridge used by the macOS app
-├── backend/                      # Active shared Python backend
-├── tests/                        # Python backend tests
-├── legacy/pywebview/             # Archived Python + pywebview frontend
-├── scripts/                      # Active native build/release scripts
-├── site/                         # Static project site
-├── assets/                       # Icons and image assets
-└── docs/                         # Project memory and internal docs
+```bash
+CONFIGURATION=release bash scripts/build_native_dmg.sh
 ```
 
-## 依赖说明
+## 发布流程
 
-根目录 `requirements.txt` 只保留当前主线所需的 Python 依赖：
+主发布线是 native macOS DMG，由 GitHub Actions 的 [Build Native macOS](https://github.com/yimingwu425/C-Paper/actions/workflows/build.yml) workflow 负责。
 
-- `requests`
-- `urllib3`
-- `pytest`
+常规发布步骤：
 
-归档 pywebview 前端需要的依赖在：
+```bash
+git tag v5.2.2
+git push origin main
+git push origin v5.2.2
+```
 
-- `legacy/pywebview/requirements.txt`
+tag 触发后，workflow 会：
+
+- 构建 native macOS app
+- 打包 standalone DMG
+- 挂载并校验 DMG 内容
+- 上传 Actions artifact
+- 创建 GitHub Release
+- 附带详细 release notes
 
 ## Legacy 说明
 
@@ -74,17 +139,19 @@ C-Paper/
 - `legacy/pywebview/ui_v2.js`
 - `legacy/pywebview/packaging/`
 
-这些代码会保留以便参考、回溯和必要维护，但不再代表当前产品方向，也不再是 GitHub 主发布线。
+legacy 5.2.1 是旧 pywebview 线路的最终归档 release。后续功能、修复和发布默认都进入 native macOS 主线。
 
 ## 数据与隐私
 
-C-Paper 不上传、不收集、不分享用户个人数据。应用会在本地保存必要状态，例如设置、收藏、下载历史和搜索缓存。清理本地数据时，可删除 `~/.cie_cache/` 和用户选择的下载目录。
+C-Paper 不上传、不收集、不分享用户个人数据。应用只在本机保存必要状态，例如：
 
-## 构建与发布
+- 设置
+- 收藏科目
+- 下载历史
+- 搜索缓存
+- 插件配置
 
-- GitHub Actions 主 workflow：`.github/workflows/build.yml`
-- 主发布线：native macOS DMG
-- 旧 pywebview 的 Windows / macOS 打包脚本仅保留在 `legacy/pywebview/packaging/`，不再作为主线自动发布流程
+默认缓存目录为 `~/.cie_cache/`。下载文件保存在用户选择的目录中。
 
 ## 免责声明
 

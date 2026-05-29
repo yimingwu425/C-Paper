@@ -261,3 +261,50 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - No application code changed in this step.
+
+### 2026-05-29 — Fix native download controls and bump to 5.2.2
+
+**Task**
+- Check native frontend functionality, fix local functional issues, and advance the active native release metadata to 5.2.2.
+
+**Changed**
+- Updated native download polling so refreshes do not cancel and recreate the active polling task while downloads are still running.
+- Disabled the search results "download all" action when no backend groups are available, loading is active, or the backend is unavailable.
+- Disabled the batch download action while loading or when the backend is unavailable.
+- Bumped active native/backend metadata from 5.2.1 to 5.2.2 in `scripts/build_native_dmg.sh`, `version.json`, `backend/const.py`, and `backend/__init__.py`.
+
+**Reason**
+- Download controls should not trigger no-op or unavailable backend actions, and active native release metadata should match the functional fix release.
+
+**Tested**
+- `swift test --jobs 1`
+- `pytest`
+- Bridge smoke test for settings, status, download list, and favorites JSON-lines methods.
+
+**Risks / Notes**
+- No UI visual styling was changed.
+- Search endpoint verification was not treated as a local blocker because the current VPN environment can prevent access to the upstream site.
+
+### 2026-05-29 — Refresh README and native 5.2.2 release workflow
+
+**Task**
+- Rewrite the project README for the current native-first state and prepare the GitHub Actions native release flow for C-Paper Native 5.2.2.
+
+**Changed**
+- Rewrote `README.md` around the native macOS product line, current 5.2.2 status, install steps, architecture, development commands, release process, legacy boundary, privacy, and disclaimer.
+- Updated `.github/workflows/build.yml` so native DMG builds use release configuration.
+- Added a generated detailed native release notes document for tag-triggered GitHub Releases.
+- Updated the tag-triggered release title format to `C-Paper Native <version>`.
+
+**Reason**
+- The public repository landing page and release notes should match the current native mainline and give users enough install, architecture, and release context.
+
+**Tested**
+- `swift test --jobs 1`
+- `pytest`
+- `git diff --check`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/build.yml")'`
+- `bash -n scripts/build_native_dmg.sh`
+
+**Risks / Notes**
+- The workflow release build will be validated by GitHub Actions after pushing the `v5.2.2` tag.

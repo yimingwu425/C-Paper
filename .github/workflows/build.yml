@@ -42,7 +42,7 @@ jobs:
       - name: Build native DMG
         run: |
           chmod +x scripts/build_native_dmg.sh
-          CONFIGURATION=debug ./scripts/build_native_dmg.sh
+          CONFIGURATION=release ./scripts/build_native_dmg.sh
 
       - name: Verify DMG and background guide
         run: |
@@ -66,21 +66,67 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Prepare native release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "RELEASE_NAME=C-Paper Native ${VERSION}" >> "$GITHUB_ENV"
+          cat > native-release-notes.md <<EOF
+          # C-Paper Native ${VERSION}
+
+          C-Paper Native ${VERSION} is the current maintained macOS release of C-Paper. The active product line is now the native SwiftUI/AppKit app, backed by the Python JSON-lines bridge and shared Python backend.
+
+          ## Download
+
+          | Platform | File | Notes |
+          | --- | --- | --- |
+          | macOS | \`C-Paper-Native-${VERSION}-standalone-*.dmg\` | Open the DMG and drag \`CPaperNative.app\` into \`Applications\`. |
+
+          ## What changed in ${VERSION}
+
+          - Fixed native download polling so the app does not cancel and recreate the active polling task while downloads are still running.
+          - Added safer enabled/disabled states for search-result downloads and batch downloads.
+          - Kept the current native UI direction unchanged.
+          - Updated native/backend release metadata to ${VERSION}.
+
+          ## Main features
+
+          - Search Cambridge International Education past papers by subject, year, and season.
+          - Preview PDFs inside the app, with local cache reuse when files already exist.
+          - Group question papers and mark schemes together for easier review.
+          - Build batch download queues across years, seasons, and paper numbers.
+          - Track download progress, completed items, failed items, and cancellation state.
+          - Save local settings such as download directory, proxy URL, rate, concurrency, duplicate-file handling, and favorite subjects.
+
+          ## Install notes
+
+          macOS may show a developer verification warning on first launch. If that happens, right-click \`CPaperNative.app\`, choose **Open**, and confirm.
+
+          ## Architecture note
+
+          This release is for the native macOS line:
+
+          - \`macos/\`: SwiftUI/AppKit desktop client
+          - \`bridge/\`: Python bridge used by the native app
+          - \`backend/\`: shared Python backend for search, parsing, caching, downloads, and updates
+
+          The old Python + pywebview implementation remains archived under \`legacy/pywebview/\` and is not the active product line.
+
+          ## Verification
+
+          The release workflow builds the native app, packages a standalone DMG, verifies the DMG, mounts it, checks the app bundle and Applications symlink, and then publishes this GitHub Release.
+
+          ## Disclaimer
+
+          C-Paper is a local desktop search and download helper. It does not own, host, or redistribute Cambridge International Education papers. Data availability depends on the third-party source used by the app.
+          EOF
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          name: "C-Paper ${{ github.ref_name }}"
-          body: |
-            ## 下载
-
-            | 平台 | 文件 | 说明 |
-            |------|------|------|
-            | 🍎 macOS | `C-Paper-Native-*.dmg` | 打开后拖入 Applications |
-
-            ### macOS 说明
-            首次运行如提示“无法验证开发者”：
-            右键 → 打开 → 仍然打开
+          name: "${{ env.RELEASE_NAME }}"
+          body_path: native-release-notes.md
           files: dist/C-Paper-Native-*-standalone-*.dmg
           draft: false
           prerelease: false
