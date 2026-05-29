@@ -1,4 +1,4 @@
-# AppVeyor CI — Windows EXE build for C-Paper
+# AppVeyor CI — legacy pywebview Windows EXE build for C-Paper
 # Free for open-source repos.
 # Sign up at https://www.appveyor.com/  → "New project" → connect GitHub → pick C-Paper
 # Artifacts can be downloaded from the AppVeyor build dashboard.
@@ -37,6 +37,7 @@ build_script:
     --name "C-Paper"
     --distpath dist
     --workpath build
+    --paths ..\..
     --collect-all webview
     --hidden-import webview
     --hidden-import webview.platforms.winforms
@@ -48,10 +49,10 @@ build_script:
     --hidden-import backend.engine
     --hidden-import backend.parser
     --hidden-import backend.api
-    --add-data "src\ui_v2.html;."
-    --add-data "src\ui_v2.css;."
-    --add-data "src\ui_v2.js;."
-    --add-data "version.json;."
+    --add-data "ui_v2.html;."
+    --add-data "ui_v2.css;."
+    --add-data "ui_v2.js;."
+    --add-data "..\..\version.json;."
     --exclude-module tkinter
     --exclude-module numpy
     --exclude-module pandas
@@ -62,7 +63,7 @@ build_script:
     --exclude-module PyQt6
     --exclude-module PySide2
     --exclude-module PySide6
-    src\main.py
+    main.py
 
   - ps: Compress-Archive -Path "dist\C-Paper" -DestinationPath "dist\C-Paper_win.zip" -Force
   - ps: $size = [math]::Round((Get-Item "dist\C-Paper_win.zip").Length / 1MB, 1); Write-Host "ZIP 大小：$size MB"

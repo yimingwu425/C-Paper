@@ -1,139 +1,97 @@
-# C-Paper v5.2.1
+# C-Paper
 
-C-Paper 是一款桌面端 CIE（Cambridge International Education）试卷检索与下载工具，用于搜索、预览并批量下载历年 Question Papers 和 Mark Schemes。它面向需要整理 CIE 试卷资料的教师、学生和教研场景，重点放在稳定的桌面使用体验。
+> C-Paper 当前的主维护版本是 macOS 原生版。仓库中的 Swift/macOS 客户端、Python bridge 和共享 Python backend 共同构成当前主线；旧的 Python + pywebview 桌面壳已归档到 `legacy/pywebview/`。
 
----
+[![Build](https://github.com/yimingwu425/C-Paper/actions/workflows/build.yml/badge.svg)](https://github.com/yimingwu425/C-Paper/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## 主要功能
+## 当前维护方向
 
-- **试卷搜索**：按科目代码、年份和考试季节检索 CIE 试卷。
-- **批量预览**：按年份范围、季节和 Paper 类型生成待下载列表。
-- **批量下载**：支持 QP/MS 配对下载、并发下载、限速、自动重试和取消。
-- **文件整理**：可按年份和 QP/MS 分类保存，也可合并到同一目录。
-- **下载历史**：记录已下载文件，支持覆盖、跳过、仅下载缺失文件。
-- **收藏科目**：保存常用科目代码，便于快速再次搜索。
-- **基础设置**：支持保存目录、主题、并发数、请求速率和 HTTP 代理配置。
+- 主产品：macOS 原生 SwiftUI/AppKit 客户端
+- 主入口：仓库根目录 `Package.swift`
+- 运行时依赖：
+  - `macos/`：原生桌面客户端
+  - `bridge/`：native 调用的 Python bridge
+  - `backend/`：共享 Python backend
+- 归档实现：`legacy/pywebview/`
 
-## 技术架构
+## 快速开始
 
-| 层级 | 技术 | 说明 |
-|------|------|------|
-| 前端 UI | HTML5 + CSS3 + Vanilla JS | 三栏布局桌面界面 |
-| 桌面容器 | pywebview | 将 Web 界面嵌入原生桌面窗口 |
-| 后端 | Python 3 + requests | 搜索、解析、下载和本地持久化 |
-| 并发下载 | ThreadPoolExecutor | 可配置下载线程数 |
-| 限流控制 | TokenBucket | 控制请求速率 |
-| 本地缓存 | JSON 文件 | 保存设置、收藏、历史和搜索缓存 |
-| 打包分发 | PyInstaller | macOS DMG / Windows ZIP |
-
-## 系统要求
-
-- **macOS**：macOS 11.0 及以上
-- **Windows**：Windows 10 v1803 及以上，需 Edge WebView2
-- **开发环境**：Python 3.11 及以上建议
-
----
-
-## 本地运行
+### 运行主线 macOS 版本
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python src/main.py
+swift run CPaperNative
 ```
 
-Windows PowerShell：
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python src\main.py
-```
-
-## 打包
-
-macOS：
+### 运行测试
 
 ```bash
-bash scripts/build_mac.sh
+swift test
+pytest
 ```
 
-Windows：
+### 构建 macOS DMG
 
-```bat
-scripts\build_win.bat
+```bash
+bash scripts/build_native_dmg.sh
 ```
 
-打包产物默认输出到 `dist/` 目录。
+## 项目结构
 
----
+```text
+C-Paper/
+├── Package.swift                 # Swift package root entrypoint
+├── macos/                        # Active macOS app source and tests
+├── bridge/                       # Active Python bridge used by the macOS app
+├── backend/                      # Active shared Python backend
+├── tests/                        # Python backend tests
+├── legacy/pywebview/             # Archived Python + pywebview frontend
+├── scripts/                      # Active native build/release scripts
+├── site/                         # Static project site
+├── assets/                       # Icons and image assets
+└── docs/                         # Project memory and internal docs
+```
+
+## 依赖说明
+
+根目录 `requirements.txt` 只保留当前主线所需的 Python 依赖：
+
+- `requests`
+- `urllib3`
+- `pytest`
+
+归档 pywebview 前端需要的依赖在：
+
+- `legacy/pywebview/requirements.txt`
+
+## Legacy 说明
+
+以下内容不再是主维护实现：
+
+- `legacy/pywebview/main.py`
+- `legacy/pywebview/ui_v2.html`
+- `legacy/pywebview/ui_v2.css`
+- `legacy/pywebview/ui_v2.js`
+- `legacy/pywebview/packaging/`
+
+这些代码会保留以便参考、回溯和必要维护，但不再代表当前产品方向，也不再是 GitHub 主发布线。
+
+## 数据与隐私
+
+C-Paper 不上传、不收集、不分享用户个人数据。应用会在本地保存必要状态，例如设置、收藏、下载历史和搜索缓存。清理本地数据时，可删除 `~/.cie_cache/` 和用户选择的下载目录。
+
+## 构建与发布
+
+- GitHub Actions 主 workflow：`.github/workflows/build.yml`
+- 主发布线：native macOS DMG
+- 旧 pywebview 的 Windows / macOS 打包脚本仅保留在 `legacy/pywebview/packaging/`，不再作为主线自动发布流程
 
 ## 免责声明
 
-### 数据来源
+本项目是本地桌面检索与下载工具，不拥有、不存储、不托管任何 CIE 试卷文件。应用搜索和下载的资料来自第三方公开网站 [cie.fraft.cn](https://cie.fraft.cn)，第三方数据源的可用性、准确性和完整性不由本项目保证。
 
-本应用搜索和下载的试卷数据来源于第三方公开网站 [cie.fraft.cn](https://cie.fraft.cn)。本应用开发者不拥有、不存储、不托管任何试卷文件，仅提供本地桌面检索与下载工具。
-
-### 版权声明
-
-所有 CIE（Cambridge International Education）试卷、评分标准及相关学术材料的著作权归 Cambridge Assessment International Education 所有。本应用不对试卷内容的合法性、准确性和完整性负责。
-
-### 使用限制
-
-本应用仅供个人学习、教学研究和学术交流使用。用户不得将下载的资料用于商业营利、倒卖、侵犯知识产权或违反所在国家/地区法律法规的行为。
-
-### 责任限制
-
-- 用户使用本应用产生的任何法律后果由用户自行承担。
-- 因第三方数据源不可用、网络异常或本地环境问题导致的搜索和下载失败，开发者不承担责任。
-- 如相关版权方认为本应用侵犯其合法权益，请联系开发者处理。
-
----
-
-## 隐私说明
-
-C-Paper 不上传、不收集、不分享用户个人数据。为实现桌面端功能，应用会在本地保存以下数据：
-
-| 数据类型 | 存储位置 | 用途 |
-|----------|----------|------|
-| 用户设置 | `~/.cie_cache/settings.json` | 保存主题、目录、并发数、代理等设置 |
-| 收藏科目 | `~/.cie_cache/favorites.json` | 保存常用科目代码 |
-| 下载历史 | `~/.cie_cache/download_history.json` | 判断重复下载和下载记录 |
-| 搜索缓存 | `~/.cie_cache/search/` | 加速重复搜索，减少网络请求 |
-| 下载文件 | 用户选择的保存目录 | 保存试卷和评分标准 PDF |
-
-网络请求仅用于用户主动执行的搜索、预览、下载、代理测试，以及应用内可选的版本检查。若用户配置 HTTP 代理，请求会经过该代理。
-
-如需清除本地数据，可删除 `~/.cie_cache/` 目录和用户自定义的试卷保存目录。
-
----
+所有 CIE（Cambridge International Education）试卷、评分标准及相关资料的著作权归 Cambridge Assessment International Education 或相应权利方所有。本项目仅供个人学习、教学研究和学术交流使用。用户不得将下载资料用于商业营利、倒卖、侵犯知识产权或违反所在国家/地区法律法规的行为。
 
 ## License
 
-本项目使用 MIT License。
-
-```
-MIT License
-
-Copyright (c) 2026 Ja-son-WU
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+本项目使用 [MIT License](LICENSE)。

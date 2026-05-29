@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -39,6 +40,7 @@ class API:
         self._hist_set: set = set()
         self.plugin_manager = PluginManager(PLUGINS_DIR, lazy=True)
         self._hist_loaded = False
+        self._is_maximized = False
 
     def _ensure_hist_loaded(self):
         if self._hist_loaded:
@@ -70,6 +72,36 @@ class API:
         if base in ('.', '..') or base.startswith('.'):
             return False
         return True
+
+    # ── Window Control APIs ──
+
+    def _dispatch_window_action(self, action_name):
+        if not self.window:
+            return
+
+        action = getattr(self.window, action_name)
+        if sys.platform != "darwin":
+            action()
+            return
+
+        try:
+            from PyObjCTools import AppHelper
+            AppHelper.callAfter(action)
+        except Exception:
+            logger.exception("AppHelper.callAfter failed for %s", action_name)
+            action()
+
+    def close_window(self):
+        self._dispatch_window_action("destroy")
+
+    def minimize_window(self):
+        self._dispatch_window_action("minimize")
+
+    def toggle_fullscreen(self):
+        self._dispatch_window_action("toggle_fullscreen")
+
+    def sync_maximize_state(self, is_maximized):
+        self._is_maximized = is_maximized
 
     # ── Init ──
 

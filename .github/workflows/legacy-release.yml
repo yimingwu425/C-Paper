@@ -1,0 +1,178 @@
+name: Release Legacy pywebview 5.2.1
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Git tag to create for the final legacy release"
+        required: true
+        default: "v5.2.1-legacy"
+  push:
+    tags:
+      - "v*-legacy"
+
+permissions:
+  contents: write
+
+jobs:
+  build-legacy-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build legacy DMG
+        run: |
+          chmod +x legacy/pywebview/packaging/build_mac.sh
+          ./legacy/pywebview/packaging/build_mac.sh
+
+      - name: Rename legacy DMG
+        run: |
+          mkdir -p release-artifacts
+          cp legacy/pywebview/packaging/dist/C-Paper.dmg release-artifacts/C-Paper-legacy-5.2.1.dmg
+
+      - name: Upload legacy macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: C-Paper-Legacy-macOS
+          path: release-artifacts/C-Paper-legacy-5.2.1.dmg
+          if-no-files-found: error
+          retention-days: 30
+
+  build-legacy-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build legacy Windows package
+        shell: cmd
+        run: legacy\pywebview\packaging\build_win.bat
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y
+
+      - name: Build legacy Windows installer
+        shell: pwsh
+        run: |
+          Push-Location legacy\pywebview
+          Get-ChildItem dist
+          Get-ChildItem dist\C-Paper | Select-Object -First 20
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" `
+            /DAPP_VERSION=5.2.1 `
+            /DSOURCE_DIR=..\dist\C-Paper `
+            /DOUTPUT_FILE=..\dist\C-Paper-legacy-5.2.1-setup.exe `
+            packaging\legacy_installer.nsi
+          Pop-Location
+
+      - name: Collect legacy Windows installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-artifacts | Out-Null
+          Copy-Item legacy\pywebview\dist\C-Paper-legacy-5.2.1-setup.exe release-artifacts\C-Paper-legacy-5.2.1-setup.exe
+
+      - name: Upload legacy Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: C-Paper-Legacy-Windows
+          path: release-artifacts/C-Paper-legacy-5.2.1-setup.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-legacy-release:
+    needs: [build-legacy-macos, build-legacy-windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download legacy macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: C-Paper-Legacy-macOS
+          path: release-assets/mac
+
+      - name: Download legacy Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: C-Paper-Legacy-Windows
+          path: release-assets/win
+
+      - name: Create legacy tag
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        with:
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = context.sha;
+            try {
+              await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+              core.info(`Tag ${tag} already exists; reusing it.`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/tags/${tag}`,
+                sha
+              });
+              core.info(`Created tag ${tag} at ${sha}.`);
+            }
+
+      - name: Remove conflicting releases for this tag
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        with:
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              owner,
+              repo,
+              per_page: 100
+            });
+            const conflicts = releases.filter((release) => release.tag_name === tag);
+            if (conflicts.length === 0) {
+              core.info(`No existing releases found for tag ${tag}.`);
+              return;
+            }
+            for (const release of conflicts) {
+              core.info(`Deleting existing release ${release.id} (${release.name}) for tag ${tag}.`);
+              await github.rest.repos.deleteRelease({
+                owner,
+                repo,
+                release_id: release.id
+              });
+            }
+
+      - name: Publish legacy GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          name: "C-Paper Legacy 5.2.1"
+          body_path: .github/release-notes/legacy-v5.2.1.md
+          files: |
+            release-assets/mac/C-Paper-legacy-5.2.1.dmg
+            release-assets/win/C-Paper-legacy-5.2.1-setup.exe
+          draft: false
+          prerelease: false

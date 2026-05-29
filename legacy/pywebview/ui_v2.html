@@ -11,6 +11,8 @@
 --border:rgba(250,249,245,0.06);--text:#f0efe8;--text3:#706e66;
 --accent:#e8845a;--accent2:#6a9bcc;}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);margin:0;}
+html.mac-os, html.mac-os body { background: transparent !important; background-image: none !important; }
+html.mac-os .splash { background: rgba(var(--surface-rgb), 0.82) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .splash{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;
 align-items:center;justify-content:center;gap:10px;background:var(--bg);
 opacity:1;transition:opacity .5s var(--ease);}
@@ -32,6 +34,9 @@ border-radius:2px;transition:width .4s var(--ease);}
 @keyframes splash-loop{0%{width:0%;margin-left:0}50%{width:60%}100%{width:0%;margin-left:100%}}
 .splash-msg{font-size:12px;color:var(--text3);margin-top:2px;}
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="ui_v2.css" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="ui_v2.css" rel="stylesheet"></noscript>
 </head>
@@ -117,6 +122,13 @@ border-radius:2px;transition:width .4s var(--ease);}
 
 <div class="app">
   <nav class="rail">
+    <div class="rail-titlebar pywebview-drag-region">
+      <div class="traffic">
+        <button type="button" class="dot red" onclick="pywebview.api.close_window()" aria-label="关闭窗口"></button>
+        <button type="button" class="dot yellow" onclick="pywebview.api.minimize_window()" aria-label="最小化窗口"></button>
+        <button type="button" class="dot green" onclick="pywebview.api.toggle_fullscreen()" aria-label="全屏显示"></button>
+      </div>
+    </div>
     <div class="rail-logo">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
     </div>
