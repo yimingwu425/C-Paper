@@ -61,17 +61,31 @@ jobs:
         shell: cmd
         run: legacy\pywebview\packaging\build_win.bat
 
-      - name: Rename legacy Windows archive
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y
+
+      - name: Build legacy Windows installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" `
+            /DAPP_VERSION=5.2.1 `
+            /DSOURCE_DIR=legacy\pywebview\dist\C-Paper `
+            /DOUTPUT_FILE=legacy\pywebview\dist\C-Paper-legacy-5.2.1-setup.exe `
+            /DICON_FILE=legacy\pywebview\assets\icon.ico `
+            legacy\pywebview\packaging\legacy_installer.nsi
+
+      - name: Collect legacy Windows installer
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-artifacts | Out-Null
-          Copy-Item legacy\pywebview\dist\C-Paper_win.zip release-artifacts\C-Paper-legacy-5.2.1-win.zip
+          Copy-Item legacy\pywebview\dist\C-Paper-legacy-5.2.1-setup.exe release-artifacts\C-Paper-legacy-5.2.1-setup.exe
 
       - name: Upload legacy Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: C-Paper-Legacy-Windows
-          path: release-artifacts/C-Paper-legacy-5.2.1-win.zip
+          path: release-artifacts/C-Paper-legacy-5.2.1-setup.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -156,6 +170,6 @@ jobs:
           body_path: .github/release-notes/legacy-v5.2.1.md
           files: |
             release-assets/mac/C-Paper-legacy-5.2.1.dmg
-            release-assets/win/C-Paper-legacy-5.2.1-win.zip
+            release-assets/win/C-Paper-legacy-5.2.1-setup.exe
           draft: false
           prerelease: false

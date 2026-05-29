@@ -143,3 +143,24 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - This workflow now recreates the release object for the final legacy tag on rerun, which is acceptable because the release is archival and the artifacts are rebuilt in the same workflow.
+
+### 2026-05-29 — Add Windows installer for final legacy release
+
+**Task**
+- Change the final legacy Windows release artifact from a portable ZIP to an installer EXE generated inside GitHub Actions.
+
+**Changed**
+- Added `legacy/pywebview/assets/icon.ico` derived from the legacy icon set for Windows installer branding.
+- Added `legacy/pywebview/packaging/legacy_installer.nsi` for NSIS-based Windows installer packaging.
+- Updated `.github/workflows/legacy-release.yml` to install NSIS on `windows-latest`, build `C-Paper-legacy-5.2.1-setup.exe`, and publish that installer instead of the ZIP archive.
+- Updated `.github/release-notes/legacy-v5.2.1.md` to describe the Windows installer flow and final asset name.
+
+**Reason**
+- The requested final legacy Windows artifact should be a direct installer EXE rather than only a compressed application folder.
+
+**Tested**
+- Verified the existing Windows packaging step already produces a runnable `dist\\C-Paper` application directory suitable for NSIS wrapping.
+- Checked the workflow and installer inputs statically.
+
+**Risks / Notes**
+- NSIS packaging is validated on GitHub Actions rather than locally because this macOS environment does not provide the Windows installer toolchain.

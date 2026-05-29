@@ -13,7 +13,7 @@
 ### 下载文件
 
 - `C-Paper-legacy-5.2.1.dmg`
-- `C-Paper-legacy-5.2.1-win.zip`
+- `C-Paper-legacy-5.2.1-setup.exe`
 
 ### 面向谁
 
@@ -86,8 +86,8 @@ Legacy 5.2.1 继续保留旧桌面版的核心能力：
 
 ### Windows
 
-- 提供 `zip` 包
-- 解压后运行 `C-Paper.exe`
+- 提供安装器 `exe`
+- 运行 `C-Paper-legacy-5.2.1-setup.exe` 完成安装
 - 需要：
   - Windows 10 v1803 或以上
   - 如系统未内置组件，可能需要安装 Edge WebView2 Runtime
