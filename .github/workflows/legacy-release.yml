@@ -7,6 +7,9 @@ on:
         description: "Git tag to create for the final legacy release"
         required: true
         default: "v5.2.1-legacy"
+  push:
+    tags:
+      - "v*-legacy"
 
 permissions:
   contents: write
@@ -93,6 +96,7 @@ jobs:
           path: release-assets/win
 
       - name: Create legacy tag
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/github-script@v7
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
@@ -119,7 +123,7 @@ jobs:
       - name: Publish legacy GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
           name: "C-Paper Legacy 5.2.1"
           body_path: .github/release-notes/legacy-v5.2.1.md
           files: |
