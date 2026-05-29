@@ -125,3 +125,21 @@ This file is a concise running log of meaningful code, configuration, and docume
 **Risks / Notes**
 - The Windows EXE artifact is intended to be built on GitHub Actions, not locally on this macOS machine.
 - This workflow is a special-purpose legacy release path and should not replace the native main release workflow.
+
+### 2026-05-29 — Fix legacy release publish conflict
+
+**Task**
+- Fix the final legacy 5.2.1 GitHub Actions release flow after the publish job failed with a duplicate-release conflict on the same tag.
+
+**Changed**
+- Updated `.github/workflows/legacy-release.yml` so the publish job deletes any existing GitHub release objects for the target legacy tag before creating the final release.
+
+**Reason**
+- A previous failed/native-mismatched release object already existed on `v5.2.1-legacy`, which caused the final publish step to fail with `already_exists` even after the correct DMG and Windows archive had been uploaded.
+
+**Tested**
+- Reviewed the failed Actions logs for run `26614755058`.
+- Verified duplicate release objects existed for the same tag before applying the workflow fix.
+
+**Risks / Notes**
+- This workflow now recreates the release object for the final legacy tag on rerun, which is acceptable because the release is archival and the artifacts are rebuilt in the same workflow.

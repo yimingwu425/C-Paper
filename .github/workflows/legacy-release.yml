@@ -120,6 +120,34 @@ jobs:
               core.info(`Created tag ${tag} at ${sha}.`);
             }
 
+      - name: Remove conflicting releases for this tag
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        with:
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              owner,
+              repo,
+              per_page: 100
+            });
+            const conflicts = releases.filter((release) => release.tag_name === tag);
+            if (conflicts.length === 0) {
+              core.info(`No existing releases found for tag ${tag}.`);
+              return;
+            }
+            for (const release of conflicts) {
+              core.info(`Deleting existing release ${release.id} (${release.name}) for tag ${tag}.`);
+              await github.rest.repos.deleteRelease({
+                owner,
+                repo,
+                release_id: release.id
+              });
+            }
+
       - name: Publish legacy GitHub Release
         uses: softprops/action-gh-release@v2
         with:
