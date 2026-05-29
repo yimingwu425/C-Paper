@@ -227,3 +227,20 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - This is still isolated to the legacy Windows installer flow and does not affect the native mainline release path.
+
+### 2026-05-29 — Align NSIS paths with script directory
+
+**Task**
+- Fix the next legacy Windows installer failure after confirming the packaged app directory existed but NSIS still could not read it.
+
+**Changed**
+- Updated `.github/workflows/legacy-release.yml` so the NSIS defines use `..\\dist\\C-Paper` and `..\\dist\\C-Paper-legacy-5.2.1-setup.exe`, matching the fact that `packaging/legacy_installer.nsi` resolves relative file paths from inside `legacy/pywebview/packaging/`.
+
+**Reason**
+- The failed run `26616293330` showed `Get-ChildItem` proving `legacy/pywebview/dist/C-Paper/C-Paper.exe` existed, while NSIS still failed on `File: "dist\\C-Paper\\*" -> no files found`, which indicates a script-directory-relative path mismatch.
+
+**Tested**
+- Reviewed failed Actions log for run `26616293330`, job `78432653101`, step `Build legacy Windows installer`.
+
+**Risks / Notes**
+- This change only retargets NSIS compile-time file paths; the packaged app directory itself is unchanged.
