@@ -266,7 +266,7 @@ make_dmg_hdiutil() {
   local STAGING="${DIST_DIR}/_dmg_staging"
   rm -rf "${STAGING}"; mkdir -p "${STAGING}"
   cp -r "${APP_PATH}" "${STAGING}/"
-  cp ../README.md "${STAGING}/README.txt"
+  cp ../../../README.md "${STAGING}/README.txt"
   ln -s /Applications "${STAGING}/Applications"
   hdiutil create \
     -volname "${APP_NAME}" \
