@@ -244,3 +244,20 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - This change only retargets NSIS compile-time file paths; the packaged app directory itself is unchanged.
+
+### 2026-05-29 — Refresh shared app icon assets
+
+**Task**
+- Decide what to do with the remaining local icon asset changes after consolidating development onto `main`.
+
+**Changed**
+- Updated the shared macOS app icon assets in `assets/icon.icns` and `assets/icon.iconset/`.
+
+**Reason**
+- The icon changes are product-facing assets, not temporary build output, and they align with the repository's native-first direction.
+
+**Tested**
+- Verified the iconset image metadata.
+
+**Risks / Notes**
+- No application code changed in this step.
