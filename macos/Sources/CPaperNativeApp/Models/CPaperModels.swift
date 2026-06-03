@@ -78,6 +78,76 @@ enum DuplicateMode: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+enum PaperSourceID: String, CaseIterable, Identifiable, Codable, Hashable {
+    case automatic
+    case frankcie
+    case papaCambridge
+    case pastPapers
+    case easyPaper
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: "自动"
+        case .frankcie: "Frankcie"
+        case .papaCambridge: "PapaCambridge"
+        case .pastPapers: "PastPapers"
+        case .easyPaper: "EasyPaper"
+        }
+    }
+
+    var allowsFallback: Bool { self == .automatic }
+}
+
+struct PaperComponent: Codable, Hashable {
+    let sourceID: PaperSourceID
+    let filename: String
+    let url: URL
+    let paperType: String
+    let subjectCode: String?
+    let sy: String?
+    let number: String?
+    let label: String?
+
+    var year: Int? {
+        PaperFilenameParser.year(fromSY: sy)
+    }
+
+    var seasonName: String? {
+        PaperFilenameParser.seasonName(fromSY: sy)
+    }
+
+    var asPaperFile: PaperFile {
+        PaperFile(
+            filename: filename,
+            url: url,
+            year: year,
+            season: seasonName,
+            paperType: paperType.uppercased(),
+            subjectCode: subjectCode,
+            number: number,
+            label: label,
+            sourceID: sourceID
+        )
+    }
+}
+
+struct NativePaperGroup: Codable, Hashable {
+    let sourceID: PaperSourceID
+    let subjectCode: String?
+    let sy: String?
+    let number: String?
+    let paperGroup: Int?
+    let qp: PaperComponent?
+    let ms: PaperComponent?
+    let extras: [PaperComponent]
+
+    var files: [PaperFile] {
+        [qp, ms].compactMap { $0?.asPaperFile } + extras.map(\.asPaperFile)
+    }
+}
+
 struct PaperFile: Identifiable, Hashable, Codable {
     let filename: String
     let url: URL
@@ -87,6 +157,7 @@ struct PaperFile: Identifiable, Hashable, Codable {
     let subjectCode: String?
     let number: String?
     let label: String?
+    var sourceID: PaperSourceID = .frankcie
 
     var id: String { url.absoluteString }
 
@@ -107,7 +178,7 @@ struct PaperFile: Identifiable, Hashable, Codable {
     }
 
     var subtitle: String {
-        [subjectCode, season, year.map(String.init), paperType, number]
+        [sourceID == .frankcie ? nil : sourceID.title, subjectCode, season, year.map(String.init), paperType, number]
             .compactMap { $0 }
             .joined(separator: " · ")
     }
@@ -138,14 +209,29 @@ struct BackendPaperGroup: Codable, Hashable {
 }
 
 struct SearchPayload: Codable {
-    let groups: [BackendPaperGroup]
+    let groups: [NativePaperGroup]
     let files: [PaperFile]
+    let sourceID: PaperSourceID?
+    let warnings: [String]
+
+    init(groups: [NativePaperGroup], files: [PaperFile]? = nil, sourceID: PaperSourceID? = nil, warnings: [String] = []) {
+        self.groups = groups
+        self.files = files ?? groups.flatMap(\.files)
+        self.sourceID = sourceID
+        self.warnings = warnings
+    }
 }
 
 struct BatchPreviewPayload: Codable {
-    let groups: [BackendPaperGroup]
+    let groups: [NativePaperGroup]
     let files: [PaperFile]
     let warnings: [String]
+
+    init(groups: [NativePaperGroup], files: [PaperFile]? = nil, warnings: [String] = []) {
+        self.groups = groups
+        self.files = files ?? groups.flatMap(\.files)
+        self.warnings = warnings
+    }
 }
 
 struct SearchParams: Encodable {
@@ -171,7 +257,7 @@ struct BatchPreviewParams: Encodable {
 }
 
 struct DownloadStartParams: Encodable {
-    let groups: [BackendPaperGroup]
+    let groups: [NativePaperGroup]
     let saveDir: String
     let options: DownloadOptions
 
@@ -325,6 +411,7 @@ struct DownloadSettings: Codable, Equatable {
     var lastSubject: String = ""
     var lastMode: String = AppRoute.search.rawValue
     var duplicateMode: DuplicateMode = .overwrite
+    var sourceMode: PaperSourceID = .automatic
 
     enum CodingKeys: String, CodingKey {
         case theme
@@ -337,6 +424,7 @@ struct DownloadSettings: Codable, Equatable {
         case lastSubject = "last_subject"
         case lastMode = "last_mode"
         case duplicateMode = "dup_mode"
+        case sourceMode = "source_mode"
     }
 
     var downloadOptions: DownloadOptions {

@@ -296,7 +296,7 @@ private struct BatchPreviewPanel: View {
                         "勾选考季与 Paper",
                         "预览清单后下载"
                     ] : [
-                        "等待 Python bridge 连接",
+                        "等待原生后端初始化",
                         "检查网络代理",
                         "连接后重新预览"
                     ]

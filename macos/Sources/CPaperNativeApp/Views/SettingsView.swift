@@ -16,6 +16,7 @@ struct SettingsView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
                         SaveSettingsSection(model: model)
+                        SourceSettingsSection(model: model)
                         ProxySettingsSection(model: model, proxyStatus: $proxyStatus)
                         DownloadSettingsSection(model: model)
                     }
@@ -171,6 +172,34 @@ private struct ProxySettingsSection: View {
                             .transition(.opacity.combined(with: .move(edge: reduceMotion ? .bottom : .trailing)))
                     }
                 }
+            }
+        }
+    }
+}
+
+private struct SourceSettingsSection: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        SettingsSection(
+            title: "数据源",
+            subtitle: "自动模式会在主来源不可用时按顺序尝试备用来源。",
+            systemImage: "tray.full"
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                SettingsRow(label: "来源") {
+                    Picker("来源", selection: $model.settings.sourceMode) {
+                        ForEach(PaperSourceID.allCases) { source in
+                            Text(source.title).tag(source)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 220)
+                }
+
+                SettingsHint(model.settings.sourceMode == .automatic
+                    ? "自动顺序：Frankcie、PapaCambridge、PastPapers、EasyPaper。"
+                    : "手动模式只使用选定来源，失败时不会自动切换。")
             }
         }
     }

@@ -14,40 +14,35 @@ Inspect only the files relevant to the current task. Do not scan the whole repos
 
 C-Paper is a desktop tool for searching, previewing, and batch-downloading Cambridge International Education past papers and mark schemes.
 
-The actively maintained product is now the native macOS version. The Swift/macOS client, the Python bridge, and the shared Python backend together form the current main implementation. The old Python + pywebview desktop shell is legacy.
+The actively maintained product is now the native macOS version. The Swift/macOS client and Swift-native backend together form the current main implementation. The old Python bridge/backend and Python + pywebview desktop shell are legacy.
 
 ## Active Architecture
 
 - `Package.swift`: Root Swift package entrypoint
 - `macos/`: Active native macOS app source and Swift tests
-- `bridge/`: Active Python bridge used by the native app
-- `backend/`: Active shared Python backend
-- `tests/`: Active Python backend test suite
 
 ## Legacy Architecture
 
 - `legacy/pywebview/`: Archived Python + pywebview frontend shell
 - `legacy/pywebview/packaging/`: Archived pywebview packaging scripts
+- `legacy/python-backend/`: Archived Python bridge/backend/test suite
 
-Do not treat `legacy/pywebview/` as the main implementation unless the task explicitly targets legacy maintenance.
+Do not treat `legacy/` as the main implementation unless the task explicitly targets legacy maintenance.
 
 ## Detected Tech Stack
 
 - Swift Package Manager
 - SwiftUI / AppKit macOS client
-- Python shared backend modules
-- Python JSON-lines bridge
-- `requests` and `urllib3`
-- `pytest`
+- Swift-native backend modules
+- SwiftSoup
+- Swift Collections
 - Static project site in `site/`
 
 ## Key Directories
 
 - `macos/`: Active macOS client
-- `bridge/`: Active Python bridge
-- `backend/`: Active Python backend logic
-- `tests/`: Python backend tests
 - `legacy/pywebview/`: Archived pywebview app shell
+- `legacy/python-backend/`: Archived Python backend and bridge
 - `scripts/`: Active native build/release scripts
 - `assets/`: Icons and image assets
 - `docs/`: Internal project documentation and project memory
@@ -59,13 +54,14 @@ Safely inferred from repository docs and file layout:
 
 - `swift run CPaperNative`: Run the active macOS app
 - `swift test`: Run Swift tests
-- `pytest`: Run the Python backend test suite
 - `bash scripts/build_native_dmg.sh`: Build the active native macOS DMG
 - `bash script/build_and_run.sh`: Build and launch the native app locally
 
 Legacy-only commands:
 
 - `python legacy/pywebview/main.py`
+- `python legacy/python-backend/bridge/cpaper_bridge.py`
+- `pytest legacy/python-backend/tests`
 - `bash legacy/pywebview/packaging/build_mac.sh`
 - `legacy\\pywebview\\packaging\\build_win.bat`
 
@@ -76,7 +72,7 @@ Legacy-only commands:
 - Do not casually edit build outputs, caches, generated files, or vendored content.
 - Avoid scanning large or irrelevant directories such as `.git/`, `node_modules/`, build output folders, caches, `__pycache__/`, and generated artifacts.
 - Prefer targeted inspection with file-level reads over broad repository sweeps.
-- Treat release/build scripts, bridge path handling, backend persistence logic, and packaging files as sensitive areas; edit them only when the task requires it.
+- Treat release/build scripts, backend persistence logic, source provider parsing, download filesystem handling, and packaging files as sensitive areas; edit them only when the task requires it.
 - Remove obvious junk such as `.DS_Store` and empty directories when encountered, but do not delete files with uncertain purpose without explicit confirmation.
 - When details are unclear, write `Unknown / not yet documented` instead of guessing.
 
@@ -143,8 +139,8 @@ When designing UI:
 
 - Read `AGENTS.md`, `docs/PROJECT_INDEX.md`, and `docs/WORK_LOG.md` before changing code or configuration.
 - Inspect only the relevant files for the task instead of scanning the full repository.
-- Prioritize `macos/`, `bridge/`, `backend/`, and `tests/` for active maintenance work.
-- Only touch `legacy/pywebview/` when the task explicitly targets legacy code.
+- Prioritize `macos/` and `macos/Tests/` for active maintenance work.
+- Only touch `legacy/` when the task explicitly targets legacy code.
 - After every code or configuration change, append a short entry to `docs/WORK_LOG.md`.
 - For every implementation, prefer this order:
   1. Understand the existing structure.

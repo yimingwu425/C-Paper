@@ -1,8 +1,8 @@
 {
-  "version": "5.2.3",
-  "min_version": "5.0.0",
-  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v5.2.3",
-  "release_notes": "- 修复非最大化窗口下 PDF 预览挤压与溢出\n- 改进 PDF 预览在窗口缩放后的自动适配\n- 下载队列和批量下载页在最小窗口高度下可滚动查看完整内容",
+  "version": "6.0.0",
+  "min_version": "6.0.0",
+  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.0",
+  "release_notes": "- 后端完全改为 Swift 原生实现，不再依赖 Python bridge\n- 新增模块化 Swift 后端：数据源、解析、网络、下载、持久化和迁移\n- 支持 Frankcie、PapaCambridge、PastPapers、EasyPaper 多数据源自动 fallback\n- 设置页支持手动切换数据源\n- 本地数据迁移到 macOS Application Support，并兼容旧 ~/.cie_cache 设置、收藏和下载历史",
   "force_update": false,
-  "published_at": "2026-06-03T00:00:00Z"
+  "published_at": "2026-06-04T00:00:00Z"
 }

@@ -10,8 +10,7 @@ on:
     paths:
       - "Package.swift"
       - "macos/**"
-      - "bridge/**"
-      - "backend/**"
+      - "legacy/python-backend/**"
       - "assets/**"
       - "scripts/build_native_dmg.sh"
       - ".github/workflows/build.yml"
@@ -27,17 +26,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
       - name: Show tool versions
         run: |
           sw_vers
           xcodebuild -version
           swift --version
-          python3 --version
 
       - name: Build native DMG
         run: |
@@ -87,7 +80,7 @@ jobs:
           body = dedent(f"""\
           # C-Paper Native {version}
 
-          C-Paper Native {version} is the current maintained macOS release of C-Paper. The active product line is now the native SwiftUI/AppKit app, backed by the Python JSON-lines bridge and shared Python backend.
+          C-Paper Native {version} is the current maintained macOS release of C-Paper. The active product line is now the native SwiftUI/AppKit app with a Swift-native backend.
 
           ## Download
 
@@ -106,7 +99,7 @@ jobs:
           - Group question papers and mark schemes together for easier review.
           - Build batch download queues across years, seasons, and paper numbers.
           - Track download progress, completed items, failed items, and cancellation state.
-          - Save local settings such as download directory, proxy URL, rate, concurrency, duplicate-file handling, and favorite subjects.
+          - Save local settings such as download directory, proxy URL, data source, rate, concurrency, duplicate-file handling, and favorite subjects.
 
           ## Install notes
 
@@ -116,9 +109,8 @@ jobs:
 
           This release is for the native macOS line:
 
-          - `macos/`: SwiftUI/AppKit desktop client
-          - `bridge/`: Python bridge used by the native app
-          - `backend/`: shared Python backend for search, parsing, caching, downloads, and updates
+          - `macos/`: SwiftUI/AppKit desktop client and Swift-native backend
+          - `legacy/python-backend/`: archived Python bridge/backend reference
 
           The old Python + pywebview implementation remains archived under `legacy/pywebview/` and is not the active product line.
 

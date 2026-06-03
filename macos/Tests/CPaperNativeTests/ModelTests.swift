@@ -32,7 +32,8 @@ final class ModelTests: XCTestCase {
             proxyURL: "http://127.0.0.1:7890",
             lastSubject: "9709",
             lastMode: "batch",
-            duplicateMode: .missing
+            duplicateMode: .missing,
+            sourceMode: .pastPapers
         )
 
         let data = try JSONEncoder().encode(settings)

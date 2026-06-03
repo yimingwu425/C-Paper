@@ -382,3 +382,85 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - GitHub Actions reported a Node.js 20 deprecation annotation for upstream actions; the native 5.2.3 release workflow itself completed successfully.
+
+### 2026-06-04 — Add native networking and source providers
+
+**Task**
+- Implement the Swift-native Networking and Sources modules for C-Paper 6.0.0 with offline tests.
+
+**Changed**
+- Added URLSession-backed networking helpers, request building, proxy configuration, source health checking, provider registry, Frankcie JSON parsing, HTML source provider skeletons, and SwiftSoup-based HTML PDF link extraction.
+- Added tests for Frankcie fixture parsing, HTML link extraction, automatic source fallback, and manual no-fallback behavior.
+
+**Reason**
+- The native backend needs maintainable source/provider infrastructure before replacing the Python bridge-backed search flow.
+
+**Tested**
+- `swift test --jobs 1 --filter SourceRegistryTests`
+- `swift test --jobs 1 --filter PaperSourceFixtureTests`
+
+**Risks / Notes**
+- HTML providers intentionally start as direct-link skeletons and report unavailable when an entry page does not expose parseable CIE PDF links.
+- This work was integrated around concurrently added shared parsing/model files in the same worktree.
+
+### 2026-06-04 — Add native Downloads module
+
+**Task**
+- Implement the Swift-native Downloads module and focused tests for C-Paper 6.0.0.
+
+**Changed**
+- Added destination building from `NativePaperGroup` / `PaperComponent` direct URLs with folder merge behavior, mark-scheme filtering, duplicate handling, PDF/path safety checks, and task metadata mapping.
+- Added a deque-backed download queue, actor-based rate limiter, actor-based circuit breaker, and actor-based download manager with injected writers, cancellation, retry handling, and atomic `.part.<uuid>` replacement.
+- Added `DownloadManagerTests` for destination layout, mark-scheme filtering, duplicate skip/missing modes, cancellation, retry, and status statistics.
+
+**Reason**
+- The native backend needs Downloads behavior independent of the Python `DownloadEngine` and without reconstructing Frankcie fetch URLs.
+
+**Tested**
+- `swift test --jobs 1 --filter DownloadManagerTests`
+
+**Risks / Notes**
+- `DownloadQueue` uses `Collections.Deque` through the Swift Collections package added for the 6.0.0 native backend.
+
+### 2026-06-04 — Migrate active app to Swift-native backend for 6.0.0
+
+**Task**
+- Implement the C-Paper 6.0.0 native backend plan, remove the active Python bridge dependency, add multi-source support, and update release metadata.
+
+**Changed**
+- Added modular Swift backend layers under `macos/Sources/CPaperNativeApp/Backend/` for core service orchestration, data sources, parsing, networking, downloads, and persistence.
+- Replaced `AppModel` bridge calls with `NativeBackendService`.
+- Added Settings data source selection and updated backend status UI text.
+- Added SwiftPM dependencies for SwiftSoup and Swift Collections.
+- Archived `bridge/`, `backend/`, root Python `tests/`, and `requirements.txt` under `legacy/python-backend/`.
+- Removed active `PythonBridge.swift` and `PythonBridgeTests.swift`.
+- Updated native DMG build and GitHub Actions release flow to stop packaging Python bridge resources.
+- Updated `README.md`, `AGENTS.md`, `docs/PROJECT_INDEX.md`, `version.json`, and native release notes for 6.0.0.
+
+**Reason**
+- The active app should be Swift-native end to end, easier to maintain, faster to package, and able to fall back across multiple third-party paper sources.
+
+**Tested**
+- `swift test --jobs 1`
+
+**Risks / Notes**
+- PapaCambridge, PastPapers, and EasyPaper providers currently use direct-link HTML extraction skeletons and report unavailable when entry pages do not expose parseable CIE PDF links.
+- Live source behavior still needs UI smoke testing and release build verification before publishing 6.0.0.
+
+### 2026-06-04 - Fix native app launch window creation for 6.0.0
+
+**Task**
+- Ensure the packaged Swift-native 6.0.0 app reliably creates and foregrounds its main window.
+
+**Changed**
+- Added explicit AppKit launch completion and delegate lifetime retention in `main.swift`.
+- Extracted `AppDelegate.showMainWindow()` so both lifecycle callback and explicit startup path can create or refocus the single main window.
+- Kept the main window ordered front after creation to avoid launch smoke-test false negatives.
+
+**Reason**
+- Release smoke testing showed the process could remain alive while accessibility-based window enumeration returned no windows. Runtime diagnostics confirmed the hand-written SwiftPM AppKit entrypoint needed a more explicit startup path.
+
+**Tested**
+- Rebuilt the release binary after the startup change.
+- Rebuilt the release app bundle and DMG path with `CONFIGURATION=release SKIP_SWIFT_BUILD=1 bash scripts/build_native_dmg.sh`.
+- Confirmed the running bundle exposes an on-screen CoreGraphics window named `C-Paper`.

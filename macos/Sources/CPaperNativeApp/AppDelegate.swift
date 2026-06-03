@@ -1,10 +1,22 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        showMainWindow()
+    }
+
+    func showMainWindow() {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
         let rootView = RootView()
         let hostingView = NSHostingView(rootView: rootView)
 
@@ -24,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.contentView = hostingView
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
 
         self.window = window

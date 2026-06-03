@@ -4,7 +4,7 @@ set -euo pipefail
 APP_NAME="CPaperNative"
 DISPLAY_NAME="C-Paper"
 BUNDLE_ID="com.yimingwu.CPaperNative"
-VERSION="5.2.3"
+VERSION="6.0.0"
 MIN_SYSTEM_VERSION="14.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
 
@@ -12,9 +12,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PACKAGE_DIR="$ROOT_DIR"
 DIST_DIR="$ROOT_DIR/dist"
 BUILD_ROOT="$ROOT_DIR/build/native_dmg"
-VENV_DIR="$BUILD_ROOT/venv"
-BRIDGE_BUILD_DIR="$BUILD_ROOT/bridge_build"
-BRIDGE_DIST_DIR="$BUILD_ROOT/bridge_dist"
 STAGING_DIR="$BUILD_ROOT/dmg_staging"
 DMG_RW="$BUILD_ROOT/$DISPLAY_NAME.rw.dmg"
 DMG_BACKGROUND="$BUILD_ROOT/dmg-background.png"
@@ -28,17 +25,6 @@ APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 DMG_OUT="$DIST_DIR/C-Paper-Native-$VERSION-standalone-$(date +%Y%m%d).dmg"
-
-find_python() {
-  local candidate
-  for candidate in python3.13 python3.12 python3.11 python3; do
-    if command -v "$candidate" >/dev/null 2>&1; then
-      command -v "$candidate"
-      return 0
-    fi
-  done
-  return 1
-}
 
 stop_running_app() {
   if pgrep -x "$APP_NAME" >/dev/null 2>&1; then
@@ -165,14 +151,11 @@ end if
 APPLESCRIPT
 }
 
-PYTHON_BIN="$(find_python)"
-echo "Using Python builder: $PYTHON_BIN ($("$PYTHON_BIN" --version))"
-
 stop_running_app
 rm -rf "$BUILD_ROOT" "$APP_BUNDLE" "$DMG_OUT"
 mkdir -p "$DIST_DIR" "$BUILD_ROOT"
 
-echo "[1/6] Building Swift $CONFIGURATION binary..."
+echo "[1/5] Building Swift $CONFIGURATION binary..."
 cd "$PACKAGE_DIR"
 SWIFT_BINARY="$(find "$PACKAGE_DIR/.build" -path "*/$CONFIGURATION/$APP_NAME" -type f -perm -111 | head -1 || true)"
 if [ "${SKIP_SWIFT_BUILD:-0}" = "1" ] && [ -n "$SWIFT_BINARY" ] && [ -x "$SWIFT_BINARY" ]; then
@@ -188,42 +171,10 @@ if [ -z "$SWIFT_BINARY" ] || [ ! -x "$SWIFT_BINARY" ]; then
   exit 1
 fi
 
-echo "[2/6] Building frozen Python bridge..."
-"$PYTHON_BIN" -m venv "$VENV_DIR"
-"$VENV_DIR/bin/pip" install --quiet --upgrade pip
-"$VENV_DIR/bin/pip" install --quiet pyinstaller requests urllib3
-
-"$VENV_DIR/bin/pyinstaller" \
-  --noconfirm \
-  --clean \
-  --onedir \
-  --name CPaperBridge \
-  --distpath "$BRIDGE_DIST_DIR" \
-  --workpath "$BRIDGE_BUILD_DIR" \
-  --paths "$ROOT_DIR" \
-  --hidden-import backend \
-  --hidden-import backend.api \
-  --hidden-import backend.cache \
-  --hidden-import backend.const \
-  --hidden-import backend.engine \
-  --hidden-import backend.limiter \
-  --hidden-import backend.parser \
-  --hidden-import backend.plugin_manager \
-  --hidden-import backend.updater \
-  "$ROOT_DIR/bridge/cpaper_bridge.py"
-
-BRIDGE_APP="$BRIDGE_DIST_DIR/CPaperBridge"
-BRIDGE_EXEC="$BRIDGE_APP/CPaperBridge"
-if [ ! -x "$BRIDGE_EXEC" ]; then
-  echo "Missing frozen bridge executable: $BRIDGE_EXEC" >&2
-  exit 1
-fi
-
-echo "[3/6] Assembling app bundle..."
-mkdir -p "$APP_MACOS" "$APP_RESOURCES/Bridge"
+echo "[2/5] Assembling app bundle..."
+mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$SWIFT_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
-ditto --noextattr --norsrc "$BRIDGE_APP" "$APP_RESOURCES/Bridge/CPaperBridge"
 if [ -f "$ROOT_DIR/assets/icon.icns" ]; then
   ditto --noextattr --norsrc "$ROOT_DIR/assets/icon.icns" "$APP_RESOURCES/AppIcon.icns"
 fi
@@ -259,7 +210,7 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
-echo "[4/6] Signing app bundle ad hoc..."
+echo "[3/5] Signing app bundle ad hoc..."
 clear_bundle_metadata "$APP_BUNDLE"
 rm -rf "$CLEAN_APP_DIR"
 mkdir -p "$CLEAN_APP_DIR"
@@ -269,7 +220,7 @@ ditto --noextattr --norsrc "$CLEAN_APP_BUNDLE" "$APP_BUNDLE"
 clear_bundle_metadata "$APP_BUNDLE"
 codesign_best_effort "$APP_BUNDLE"
 
-echo "[5/6] Creating DMG..."
+echo "[4/5] Creating DMG..."
 rm -rf "$STAGING_DIR" "$DMG_RW"
 hdiutil detach "$DMG_MOUNT" >/dev/null 2>&1 || true
 mkdir -p "$STAGING_DIR"
@@ -344,7 +295,7 @@ if [ -f "$ROOT_DIR/assets/icon.icns" ]; then
   set_custom_file_icon "$DMG_OUT" "$ROOT_DIR/assets/icon.icns"
 fi
 
-echo "[6/6] Verifying artifact..."
+echo "[5/5] Verifying artifact..."
 clear_bundle_metadata "$APP_BUNDLE"
 VERIFY_APP="$BUILD_ROOT/verify/$APP_NAME.app"
 rm -rf "$BUILD_ROOT/verify"

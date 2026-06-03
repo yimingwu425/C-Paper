@@ -1,6 +1,7 @@
 # 构建产物
 build/
 dist/
+.worktrees/
 *.spec
 .build_venv/
 .build_venv_win/

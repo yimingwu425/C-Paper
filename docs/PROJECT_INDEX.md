@@ -6,46 +6,44 @@ This file is a compact native-first map of the repository so future contributors
 
 ## Active Main Directories
 
-- `macos/`: Active native macOS app source and Swift tests
-- `bridge/`: Active Python bridge invoked by the macOS app
-- `backend/`: Active shared Python backend
-- `tests/`: Python backend tests
+- `macos/`: Active SwiftUI/AppKit app, Swift-native backend, and Swift tests
 - `scripts/`: Active native build/release scripts
 - `assets/`: Shared icons and image assets
 - `docs/`: Project memory and internal documentation
+- `site/`: Static project site
 
 ## Legacy Directories
 
+- `legacy/python-backend/`: Archived Python bridge/backend/test suite retained for historical reference
 - `legacy/pywebview/`: Archived Python + pywebview frontend shell
 - `legacy/pywebview/packaging/`: Legacy pywebview packaging scripts
 
-These directories are preserved for reference and limited maintenance only. Do not treat them as the main app.
+These directories are preserved for reference and limited maintenance only. Do not treat them as the active app.
 
 ## Important Source Files
 
 - `Package.swift`: Root Swift package definition
-- `macos/Sources/CPaperNativeApp/`: Active Swift app source
-- `macos/Tests/CPaperNativeTests/`: Swift test suite
-- `bridge/cpaper_bridge.py`: Active native bridge process
-- `backend/api.py`: Shared backend API surface
-- `backend/engine.py`: Shared orchestration logic
-- `backend/parser.py`: Shared parsing logic
-- `backend/cache.py`: Shared cache logic
-- `backend/limiter.py`: Shared rate limiting logic
-- `backend/plugin_manager.py`: Shared plugin management logic
-- `backend/updater.py`: Shared update logic
-- `tests/conftest.py`: Python test bootstrap for the shared backend
+- `macos/Sources/CPaperNativeApp/State/AppModel.swift`: Active app state and UI workflow coordination
+- `macos/Sources/CPaperNativeApp/Backend/Core/NativeBackendService.swift`: Swift backend facade used by the app
+- `macos/Sources/CPaperNativeApp/Backend/Sources/`: Data source registry and providers
+- `macos/Sources/CPaperNativeApp/Backend/Parsing/`: Filename, subject, grouping, and HTML link parsing
+- `macos/Sources/CPaperNativeApp/Backend/Networking/`: URLSession request, proxy, and HTTP handling
+- `macos/Sources/CPaperNativeApp/Backend/Downloads/`: Swift download queue, limiter, circuit breaker, and manager
+- `macos/Sources/CPaperNativeApp/Backend/Persistence/`: Settings, favorites, history, cache, and legacy migration stores
+- `macos/Tests/CPaperNativeTests/`: Active Swift test suite
 
 ## Runtime Relationships
 
 - The macOS app is the active maintained product.
-- The macOS app calls `bridge/cpaper_bridge.py`.
-- The bridge imports and uses the shared Python backend from `backend/`.
-- The legacy pywebview frontend also uses the same `backend/`, but that frontend is no longer the main implementation.
+- The macOS app calls `NativeBackendService` directly.
+- `NativeBackendService` coordinates persistence, source lookup, parsing, and downloads.
+- `SourceRegistry` supports automatic fallback across Frankcie, PapaCambridge, PastPapers, and EasyPaper.
+- The active app no longer starts or packages a Python bridge.
 
 ## UI Locations
 
-- Active UI: `macos/Sources/CPaperNativeApp/`
+- Active UI: `macos/Sources/CPaperNativeApp/Views/`
+- Active state: `macos/Sources/CPaperNativeApp/State/`
 - Legacy UI:
   - `legacy/pywebview/ui_v2.html`
   - `legacy/pywebview/ui_v2.css`
@@ -58,25 +56,15 @@ These directories are preserved for reference and limited maintenance only. Do n
 ## Tests
 
 - Active Swift tests: `macos/Tests/CPaperNativeTests/`
-- Active Python tests:
-  - `tests/test_cache.py`
-  - `tests/test_circuit_breaker.py`
-  - `tests/test_download_cancel.py`
-  - `tests/test_download_engine.py`
-  - `tests/test_parsing.py`
-  - `tests/test_persistence.py`
-  - `tests/test_plugin_manager.py`
-  - `tests/test_rate_limiter.py`
-  - `tests/test_updater.py`
+- Legacy Python tests: `legacy/python-backend/tests/`
 
 ## Config And Metadata Files
 
 - `Package.swift`: Active Swift package definition
-- `requirements.txt`: Active Python backend/test dependencies
-- `legacy/pywebview/requirements.txt`: Legacy pywebview dependencies
 - `.github/workflows/build.yml`: Active GitHub Actions workflow for native macOS
-- `scripts/build_native_dmg.sh`: Active native build/release script
-- `legacy/pywebview/packaging/appveyor.yml`: Legacy Windows/AppVeyor config
+- `scripts/build_native_dmg.sh`: Active native release script
+- `legacy/python-backend/requirements.txt`: Archived Python backend/test dependencies
+- `legacy/pywebview/requirements.txt`: Legacy pywebview dependencies
 - `LICENSE`
 - `README.md`
 - `MAINTENANCE_BASELINE.md`
@@ -84,18 +72,17 @@ These directories are preserved for reference and limited maintenance only. Do n
 
 ## Areas To Avoid Editing Casually
 
-- `bridge/cpaper_bridge.py`: Path/bootstrap mistakes will break the active native app
-- `backend/parser.py`: Sensitive to upstream format changes
-- `backend/engine.py`: Core orchestration logic
-- `backend/updater.py`: Update behavior can affect release flows
-- `macos/Sources/CPaperNativeApp/Bridge/`: Bridge lookup and process handling
+- `macos/Sources/CPaperNativeApp/Backend/Sources/`: Sensitive to third-party source format changes
+- `macos/Sources/CPaperNativeApp/Backend/Downloads/`: Core download safety, cancellation, and filesystem logic
+- `macos/Sources/CPaperNativeApp/Backend/Persistence/`: User settings/history migration and local data handling
 - `scripts/build_native_dmg.sh`: Main native release path
 - `.github/workflows/build.yml`: Main release automation
-- `legacy/pywebview/`: Archived implementation; only edit when explicitly required
+- `legacy/`: Archived implementations; only edit when explicitly required
 
 ## High-Noise Or Generated Paths To Ignore During Normal Inspection
 
 - `.git/`
+- `.worktrees/`
 - `node_modules/` if ever added
 - `dist/`, `build/`, `.build/`
 - `.cache/`, `.turbo/`, `.pytest_cache/`
@@ -105,4 +92,5 @@ These directories are preserved for reference and limited maintenance only. Do n
 ## Notes
 
 - Swift/macOS is the only actively maintained product line.
-- The repository may still contain old native/pywebview-era reference paths in historical or nonessential files; prefer the paths documented here.
+- Python bridge/backend code is archived and not part of active packaging.
+- The repository may still contain historical Python/pywebview references in legacy-only files.

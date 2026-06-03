@@ -8,9 +8,9 @@ enum BackendConnectionState: Equatable {
 
     var title: String {
         switch self {
-        case .checking: "正在连接 Python bridge"
-        case .connected: "Python bridge 已连接"
-        case .failed: "Python bridge 未连接"
+        case .checking: "正在初始化原生后端"
+        case .connected: "原生后端已就绪"
+        case .failed: "原生后端不可用"
         }
     }
 
@@ -44,9 +44,9 @@ final class AppModel {
     var batchSeasons: Set<Season> = Set(Season.allCases)
     var batchPaperGroups: Set<Int> = [1, 2, 3, 4, 5, 6]
     var searchResults: [PaperFile] = []
-    var searchGroups: [BackendPaperGroup] = []
+    var searchGroups: [NativePaperGroup] = []
     var batchPreview: [PaperFile] = []
-    var batchGroups: [BackendPaperGroup] = []
+    var batchGroups: [NativePaperGroup] = []
     var downloads: [DownloadTaskItem] = []
     var selectedPreview: PaperFile?
     var expandedPaperComponents: Set<String> = []
@@ -57,8 +57,16 @@ final class AppModel {
     var isSettingsPresented = false
     var errorMessage: String?
 
-    @ObservationIgnored let bridge = PythonBridge()
+    @ObservationIgnored let backend: NativeBackendService
     @ObservationIgnored var pollTask: Task<Void, Never>?
+
+    init(backend: NativeBackendService? = nil) {
+        if let backend {
+            self.backend = backend
+        } else {
+            self.backend = try! NativeBackendService()
+        }
+    }
 
     var completedDownloadCount: Int {
         downloads.filter { $0.status == .done || $0.status == .skipped }.count
@@ -81,12 +89,8 @@ final class AppModel {
         return favorites.contains { $0.code == selectedSubject.code }
     }
 
-    var bridgeScriptPath: String {
-        bridge.bridgeScriptPath
-    }
-
-    var pythonExecutablePath: String {
-        bridge.pythonExecutablePath
+    var backendRuntimePath: String {
+        backend.appSupportPath
     }
 
     func bootstrap() async {
@@ -110,33 +114,19 @@ final class AppModel {
         guard let selectedSubject, !isSelectedSubjectFavorite else { return }
 
         do {
-            let result = try await bridge.send(
-                method: "add_favorite",
-                params: FavoriteParams(code: selectedSubject.code, name: selectedSubject.name),
-                payloadType: OKResult.self
-            )
-            guard result.ok else {
-                throw PythonBridgeError.backend(result.error ?? "添加收藏失败")
-            }
+            try backend.addFavorite(selectedSubject)
             await loadFavorites()
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
     func removeFavorite(_ subject: Subject) async {
         do {
-            let result = try await bridge.send(
-                method: "remove_favorite",
-                params: FavoriteParams(code: subject.code, name: subject.name),
-                payloadType: OKResult.self
-            )
-            guard result.ok else {
-                throw PythonBridgeError.backend(result.error ?? "移除收藏失败")
-            }
+            try backend.removeFavorite(code: subject.code)
             await loadFavorites()
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
@@ -145,7 +135,7 @@ final class AppModel {
         defer { isLoading = false }
 
         do {
-            let payload = try await bridge.send(method: "get_subjects", params: EmptyParams(), payloadType: [Subject].self)
+            let payload = try await backend.loadSubjects(proxyURL: settings.proxyURL)
             markBackendConnected()
             subjects = payload.sorted { $0.code < $1.code }
             if let preferred = subjects.first(where: { $0.code == settings.lastSubject }) {
@@ -154,29 +144,21 @@ final class AppModel {
                 selectedSubject = subjects.first
             }
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
     func loadFavorites() async {
-        do {
-            favorites = try await bridge.send(method: "get_favorites", params: EmptyParams(), payloadType: [Subject].self)
-            markBackendConnected()
-        } catch {
-            handleBridgeError(error)
-        }
+        favorites = backend.loadFavorites()
+        markBackendConnected()
     }
 
     func loadSettings() async {
-        do {
-            let loaded = try await bridge.send(method: "load_settings", params: EmptyParams(), payloadType: DownloadSettings.self)
-            markBackendConnected()
-            settings = loaded
-            if let savedRoute = AppRoute(rawValue: loaded.lastMode) {
-                route = savedRoute
-            }
-        } catch {
-            handleBridgeError(error)
+        let loaded = backend.loadSettings()
+        markBackendConnected()
+        settings = loaded
+        if let savedRoute = AppRoute(rawValue: loaded.lastMode) {
+            route = savedRoute
         }
     }
 
@@ -185,44 +167,28 @@ final class AppModel {
         settings.lastMode = route.rawValue
 
         do {
-            let proxyResult = try await bridge.send(method: "set_proxy", params: ProxyParams(proxyURL: settings.proxyURL), payloadType: OKResult.self)
-            guard proxyResult.ok else {
-                throw PythonBridgeError.backend(proxyResult.error ?? "Unable to save proxy")
-            }
-
-            let saveResult = try await bridge.send(method: "save_settings", params: settings, payloadType: OKResult.self)
-            guard saveResult.ok else {
-                throw PythonBridgeError.backend(saveResult.error ?? "Unable to save settings")
-            }
+            try backend.saveSettings(settings)
             markBackendConnected()
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
     func chooseSaveDirectory() async {
-        do {
-            let path = try await bridge.send(method: "choose_directory", params: EmptyParams(), payloadType: String.self)
-            if !path.isEmpty {
-                settings.saveDirectory = path
-            }
-            markBackendConnected()
-        } catch {
-            handleBridgeError(error)
+        let path = await backend.chooseDirectory()
+        if !path.isEmpty {
+            settings.saveDirectory = path
         }
+        markBackendConnected()
     }
 
     func testProxy() async -> String {
-        do {
-            let result = try await bridge.send(method: "test_proxy", params: ProxyParams(proxyURL: settings.proxyURL), payloadType: ProxyResult.self)
-            markBackendConnected()
-            if result.ok, let latency = result.latencyMs {
-                return "连接成功 (\(latency) ms)"
-            }
-            return result.error ?? "代理测试失败"
-        } catch {
-            return error.localizedDescription
+        let result = await backend.testProxy(settings.proxyURL)
+        markBackendConnected()
+        if result.ok, let latency = result.latencyMs {
+            return "连接成功 (\(latency) ms)"
         }
+        return result.error ?? "代理测试失败"
     }
 
     func search() async {
@@ -231,15 +197,14 @@ final class AppModel {
         defer { isLoading = false }
 
         do {
-            let params = SearchParams(subject: selectedSubject.code, year: selectedYear, season: selectedSeason.rawValue)
-            let payload = try await bridge.send(method: "search", params: params, payloadType: SearchPayload.self)
+            let payload = try await backend.search(subject: selectedSubject, year: selectedYear, season: selectedSeason, settings: settings)
             markBackendConnected()
             searchResults = payload.files
             searchGroups = payload.groups
             expandedPaperComponents = Set(payload.files.compactMap { $0.componentKey }.prefix(3))
             selectedPreview = nil
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
@@ -249,14 +214,14 @@ final class AppModel {
         defer { isLoading = false }
 
         do {
-            let params = BatchPreviewParams(
-                code: selectedSubject.code,
+            let payload = try await backend.batchPreview(
+                subject: selectedSubject,
                 yearFrom: batchYearFrom,
                 yearTo: batchYearTo,
-                seasons: batchSeasonList.map(\.rawValue),
-                paperGroups: batchPaperGroups.sorted()
+                seasons: batchSeasonList,
+                paperGroups: batchPaperGroups,
+                settings: settings
             )
-            let payload = try await bridge.send(method: "batch_preview", params: params, payloadType: BatchPreviewPayload.self)
             markBackendConnected()
             batchGroups = payload.groups
             batchPreview = payload.files
@@ -265,7 +230,7 @@ final class AppModel {
                 errorMessage = warning
             }
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
@@ -273,7 +238,7 @@ final class AppModel {
         guard !searchGroups.isEmpty else { return }
 
         do {
-            let chosenDirectory = try await bridge.send(method: "choose_directory", params: EmptyParams(), payloadType: String.self)
+            let chosenDirectory = await backend.chooseDirectory()
             guard !chosenDirectory.isEmpty else {
                 return
             }
@@ -284,16 +249,16 @@ final class AppModel {
                 saveDir: settings.saveDirectory,
                 options: settings.downloadOptions
             )
-            let result = try await bridge.send(method: "start_download", params: params, payloadType: DownloadStartResult.self)
+            let result = try await backend.startDownload(groups: params.groups, saveDirectory: params.saveDir, options: params.options)
             guard result.ok else {
-                throw PythonBridgeError.backend("下载任务启动失败")
+                throw BackendError.invalidResponse("下载任务启动失败")
             }
             markBackendConnected()
             route = .downloads
             await refreshDownloads()
             startPollingDownloads()
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
@@ -308,15 +273,15 @@ final class AppModel {
                 saveDir: saveDirectory,
                 options: settings.downloadOptions
             )
-            let result = try await bridge.send(method: "start_download", params: params, payloadType: DownloadStartResult.self)
+            let result = try await backend.startDownload(groups: params.groups, saveDirectory: params.saveDir, options: params.options)
             guard result.ok else {
-                throw PythonBridgeError.backend("下载任务启动失败")
+                throw BackendError.invalidResponse("下载任务启动失败")
             }
             markBackendConnected()
             await refreshDownloads()
             startPollingDownloads()
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
@@ -324,7 +289,7 @@ final class AppModel {
         guard !batchGroups.isEmpty else { return }
 
         do {
-            let chosenDirectory = try await bridge.send(method: "choose_directory", params: EmptyParams(), payloadType: String.self)
+            let chosenDirectory = await backend.chooseDirectory()
             guard !chosenDirectory.isEmpty else {
                 return
             }
@@ -335,47 +300,36 @@ final class AppModel {
                 saveDir: settings.saveDirectory,
                 options: settings.downloadOptions
             )
-            let result = try await bridge.send(method: "start_download", params: params, payloadType: DownloadStartResult.self)
+            let result = try await backend.startDownload(groups: params.groups, saveDirectory: params.saveDir, options: params.options)
             guard result.ok else {
-                throw PythonBridgeError.backend("下载任务启动失败")
+                throw BackendError.invalidResponse("下载任务启动失败")
             }
             markBackendConnected()
             route = .downloads
             await refreshDownloads()
             startPollingDownloads()
         } catch {
-            handleBridgeError(error)
+            handleBackendError(error)
         }
     }
 
     func refreshDownloads() async {
-        do {
-            let snapshot = try await bridge.send(method: "get_status", params: EmptyParams(), payloadType: DownloadStatusSnapshot.self)
-            let items = try await bridge.send(method: "get_download_list", params: EmptyParams(), payloadType: [DownloadTaskItem].self)
-            markBackendConnected()
-            downloadSnapshot = snapshot
-            downloads = items.sorted { $0.id < $1.id }
-            if snapshot.isRunning {
-                ensureDownloadPolling()
-            } else {
-                stopPollingDownloads()
-            }
-        } catch {
-            handleBridgeError(error)
+        let snapshot = await backend.downloadStatus()
+        let items = await backend.downloadItems()
+        markBackendConnected()
+        downloadSnapshot = snapshot
+        downloads = items.sorted { $0.id < $1.id }
+        if snapshot.isRunning {
+            ensureDownloadPolling()
+        } else {
+            stopPollingDownloads()
         }
     }
 
     func cancelDownloads() async {
-        do {
-            let result = try await bridge.send(method: "cancel_download", params: EmptyParams(), payloadType: OKResult.self)
-            guard result.ok else {
-                throw PythonBridgeError.backend(result.error ?? "取消下载失败")
-            }
-            markBackendConnected()
-            await refreshDownloads()
-        } catch {
-            handleBridgeError(error)
-        }
+        await backend.cancelDownloads()
+        markBackendConnected()
+        await refreshDownloads()
     }
 
     func startPollingDownloads() {
@@ -416,7 +370,7 @@ final class AppModel {
             return settings.saveDirectory
         }
 
-        let chosenDirectory = try await bridge.send(method: "choose_directory", params: EmptyParams(), payloadType: String.self)
+        let chosenDirectory = await backend.chooseDirectory()
         guard !chosenDirectory.isEmpty else {
             return nil
         }
@@ -425,48 +379,55 @@ final class AppModel {
         return chosenDirectory
     }
 
-    private func backendGroup(for file: PaperFile) -> BackendPaperGroup {
+    private func backendGroup(for file: PaperFile) -> NativePaperGroup {
         let type = file.paperType?.uppercased()
         let sy = syCode(season: file.season, year: file.year)
+        let component = PaperComponent(
+            sourceID: file.sourceID,
+            filename: file.filename,
+            url: file.url,
+            paperType: file.paperType?.lowercased() ?? "",
+            subjectCode: file.subjectCode,
+            sy: sy,
+            number: file.number,
+            label: file.label
+        )
 
         if type == "QP" {
-            return BackendPaperGroup(
-                subject: file.subjectCode,
+            return NativePaperGroup(
+                sourceID: file.sourceID,
+                subjectCode: file.subjectCode,
                 sy: sy,
                 number: file.number,
                 paperGroup: nil,
-                qp: file.filename,
+                qp: component,
                 ms: nil,
-                filename: nil,
-                ftype: nil,
-                label: file.label
+                extras: []
             )
         }
 
         if type == "MS" {
-            return BackendPaperGroup(
-                subject: file.subjectCode,
+            return NativePaperGroup(
+                sourceID: file.sourceID,
+                subjectCode: file.subjectCode,
                 sy: sy,
                 number: file.number,
                 paperGroup: nil,
                 qp: nil,
-                ms: file.filename,
-                filename: nil,
-                ftype: nil,
-                label: file.label
+                ms: component,
+                extras: []
             )
         }
 
-        return BackendPaperGroup(
-            subject: file.subjectCode,
+        return NativePaperGroup(
+            sourceID: file.sourceID,
+            subjectCode: file.subjectCode,
             sy: sy,
             number: file.number,
             paperGroup: nil,
             qp: nil,
             ms: nil,
-            filename: file.filename,
-            ftype: file.paperType?.lowercased(),
-            label: file.label
+            extras: [component]
         )
     }
 
@@ -487,25 +448,11 @@ final class AppModel {
         return "\(prefix)\(shortYear.count == 1 ? "0\(shortYear)" : shortYear)"
     }
 
-    private func handleBridgeError(_ error: Error) {
+    private func handleBackendError(_ error: Error) {
         let message = error.localizedDescription
-
-        guard let bridgeError = error as? PythonBridgeError else {
-            if !backendState.isAvailable {
-                backendState = .failed(message)
-            }
-            errorMessage = message
-            return
-        }
-
-        switch bridgeError {
-        case .launchFailed, .processUnavailable, .invalidResponse, .missingScript, .missingExecutable:
+        if !backendState.isAvailable {
             backendState = .failed(message)
-        case .encodingFailed, .backend:
-            if !backendState.isAvailable {
-                backendState = .failed(message)
-            }
-            errorMessage = message
         }
+        errorMessage = message
     }
 }

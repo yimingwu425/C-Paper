@@ -221,7 +221,7 @@ private struct SearchResultsPanel: View {
                         "确认年份和考季",
                         "点击搜索并等待分组"
                     ] : [
-                        "等待 Python bridge 连接",
+                        "等待原生后端初始化",
                         "检查脚本路径",
                         "连接后重新搜索"
                     ]
