@@ -360,3 +360,25 @@ This file is a concise running log of meaningful code, configuration, and docume
 - Generated release artifact: `dist/C-Paper-Native-5.2.3-standalone-20260603.dmg`
 - SHA-256: `851c5f7ea572c0a01fcd868f011c93711947a42826ff9e1d46d15f99dd80767c`
 - Live native window reading was intentionally stopped after the user asked not to continue that inspection path; verification is through code review and automated checks.
+
+### 2026-06-03 — Publish native 5.2.3 to GitHub and correct release notes
+
+**Task**
+- Push the native 5.2.3 layout release to GitHub and make the published release notes match the actual fix.
+
+**Changed**
+- Pushed `main` commit `4a9134e` and tag `v5.2.3` to GitHub.
+- Updated the native GitHub Actions release-note generation so future tag releases read the current `version.json` `release_notes` field instead of hardcoded old bullets.
+- Added `.github/release-notes/native-v5.2.3.md` with the corrected native 5.2.3 release body.
+- Updated the published GitHub Release `v5.2.3` body to describe the PDF preview and minimum-height page fixes.
+
+**Reason**
+- The initial GitHub Release was created successfully, but its body still described the previous 5.2.2 download polling work.
+
+**Tested**
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/build.yml")'`
+- `gh run watch 26895176342 --repo yimingwu425/C-Paper --exit-status`
+- `gh release view v5.2.3 --repo yimingwu425/C-Paper`
+
+**Risks / Notes**
+- GitHub Actions reported a Node.js 20 deprecation annotation for upstream actions; the native 5.2.3 release workflow itself completed successfully.
