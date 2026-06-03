@@ -38,7 +38,7 @@ struct PDFPreviewView: View {
                         )
                     }
                 }
-                .frame(minHeight: 420, maxHeight: .infinity)
+                .frame(minHeight: 300, maxHeight: .infinity)
                 .background(.background.opacity(0.86), in: RoundedRectangle(cornerRadius: CPDesign.Radius.panel, style: .continuous))
                 .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.panel, style: .continuous))
                 .overlay {
@@ -223,7 +223,7 @@ struct PDFKitContainer: NSViewRepresentable {
     let url: URL
 
     func makeNSView(context: Context) -> PDFView {
-        let view = PDFView()
+        let view = AutoScalingPDFView()
         view.autoScales = true
         view.displayMode = .singlePageContinuous
         view.displayDirection = .vertical
@@ -237,5 +237,20 @@ struct PDFKitContainer: NSViewRepresentable {
             nsView.document = PDFDocument(url: url)
         }
         nsView.autoScales = true
+        nsView.layoutDocumentView()
+    }
+}
+
+private final class AutoScalingPDFView: PDFView {
+    private var isRefreshingLayout = false
+
+    override func layout() {
+        super.layout()
+
+        guard document != nil, !isRefreshingLayout else { return }
+        isRefreshingLayout = true
+        autoScales = true
+        layoutDocumentView()
+        isRefreshingLayout = false
     }
 }

@@ -4,7 +4,7 @@ set -euo pipefail
 APP_NAME="CPaperNative"
 DISPLAY_NAME="C-Paper"
 BUNDLE_ID="com.yimingwu.CPaperNative"
-VERSION="5.2.2"
+VERSION="5.2.3"
 MIN_SYSTEM_VERSION="14.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
 

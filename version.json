@@ -1,8 +1,8 @@
 {
-  "version": "5.2.2",
+  "version": "5.2.3",
   "min_version": "5.0.0",
-  "download_url": "https://github.com/Ja-son-WU/CIE-Downloader/releases/tag/v5.2.2",
-  "release_notes": "- 修复 native 下载轮询状态抖动\n- 补齐搜索与批量下载按钮的可用性保护",
+  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v5.2.3",
+  "release_notes": "- 修复非最大化窗口下 PDF 预览挤压与溢出\n- 改进 PDF 预览在窗口缩放后的自动适配\n- 下载队列和批量下载页在最小窗口高度下可滚动查看完整内容",
   "force_update": false,
-  "published_at": "2026-05-29T00:00:00Z"
+  "published_at": "2026-06-03T00:00:00Z"
 }

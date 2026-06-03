@@ -8,28 +8,30 @@ struct BatchView: View {
         ZStack {
             ProductBackdrop()
 
-            VStack(alignment: .leading, spacing: 26) {
-                BatchHeader(model: model)
-                HStack(alignment: .top, spacing: 28) {
-                    GlassSurface(role: .content, padding: 20) {
-                        BatchFilterPanel(model: model)
+            ScrollableWorkflowPage { size in
+                VStack(alignment: .leading, spacing: 22) {
+                    BatchHeader(model: model)
+                    HStack(alignment: .top, spacing: 28) {
+                        GlassSurface(role: .content, padding: 20) {
+                            BatchFilterPanel(model: model)
+                        }
+                        .frame(width: 322)
+                        .overlay(alignment: .bottomLeading) {
+                            Circle()
+                                .fill(Color(red: 0.42, green: 0.80, blue: 0.95).opacity(0.14))
+                                .frame(width: 120, height: 120)
+                                .blur(radius: 34)
+                                .offset(x: -32, y: 42)
+                        }
+                        BatchPreviewPanel(model: model)
                     }
-                    .frame(width: 322)
-                    .overlay(alignment: .bottomLeading) {
-                        Circle()
-                            .fill(Color(red: 0.42, green: 0.80, blue: 0.95).opacity(0.14))
-                            .frame(width: 120, height: 120)
-                            .blur(radius: 34)
-                            .offset(x: -32, y: 42)
-                    }
-                    BatchPreviewPanel(model: model)
+                    .frame(minHeight: max(460, size.height - 220), alignment: .top)
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.batchPreview)
+                    .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.selectedPreview)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.batchPreview)
-                .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.selectedPreview)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(34)
         }
     }
 }
@@ -236,17 +238,11 @@ private struct BatchPreviewPanel: View {
                 }
                 .padding(.horizontal, 2)
 
-                HStack(alignment: .top, spacing: 14) {
+                AdaptivePDFPreviewPane(hasPreview: model.selectedPreview != nil) {
                     previewList
-
+                } preview: {
                     if let selectedPreview = model.selectedPreview {
                         PDFPreviewView(model: model, file: selectedPreview)
-                            .frame(minWidth: 360, idealWidth: 410, maxWidth: 460, maxHeight: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.floating, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: CPDesign.Radius.floating, style: .continuous)
-                                    .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
-                            }
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
                 }
@@ -308,6 +304,6 @@ private struct BatchPreviewPanel: View {
                 .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
             }
         }
-        .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: PDFPreviewPaneLayout.listMinimumWidth, maxWidth: .infinity, maxHeight: .infinity)
     }
 }

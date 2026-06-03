@@ -22,13 +22,13 @@ swift run CPaperNative
 
 ## 当前版本
 
-当前 native 主线版本：`5.2.2`
+当前 native 主线版本：`5.2.3`
 
-5.2.2 重点：
+5.2.3 重点：
 
-- 修复 native 下载状态轮询抖动，避免下载队列刷新时反复重建轮询任务
-- 补齐搜索结果和批量下载按钮的可用性判断
-- 保持现有 native UI 风格不变
+- 修复非最大化窗口下 PDF 预览挤压与溢出
+- 改进 PDF 预览在窗口缩放后的自动适配
+- 下载队列和批量下载页在最小窗口高度下可滚动查看完整内容
 - 继续使用 Swift/macOS 客户端、Python bridge 和共享 Python backend 的主线架构
 
 ## 主要能力
@@ -115,9 +115,9 @@ CONFIGURATION=release bash scripts/build_native_dmg.sh
 常规发布步骤：
 
 ```bash
-git tag v5.2.2
+git tag v5.2.3
 git push origin main
-git push origin v5.2.2
+git push origin v5.2.3
 ```
 
 tag 触发后，workflow 会：

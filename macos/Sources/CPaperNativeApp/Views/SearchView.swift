@@ -157,17 +157,11 @@ private struct SearchResultsPanel: View {
                 }
                 .padding(.horizontal, 2)
 
-                HStack(alignment: .top, spacing: 14) {
+                AdaptivePDFPreviewPane(hasPreview: model.selectedPreview != nil) {
                     resultsList
-
+                } preview: {
                     if let selectedPreview = model.selectedPreview {
                         PDFPreviewView(model: model, file: selectedPreview)
-                            .frame(minWidth: 360, idealWidth: 410, maxWidth: 460, maxHeight: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: CPDesign.Radius.floating, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: CPDesign.Radius.floating, style: .continuous)
-                                    .stroke(Color.accentColor.opacity(0.16), lineWidth: 1)
-                            }
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
                 }
@@ -235,7 +229,7 @@ private struct SearchResultsPanel: View {
                 .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
             }
         }
-        .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: PDFPreviewPaneLayout.listMinimumWidth, maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var paperGroups: [PaperComponentGroup] {

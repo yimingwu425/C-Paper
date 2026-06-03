@@ -327,3 +327,36 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - Visual behavior was verified by code review and Swift tests; a live native window screenshot was not captured in this session.
+
+### 2026-06-03 — Fix non-maximized native PDF and minimum-height pages for 5.2.3
+
+**Task**
+- Fix native PDF preview behavior when the app window is not maximized, keep downloads and batch download usable at minimum window height, and prepare release 5.2.3.
+
+**Changed**
+- Added a shared adaptive PDF preview pane layout that keeps search results and batch preview lists side-by-side with the PDF only when both panes fit; otherwise the selected PDF preview uses the available width instead of overflowing.
+- Reused the adaptive preview layout in `SearchView.swift` and `BatchView.swift`.
+- Added a shared scrollable workflow page scaffold and applied it to the downloads and batch download pages so short windows can scroll instead of clipping content.
+- Reduced the PDF document area's minimum height and refreshed PDFKit auto-scaling after layout changes.
+- Added Swift tests for the preview pane layout breakpoints.
+- Bumped active native/backend release metadata to 5.2.3.
+
+**Reason**
+- The previous inline preview required list and PDF panes to fit at the same time, so narrower windows could squeeze or overflow the PDF preview.
+- Downloads and batch download pages had fixed vertical expectations that did not degrade well at the minimum window height.
+
+**Tested**
+- `swift build --jobs 1`
+- `swift test --jobs 1`
+- `pytest`
+- `bash -n scripts/build_native_dmg.sh`
+- `python3 -m py_compile bridge/cpaper_bridge.py backend/*.py`
+- `python3 -m json.tool version.json`
+- `git diff --check`
+- Active release metadata search for stale `5.2.2` and old repository URLs.
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+
+**Risks / Notes**
+- Generated release artifact: `dist/C-Paper-Native-5.2.3-standalone-20260603.dmg`
+- SHA-256: `851c5f7ea572c0a01fcd868f011c93711947a42826ff9e1d46d15f99dd80767c`
+- Live native window reading was intentionally stopped after the user asked not to continue that inspection path; verification is through code review and automated checks.

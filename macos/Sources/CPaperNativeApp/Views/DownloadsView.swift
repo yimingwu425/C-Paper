@@ -8,12 +8,15 @@ struct DownloadsView: View {
         ZStack {
             ProductBackdrop()
 
-            VStack(alignment: .leading, spacing: 26) {
-                header
-                summary
-                table
+            ScrollableWorkflowPage { size in
+                VStack(alignment: .leading, spacing: 22) {
+                    header
+                    summary
+                    table
+                        .frame(minHeight: max(300, size.height - 430), alignment: .top)
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .padding(34)
         }
         .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.downloads)
         .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: model.downloadSnapshot)
