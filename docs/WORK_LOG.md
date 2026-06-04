@@ -565,3 +565,26 @@ This file is a concise running log of meaningful code, configuration, and docume
 - `swift build`
 - `RUN_LIVE_SOURCE_TESTS=1 swift test --jobs 1 --filter LiveSourceTests`
 - `python3 -m pytest legacy/python-backend/tests`
+
+### 2026-06-04 - Prepare native 6.0.2 backend parity release
+
+**Task**
+- Package the Swift-native backend source usability and Python parity fixes as C-Paper Native 6.0.2.
+
+**Changed**
+- Bumped native metadata from 6.0.1 to 6.0.2 in `version.json`, `BackendConstants.swift`, `HTTPRequestBuilder.swift`, `scripts/build_native_dmg.sh`, and `README.md`.
+- Added `.github/release-notes/native-v6.0.2.md`.
+- Updated README release commands and current-version notes for 6.0.2.
+
+**Reason**
+- The source usability and duplicate-history parity fixes should ship as a new hotfix release instead of changing the already-published 6.0.1 release.
+
+**Tested**
+- `python3 -m json.tool version.json`
+- `bash -n scripts/build_native_dmg.sh`
+- `git diff --check`
+- `swift test --jobs 1`
+- `swift build`
+- `RUN_LIVE_SOURCE_TESTS=1 swift test --jobs 1 --filter LiveSourceTests`
+- `python3 -m pytest legacy/python-backend/tests`
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`

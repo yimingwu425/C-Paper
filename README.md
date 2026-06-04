@@ -22,14 +22,16 @@ swift run CPaperNative
 
 ## 当前版本
 
-当前 native 主线版本：`6.0.1`
+当前 native 主线版本：`6.0.2`
 
-6.0.1 重点：
+6.0.2 重点：
 
 - 后端改为 Swift 原生实现，active app 不再依赖 Python bridge
 - 搜索、解析、缓存、下载、设置和数据源逻辑拆成模块化 Swift 后端
 - 自动数据源 fallback：Frankcie 优先，EasyPaper 作为主要备用；PastPapers 为 best-effort 备用，PapaCambridge 遇到 Cloudflare challenge 时会明确报告不可用
+- 科目列表也支持备用源 fallback；若科目列表不可用，搜索和批量下载可手动输入 4 位科目代码
 - 设置页支持手动选择数据源，手动模式失败时不自动切换，也不会把不可用数据源伪装成成功
+- 下载历史已接入 Swift 下载流程，重复文件 skip/missing 行为对齐归档 Python 后端
 - 本地数据迁移到 macOS Application Support，并兼容迁移旧 `~/.cie_cache/` 设置、收藏和下载历史
 
 ## 主要能力
@@ -104,9 +106,9 @@ CONFIGURATION=release bash scripts/build_native_dmg.sh
 常规发布步骤：
 
 ```bash
-git tag v6.0.1
+git tag v6.0.2
 git push origin main
-git push origin v6.0.1
+git push origin v6.0.2
 ```
 
 tag 触发后，workflow 会：
