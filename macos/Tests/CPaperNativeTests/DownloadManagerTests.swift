@@ -51,7 +51,7 @@ final class DownloadManagerTests: XCTestCase {
             extras: [
                 component(filename: "../evil.pdf", type: "QP"),
                 component(filename: "notes.txt", type: "QP", url: URL(string: "https://example.test/notes.txt")!),
-                component(filename: "safe.pdf", type: "QP", url: URL(string: "https://example.test/safe.bin")!),
+                component(filename: "safe.pdf", type: "QP", url: URL(string: "ftp://example.test/safe.pdf")!),
                 component(filename: "9709_s23_qp_12.pdf", type: "QP")
             ]
         )
@@ -201,6 +201,79 @@ final class DownloadManagerTests: XCTestCase {
         XCTAssertEqual(items.filter { $0.status == .failed }.count, 1)
     }
 
+    func testDestinationBuilderAcceptsEasyPaperDownloadEndpointWhenFilenameIsPDF() throws {
+        let root = temporaryDirectory()
+        let filePath = "CAIE|AS and A Level|Mathematics (9709)|2023|Summer|9709_s23_qp_12.pdf"
+        let easyPaperURL = URL(string: "https://server.easy-paper.com/paperdownload/dir_v3/stale-token")!
+            .withEasyPaperFilePath(filePath)
+        let group = NativePaperGroup(
+            sourceID: .easyPaper,
+            subjectCode: "9709",
+            sy: "s23",
+            number: "12",
+            paperGroup: 1,
+            qp: PaperComponent(
+                sourceID: .easyPaper,
+                filename: "9709_s23_qp_12.pdf",
+                url: easyPaperURL,
+                paperType: "QP",
+                subjectCode: "9709",
+                sy: "s23",
+                number: "12",
+                label: nil
+            ),
+            ms: nil,
+            extras: []
+        )
+
+        let plan = try DownloadDestinationBuilder.build(groups: [group], saveDirectory: root, options: options())
+
+        XCTAssertEqual(plan.tasks.count, 1)
+        XCTAssertEqual(plan.tasks.first?.saveURL.path, root.appendingPathComponent("2023/QP/9709_s23_qp_12.pdf").path)
+    }
+
+    func testDownloadManagerRefreshesEasyPaperTokenBeforeDownload() async throws {
+        let root = temporaryDirectory()
+        let observed = DownloadURLRecorder()
+        let manager = DownloadManager { sourceURL, partialURL in
+            await observed.set(sourceURL)
+            try Data("ok".utf8).write(to: partialURL)
+        }
+        let filePath = "CAIE|AS and A Level|Mathematics (9709)|2023|Summer|9709_s23_qp_12.pdf"
+        let staleURL = URL(string: "https://mirror.easy-paper.test/paperdownload/dir_v3/stale-token")!
+            .withEasyPaperFilePath(filePath)
+        let group = NativePaperGroup(
+            sourceID: .easyPaper,
+            subjectCode: "9709",
+            sy: "s23",
+            number: "12",
+            paperGroup: 1,
+            qp: PaperComponent(
+                sourceID: .easyPaper,
+                filename: "9709_s23_qp_12.pdf",
+                url: staleURL,
+                paperType: "QP",
+                subjectCode: "9709",
+                sy: "s23",
+                number: "12",
+                label: nil
+            ),
+            ms: nil,
+            extras: []
+        )
+
+        try await manager.start(groups: [group], saveDirectory: root, options: options(threads: 1))
+        let snapshot = try await waitForCompletion(manager)
+        let recordedURL = await observed.value
+        let sourceURL = try XCTUnwrap(recordedURL)
+
+        XCTAssertEqual(snapshot.success, 1)
+        XCTAssertEqual(sourceURL.host, "mirror.easy-paper.test")
+        XCTAssertTrue(sourceURL.path.contains("/paperdownload/dir_v3/"))
+        XCTAssertNotEqual(sourceURL.lastPathComponent, "stale-token")
+        XCTAssertNil(sourceURL.fragment)
+    }
+
     private func paperGroup(sy: String) -> NativePaperGroup {
         NativePaperGroup(
             sourceID: .frankcie,
@@ -281,5 +354,17 @@ private actor AttemptCounter {
     func next() -> Int {
         count += 1
         return count
+    }
+}
+
+private actor DownloadURLRecorder {
+    private var recordedURL: URL?
+
+    var value: URL? {
+        recordedURL
+    }
+
+    func set(_ url: URL) {
+        recordedURL = url
     }
 }

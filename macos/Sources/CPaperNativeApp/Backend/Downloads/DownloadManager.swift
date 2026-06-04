@@ -179,7 +179,7 @@ actor DownloadManager {
                 try? fileManager.removeItem(at: partialURL)
             }
 
-            try await download(task.component.url, partialURL)
+            try await download(resolvedSourceURL(for: task.component), partialURL)
             try Task.checkCancellation()
             try atomicReplace(partialURL: partialURL, destinationURL: task.saveURL)
             await circuitBreaker.recordSuccess()
@@ -255,6 +255,38 @@ actor DownloadManager {
             return "network"
         }
         return "unknown"
+    }
+
+    private func resolvedSourceURL(for component: PaperComponent) throws -> URL {
+        guard component.sourceID == .easyPaper, let filePath = component.url.easyPaperFilePath else {
+            return component.url
+        }
+        let token = try EasyPaperCrypto().encryptedRequestToken(payload: [
+            "dir": filePath,
+            "source": "website"
+        ])
+        return try easyPaperBaseURL(from: component.url)
+            .appendingPathComponent("paperdownload")
+            .appendingPathComponent("dir_v3")
+            .appendingPathComponent(token)
+    }
+
+    private func easyPaperBaseURL(from url: URL) throws -> URL {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = components.scheme,
+              let host = components.host
+        else {
+            throw DownloadDestinationError.invalidSaveDirectory
+        }
+
+        var baseComponents = URLComponents()
+        baseComponents.scheme = scheme
+        baseComponents.host = host
+        baseComponents.port = components.port
+        guard let baseURL = baseComponents.url else {
+            throw DownloadDestinationError.invalidSaveDirectory
+        }
+        return baseURL
     }
 
     private static func defaultDownload(sourceURL: URL, partialURL: URL) async throws {

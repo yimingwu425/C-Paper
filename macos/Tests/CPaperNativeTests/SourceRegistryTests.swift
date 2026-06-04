@@ -6,7 +6,7 @@ final class SourceRegistryTests: XCTestCase {
     func testAutomaticModeFallsBackOnErrorsAndEmptyResultsInStableOrder() async throws {
         let parsed = PaperFilenameParser.parse("9709_s23_qp_12.pdf")!
         let success = PaperComponent.sourceComponent(
-            sourceID: .pastPapers,
+            sourceID: .easyPaper,
             parsed: parsed,
             url: URL(string: "https://example.test/9709_s23_qp_12.pdf")!
         )
@@ -14,31 +14,32 @@ final class SourceRegistryTests: XCTestCase {
         let frankcie = StubSource(id: .frankcie) { _ in
             throw PaperSourceError.sourceUnavailable("Frankcie down")
         }
-        let papa = StubSource(id: .papaCambridge) { _ in
-            SourceSearchResult(sourceID: .papaCambridge, components: [])
+        let easyPaper = StubSource(id: .easyPaper) { _ in
+            SourceSearchResult(sourceID: .easyPaper, components: [success])
         }
         let pastPapers = StubSource(id: .pastPapers) { _ in
-            SourceSearchResult(sourceID: .pastPapers, components: [success])
+            XCTFail("PastPapers should not be called after EasyPaper succeeds")
+            return SourceSearchResult(sourceID: .pastPapers, components: [])
         }
-        let easyPaper = StubSource(id: .easyPaper) { _ in
-            XCTFail("EasyPaper should not be called after a successful fallback")
-            return SourceSearchResult(sourceID: .easyPaper, components: [])
+        let papa = StubSource(id: .papaCambridge) { _ in
+            XCTFail("PapaCambridge should not be called after EasyPaper succeeds")
+            return SourceSearchResult(sourceID: .papaCambridge, components: [])
         }
 
-        let registry = SourceRegistry(sources: [frankcie, papa, pastPapers, easyPaper])
+        let registry = SourceRegistry(sources: [frankcie, easyPaper, pastPapers, papa])
         let result = try await registry.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
 
-        XCTAssertEqual(result.sourceID, .pastPapers)
+        XCTAssertEqual(result.sourceID, .easyPaper)
         XCTAssertEqual(result.components, [success])
-        XCTAssertEqual(result.attempts.map(\.sourceID), [.frankcie, .papaCambridge, .pastPapers])
-        XCTAssertEqual(result.attempts.map(\.status), [.failed, .empty, .success])
+        XCTAssertEqual(result.attempts.map(\.sourceID), [.frankcie, .easyPaper])
+        XCTAssertEqual(result.attempts.map(\.status), [.failed, .success])
         XCTAssertEqual(frankcie.callCount, 1)
-        XCTAssertEqual(papa.callCount, 1)
-        XCTAssertEqual(pastPapers.callCount, 1)
-        XCTAssertEqual(easyPaper.callCount, 0)
+        XCTAssertEqual(easyPaper.callCount, 1)
+        XCTAssertEqual(pastPapers.callCount, 0)
+        XCTAssertEqual(papa.callCount, 0)
     }
 
-    func testManualModeDoesNotFallbackOnEmptyResults() async throws {
+    func testManualModeDoesNotFallbackAndReportsUnavailableOnEmptyResults() async throws {
         let frankcie = StubSource(id: .frankcie) { _ in
             SourceSearchResult(sourceID: .frankcie, components: [])
         }
@@ -48,15 +49,20 @@ final class SourceRegistryTests: XCTestCase {
         }
 
         let registry = SourceRegistry(sources: [frankcie, papa])
-        let result = try await registry.search(
-            PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"),
-            mode: .manual(.frankcie)
-        )
-
-        XCTAssertEqual(result.sourceID, .frankcie)
-        XCTAssertTrue(result.components.isEmpty)
-        XCTAssertEqual(result.attempts.map(\.sourceID), [.frankcie])
-        XCTAssertEqual(result.attempts.map(\.status), [.empty])
+        do {
+            _ = try await registry.search(
+                PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"),
+                mode: .manual(.frankcie)
+            )
+            XCTFail("Manual mode should report unavailable instead of returning an empty success")
+        } catch let error as PaperSourceError {
+            guard case let .sourceUnavailable(message) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertTrue(message.contains("Frankcie"))
+            XCTAssertTrue(message.contains("暂不可用"))
+            XCTAssertTrue(message.contains("重新适配"))
+        }
         XCTAssertEqual(frankcie.callCount, 1)
         XCTAssertEqual(papa.callCount, 0)
     }

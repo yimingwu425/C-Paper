@@ -37,7 +37,7 @@ These directories are preserved for reference and limited maintenance only. Do n
 - The macOS app is the active maintained product.
 - The macOS app calls `NativeBackendService` directly.
 - `NativeBackendService` coordinates persistence, source lookup, parsing, and downloads.
-- `SourceRegistry` supports automatic fallback across Frankcie, PapaCambridge, PastPapers, and EasyPaper.
+- `SourceRegistry` uses automatic fallback in the order Frankcie, EasyPaper, PastPapers, then PapaCambridge. EasyPaper is the primary non-Frankcie fallback; PastPapers is best-effort because directory pages may be Cloudflare-challenged; PapaCambridge reports unavailable when Cloudflare blocks the HTTP client.
 - The active app no longer starts or packages a Python bridge.
 
 ## UI Locations

@@ -4,14 +4,14 @@ set -euo pipefail
 APP_NAME="CPaperNative"
 DISPLAY_NAME="C-Paper"
 BUNDLE_ID="com.yimingwu.CPaperNative"
-VERSION="6.0.0"
+VERSION="6.0.1"
 MIN_SYSTEM_VERSION="14.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PACKAGE_DIR="$ROOT_DIR"
 DIST_DIR="$ROOT_DIR/dist"
-BUILD_ROOT="$ROOT_DIR/build/native_dmg"
+BUILD_ROOT="${TMPDIR:-/tmp}/cpaper-native-dmg-$VERSION"
 STAGING_DIR="$BUILD_ROOT/dmg_staging"
 DMG_RW="$BUILD_ROOT/$DISPLAY_NAME.rw.dmg"
 DMG_BACKGROUND="$BUILD_ROOT/dmg-background.png"
@@ -43,6 +43,7 @@ clear_bundle_metadata() {
   local target="$1"
 
   xattr -cr "$target" 2>/dev/null || true
+  find "$target" -depth -exec xattr -c {} \; 2>/dev/null || true
   find "$target" -depth -exec xattr -d com.apple.FinderInfo {} \; 2>/dev/null || true
   find "$target" -depth -exec xattr -d com.apple.provenance {} \; 2>/dev/null || true
   find "$target" -depth -exec xattr -d 'com.apple.fileprovider.fpfs#P' {} \; 2>/dev/null || true
@@ -55,14 +56,30 @@ codesign_best_effort() {
   if ! codesign --force --deep --sign - "$target"; then
     echo "Warning: ad hoc codesign failed for $target; continuing with unsigned bundle." >&2
   fi
+  clear_bundle_metadata "$target"
 }
 
 verify_codesign_best_effort() {
   local target="$1"
+  local verify_target="$target"
+  local temp_verify_dir=""
 
-  if ! codesign --verify --deep --strict "$target"; then
-    echo "Warning: strict codesign verification failed for $target; continuing." >&2
-  fi
+  for _ in {1..3}; do
+    clear_bundle_metadata "$target"
+    if [ "$target" != "$APP_BUNDLE" ]; then
+      temp_verify_dir="$BUILD_ROOT/codesign_verify"
+      rm -rf "$temp_verify_dir"
+      mkdir -p "$temp_verify_dir"
+      verify_target="$temp_verify_dir/$(basename "$target")"
+      ditto --noextattr --norsrc "$target" "$verify_target"
+      clear_bundle_metadata "$verify_target"
+    fi
+    if codesign --verify --deep --strict "$verify_target" >/dev/null 2>&1; then
+      return
+    fi
+    sleep 0.2
+  done
+  echo "Warning: strict codesign verification failed for $target; continuing." >&2
 }
 
 create_dmg_background() {

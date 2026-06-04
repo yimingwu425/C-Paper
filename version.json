@@ -1,8 +1,8 @@
 {
-  "version": "6.0.0",
+  "version": "6.0.1",
   "min_version": "6.0.0",
-  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.0",
-  "release_notes": "- 后端完全改为 Swift 原生实现，不再依赖 Python bridge\n- 新增模块化 Swift 后端：数据源、解析、网络、下载、持久化和迁移\n- 支持 Frankcie、PapaCambridge、PastPapers、EasyPaper 多数据源自动 fallback\n- 设置页支持手动切换数据源\n- 本地数据迁移到 macOS Application Support，并兼容旧 ~/.cie_cache 设置、收藏和下载历史",
+  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.1",
+  "release_notes": "- 修复 6.0.0 中非 Frankcie 数据源只是通用 HTML skeleton 的问题，改为 PapaCambridge、PastPapers、EasyPaper 独立 provider\n- EasyPaper 使用真实加密 dir_v3 API，并在下载前刷新短期 token\n- PastPapers 使用真实 CAIE relPath / 静态 PDF 结构，目录页被 Cloudflare challenge 时进行 best-effort 直链探测\n- PapaCambridge 使用真实 session path 和 direct upload URL 验证；被 Cloudflare 拦截时明确报告暂不可用\n- 手动选择不可用数据源时明确提示失败，不再返回空成功\n- 修复 native DMG 打包时 extended attributes 导致的 strict codesign warning",
   "force_update": false,
   "published_at": "2026-06-04T00:00:00Z"
 }

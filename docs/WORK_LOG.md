@@ -464,3 +464,79 @@ This file is a concise running log of meaningful code, configuration, and docume
 - Rebuilt the release binary after the startup change.
 - Rebuilt the release app bundle and DMG path with `CONFIGURATION=release SKIP_SWIFT_BUILD=1 bash scripts/build_native_dmg.sh`.
 - Confirmed the running bundle exposes an on-screen CoreGraphics window named `C-Paper`.
+
+### 2026-06-04 - Replace source skeletons with real provider behavior
+
+**Task**
+- Fix 6.0.0 third-party source support after verifying that the earlier non-Frankcie providers were only skeletons and did not match each website's real structure.
+
+**Changed**
+- Replaced the generic HTML provider path with independent PapaCambridge, PastPapers, and EasyPaper source implementations.
+- Added shared challenge detection for Cloudflare-protected sources.
+- Changed automatic fallback order to Frankcie, EasyPaper, PastPapers, then PapaCambridge.
+- Implemented EasyPaper's encrypted `dir_v3` API flow and refreshed EasyPaper download tokens immediately before downloading.
+- Implemented PastPapers parsing for Next.js/RSC `entries` and best-effort static PDF probing using real CAIE `relPath` URLs.
+- Implemented PapaCambridge's CAIE session path, filename extraction, direct upload URL construction, and HEAD verification before returning components.
+- Kept PapaCambridge explicit about Cloudflare challenge unavailability instead of returning false success.
+- Added fixture and live smoke tests for provider behavior, PastPapers non-seed discovery, PapaCambridge challenge handling, EasyPaper download URL refresh, and live PDF GET verification when a source returns components.
+- Updated README, project index, version metadata, and release notes to describe the real source reliability model.
+- Tightened native DMG codesign verification by clearing extended attributes again after ad hoc signing and immediately before strict verification.
+
+**Reason**
+- PapaCambridge, PastPapers, and EasyPaper do not share the same HTML/path structure. Treating them as generic link pages made manual source selection misleading and automatic fallback unreliable.
+
+**Tested**
+- `swift test --jobs 1 --filter PaperSourceFixtureTests`
+- `swift test --jobs 1 --filter DownloadManagerTests`
+- `swift test --jobs 1 --filter SourceRegistryTests`
+- `swift test --jobs 1 --filter LiveSourceTests`
+- `RUN_LIVE_SOURCE_TESTS=1 swift test --jobs 1 --filter LiveSourceTests`
+- `swift test --jobs 1`
+- `swift build`
+- `bash -n scripts/build_native_dmg.sh`
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+
+**Risks / Notes**
+- EasyPaper is the only current non-Frankcie source verified as a stable automatic fallback API in live smoke testing.
+- PastPapers static PDF URLs are usable, but directory discovery can be Cloudflare-challenged and static probing is slower.
+- PapaCambridge currently uses Cloudflare managed challenge for non-browser clients in live testing; the provider reports unavailable instead of attempting to bypass it.
+
+### 2026-06-04 - Prepare native 6.0.1 source-provider hotfix release
+
+**Task**
+- Prepare the verified real-source provider fixes as C-Paper Native 6.0.1 for GitHub publication.
+
+**Changed**
+- Bumped native release metadata from 6.0.0 to 6.0.1 in `version.json`, `BackendConstants.swift`, `HTTPRequestBuilder.swift`, `scripts/build_native_dmg.sh`, and `README.md`.
+- Added `.github/release-notes/native-v6.0.1.md` for the source-provider hotfix.
+- Restored the 6.0.0 release-note file to describe the already-published 6.0.0 release rather than the 6.0.1 hotfix.
+
+**Reason**
+- The source-provider fixes should ship as a hotfix release instead of silently changing the already-published 6.0.0 artifact metadata.
+
+**Tested**
+- `python3 -m json.tool version.json`
+- `bash -n scripts/build_native_dmg.sh`
+- `git diff --check`
+- `swift test --jobs 1`
+- `swift build`
+- `RUN_LIVE_SOURCE_TESTS=1 swift test --jobs 1 --filter LiveSourceTests`
+
+### 2026-06-04 - Harden native DMG metadata cleanup for 6.0.1
+
+**Task**
+- Remove strict codesign verification warnings seen during the 6.0.1 release DMG build.
+
+**Changed**
+- Strengthened bundle metadata cleanup by clearing all extended attributes recursively before deleting known macOS metadata keys.
+- Retried strict codesign verification after metadata cleanup so transient Finder/file-provider attributes do not produce a release-build warning.
+- Moved the DMG staging workspace to the system temporary directory and verify strict codesign against a clean temporary copy when checking staged bundles.
+
+**Reason**
+- The generated app bundle could inherit `com.apple.FinderInfo`, `com.apple.provenance`, or file-provider attributes that make `codesign --verify --deep --strict` complain even after ad hoc signing.
+- Running the DMG staging tree inside the repository worktree can inherit file-provider metadata from the user's Documents folder; the final artifact still lands in `dist/`.
+
+**Tested**
+- `bash -n scripts/build_native_dmg.sh`
+- `python3 -m json.tool version.json`
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`

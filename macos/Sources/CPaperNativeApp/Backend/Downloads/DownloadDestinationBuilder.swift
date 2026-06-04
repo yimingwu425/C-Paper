@@ -118,7 +118,7 @@ enum DownloadDestinationBuilder {
         guard !value.isEmpty else { return nil }
         let lower = value.lowercased()
         guard lower.hasSuffix(".pdf") else { return nil }
-        guard url.pathExtension.lowercased() == "pdf" else { return nil }
+        guard url.scheme == "https" || url.scheme == "http" else { return nil }
         guard value == (value as NSString).lastPathComponent else { return nil }
         guard !value.hasPrefix(".") else { return nil }
         guard !value.contains("..") else { return nil }

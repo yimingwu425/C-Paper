@@ -6,7 +6,7 @@ enum SourceRegistryMode: Equatable {
 }
 
 final class SourceRegistry {
-    static let automaticOrder: [PaperSourceID] = [.frankcie, .papaCambridge, .pastPapers, .easyPaper]
+    static let automaticOrder: [PaperSourceID] = [.frankcie, .easyPaper, .pastPapers, .papaCambridge]
 
     private let sources: [PaperSourceID: any PaperSource]
     private let automaticOrder: [PaperSourceID]
@@ -37,6 +37,9 @@ final class SourceRegistry {
                 throw PaperSourceError.unsupportedSource(sourceID)
             }
             var result = try await source.search(query)
+            guard !result.components.isEmpty else {
+                throw PaperSourceError.sourceUnavailable("\(sourceID.title) 暂不可用或没有暴露可下载试卷；该数据源需要重新适配")
+            }
             result.attempts = [.success(sourceID, count: result.components.count)]
             return result
         }

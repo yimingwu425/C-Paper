@@ -1,7 +1,7 @@
 import Foundation
 
 struct HTTPRequestBuilder: Sendable {
-    static let defaultUserAgent = "C-Paper/6.0.0 (macOS; SwiftNative)"
+    static let defaultUserAgent = "C-Paper/6.0.1 (macOS; SwiftNative)"
 
     var userAgent: String
     var timeout: TimeInterval
@@ -20,6 +20,12 @@ struct HTTPRequestBuilder: Sendable {
     func get(_ url: URL) -> URLRequest {
         var request = baseRequest(url)
         request.httpMethod = "GET"
+        return request
+    }
+
+    func head(_ url: URL) -> URLRequest {
+        var request = baseRequest(url)
+        request.httpMethod = "HEAD"
         return request
     }
 
