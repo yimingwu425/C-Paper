@@ -28,6 +28,35 @@ final class SourceRegistry {
         sources[sourceID]
     }
 
+    func fetchSubjects(mode: SourceRegistryMode = .automatic) async throws -> [Subject] {
+        switch mode {
+        case .automatic:
+            var attempts: [SourceAttempt] = []
+            for sourceID in automaticOrder {
+                guard let source = sources[sourceID] else { continue }
+                do {
+                    let subjects = try await source.fetchSubjects()
+                    attempts.append(.success(sourceID, count: subjects.count))
+                    if !subjects.isEmpty {
+                        return SubjectNormalizer.deduplicate(subjects)
+                    }
+                } catch {
+                    attempts.append(.failure(sourceID, error: error))
+                }
+            }
+            throw PaperSourceError.allSourcesUnavailable(attempts)
+        case let .manual(sourceID):
+            guard let source = sources[sourceID] else {
+                throw PaperSourceError.unsupportedSource(sourceID)
+            }
+            let subjects = try await source.fetchSubjects()
+            guard !subjects.isEmpty else {
+                throw PaperSourceError.sourceUnavailable("\(sourceID.title) 暂不可用或没有暴露科目目录")
+            }
+            return SubjectNormalizer.deduplicate(subjects)
+        }
+    }
+
     func search(_ query: PaperSourceQuery, mode: SourceRegistryMode = .automatic) async throws -> SourceSearchResult {
         switch mode {
         case .automatic:

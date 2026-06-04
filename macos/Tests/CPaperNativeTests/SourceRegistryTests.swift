@@ -66,24 +66,85 @@ final class SourceRegistryTests: XCTestCase {
         XCTAssertEqual(frankcie.callCount, 1)
         XCTAssertEqual(papa.callCount, 0)
     }
+
+    func testFetchSubjectsFallsBackWhenFrankcieSubjectListFails() async throws {
+        let frankcie = StubSource(
+            id: .frankcie,
+            subjectHandler: {
+                throw PaperSourceError.sourceUnavailable("Frankcie subjects down")
+            },
+            searchHandler: { _ in
+                SourceSearchResult(sourceID: .frankcie, components: [])
+            }
+        )
+        let easyPaper = StubSource(
+            id: .easyPaper,
+            subjectHandler: {
+                [
+                    Subject(code: "9709", name: "Mathematics"),
+                    Subject(code: "9709", name: "Duplicate"),
+                    Subject(code: "0620", name: "Chemistry")
+                ]
+            },
+            searchHandler: { _ in
+                SourceSearchResult(sourceID: .easyPaper, components: [])
+            }
+        )
+        let pastPapers = StubSource(id: .pastPapers) { _ in
+            XCTFail("PastPapers should not be called after EasyPaper subjects succeed")
+            return SourceSearchResult(sourceID: .pastPapers, components: [])
+        }
+
+        let registry = SourceRegistry(sources: [frankcie, easyPaper, pastPapers])
+        let subjects = try await registry.fetchSubjects()
+
+        XCTAssertEqual(subjects.map(\.code), ["0620", "9709"])
+        XCTAssertEqual(frankcie.subjectCallCount, 1)
+        XCTAssertEqual(easyPaper.subjectCallCount, 1)
+        XCTAssertEqual(pastPapers.subjectCallCount, 0)
+    }
 }
 
 private final class StubSource: PaperSource, @unchecked Sendable {
     let id: PaperSourceID
+    private let subjectHandler: @Sendable () async throws -> [Subject]
     private let handler: @Sendable (PaperSourceQuery) async throws -> SourceSearchResult
     private let lock = NSLock()
     private var calls = 0
+    private var subjectCalls = 0
 
     var callCount: Int {
         lock.withLock { calls }
     }
 
+    var subjectCallCount: Int {
+        lock.withLock { subjectCalls }
+    }
+
     init(
+        id: PaperSourceID,
+        subjectHandler: @escaping @Sendable () async throws -> [Subject] = {
+            throw PaperSourceError.sourceUnavailable("Subjects unavailable")
+        },
+        searchHandler handler: @escaping @Sendable (PaperSourceQuery) async throws -> SourceSearchResult
+    ) {
+        self.id = id
+        self.subjectHandler = subjectHandler
+        self.handler = handler
+    }
+
+    convenience init(
         id: PaperSourceID,
         handler: @escaping @Sendable (PaperSourceQuery) async throws -> SourceSearchResult
     ) {
-        self.id = id
-        self.handler = handler
+        self.init(id: id, searchHandler: handler)
+    }
+
+    func fetchSubjects() async throws -> [Subject] {
+        lock.withLock {
+            subjectCalls += 1
+        }
+        return try await subjectHandler()
     }
 
     func search(_ query: PaperSourceQuery) async throws -> SourceSearchResult {

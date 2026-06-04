@@ -198,7 +198,7 @@ private struct SourceSettingsSection: View {
                 }
 
                 SettingsHint(model.settings.sourceMode == .automatic
-                    ? "自动顺序：Frankcie、PapaCambridge、PastPapers、EasyPaper。"
+                    ? "自动顺序：Frankcie、EasyPaper、PastPapers、PapaCambridge。"
                     : "手动模式只使用选定来源，失败时不会自动切换。")
             }
         }

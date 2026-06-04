@@ -11,15 +11,19 @@ final class NativeBackendService: @unchecked Sendable {
 
     init(
         paths: AppStoragePaths? = nil,
-        downloadManager: DownloadManager = DownloadManager()
+        downloadManager: DownloadManager? = nil
     ) throws {
         let resolvedPaths = try paths ?? AppStoragePaths()
         self.paths = resolvedPaths
         self.settingsStore = SettingsStore(paths: resolvedPaths)
         self.favoritesStore = FavoritesStore(paths: resolvedPaths)
-        self.historyStore = DownloadHistoryStore(paths: resolvedPaths)
+        let historyStore = DownloadHistoryStore(paths: resolvedPaths)
+        self.historyStore = historyStore
         self.cacheStore = SearchCacheStore(paths: resolvedPaths)
-        self.downloadManager = downloadManager
+        let historyRecorder = DownloadHistoryRecorder(store: historyStore)
+        self.downloadManager = downloadManager ?? DownloadManager(completionRecorder: { task in
+            await historyRecorder.record(task)
+        })
         try LegacyCacheMigrator(paths: resolvedPaths).migrateIfNeeded()
     }
 
@@ -55,22 +59,17 @@ final class NativeBackendService: @unchecked Sendable {
         try favoritesStore.remove(code: code)
     }
 
-    func loadSubjects(proxyURL: String) async throws -> [Subject] {
+    func loadSubjects(proxyURL: String, sourceMode: PaperSourceID = .automatic) async throws -> [Subject] {
         let cacheKey = "subjects"
-        if let cached: [Subject] = cacheStore.load([Subject].self, source: .frankcie, key: cacheKey), !cached.isEmpty {
+        let cacheSource = sourceMode == .automatic ? PaperSourceID.automatic : sourceMode
+        if let cached: [Subject] = cacheStore.load([Subject].self, source: cacheSource, key: cacheKey), !cached.isEmpty {
             return cached
         }
 
-        let client = NetworkClient(proxy: ProxyConfiguration(rawValue: proxyURL))
-        let url = BackendConstants.frankcieBaseURL
-            .appendingPathComponent("obj")
-            .appendingPathComponent("Common")
-            .appendingPathComponent("Subject")
-            .appendingPathComponent("combo")
-        let data = try await client.postForm(url, form: [:])
-        let subjects = try parseSubjects(from: data)
+        let subjects = try await registry(proxyURL: proxyURL)
+            .fetchSubjects(mode: registryMode(for: sourceMode))
         if !subjects.isEmpty {
-            try? cacheStore.save(subjects, source: .frankcie, key: cacheKey)
+            try? cacheStore.save(subjects, source: cacheSource, key: cacheKey)
         }
         return subjects
     }
@@ -147,7 +146,13 @@ final class NativeBackendService: @unchecked Sendable {
 
     func startDownload(groups: [NativePaperGroup], saveDirectory: String, options: DownloadOptions) async throws -> DownloadStartResult {
         let url = URL(fileURLWithPath: (saveDirectory as NSString).expandingTildeInPath)
-        let result = try await downloadManager.start(groups: groups, saveDirectory: url, options: options)
+        let downloadedFilenames = Set(historyStore.load().map(\.filename))
+        let result = try await downloadManager.start(
+            groups: groups,
+            saveDirectory: url,
+            options: options,
+            downloadedFilenames: downloadedFilenames
+        )
         return result
     }
 
@@ -167,9 +172,9 @@ final class NativeBackendService: @unchecked Sendable {
         let client = NetworkClient(proxy: ProxyConfiguration(rawValue: proxyURL))
         return SourceRegistry(sources: [
             FrankcieSource(networkClient: client),
-            PapaCambridgeSource(networkClient: client),
+            EasyPaperSource(networkClient: client),
             PastPapersSource(networkClient: client),
-            EasyPaperSource(networkClient: client)
+            PapaCambridgeSource(networkClient: client)
         ])
     }
 
@@ -183,23 +188,21 @@ final class NativeBackendService: @unchecked Sendable {
             .map { "\($0.sourceID.title): \($0.message)" }
     }
 
-    private func parseSubjects(from data: Data) throws -> [Subject] {
-        let json = try JSONSerialization.jsonObject(with: data)
-        let dictionaries = collectDictionaries(from: json)
-        let subjects = dictionaries.compactMap { dictionary -> Subject? in
-            let stringDictionary = dictionary.compactMapValues { $0 as? String }
-            return SubjectNormalizer.subject(fromFrankcie: stringDictionary)
-        }
-        return SubjectNormalizer.deduplicate(subjects)
+}
+
+private actor DownloadHistoryRecorder {
+    private let store: DownloadHistoryStore
+
+    init(store: DownloadHistoryStore) {
+        self.store = store
     }
 
-    private func collectDictionaries(from value: Any) -> [[String: Any]] {
-        if let dictionary = value as? [String: Any] {
-            return [dictionary] + dictionary.values.flatMap(collectDictionaries)
-        }
-        if let array = value as? [Any] {
-            return array.flatMap(collectDictionaries)
-        }
-        return []
+    func record(_ task: DownloadDestinationTask) {
+        try? store.record(
+            filename: task.filename,
+            label: task.label,
+            year: task.year,
+            savePath: task.saveURL.path
+        )
     }
 }

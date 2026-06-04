@@ -30,12 +30,17 @@ protocol PaperSource {
     var id: PaperSourceID { get }
     var displayName: String { get }
 
+    func fetchSubjects() async throws -> [Subject]
     func search(_ query: PaperSourceQuery) async throws -> SourceSearchResult
     func healthCheck() async -> SourceHealth
 }
 
 extension PaperSource {
     var displayName: String { id.title }
+
+    func fetchSubjects() async throws -> [Subject] {
+        throw PaperSourceError.sourceUnavailable("\(id.title) 暂不支持科目列表")
+    }
 }
 
 enum SourceHealthStatus: String, Codable, Equatable {

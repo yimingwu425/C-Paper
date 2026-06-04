@@ -86,12 +86,12 @@ enum DownloadDestinationBuilder {
                 case .overwrite:
                     break
                 case .skip:
-                    if exists || downloadedFilenames.contains(filename) {
+                    if downloadedFilenames.contains(filename) {
                         skipped += 1
                         continue
                     }
                 case .missing:
-                    if exists {
+                    if downloadedFilenames.contains(filename) && exists {
                         skipped += 1
                         continue
                     }

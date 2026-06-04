@@ -21,6 +21,24 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(model.activeDownloadCount, 1)
     }
 
+    func testManualSubjectCodeActsAsFallbackWhenSubjectListIsUnavailable() {
+        let model = AppModel()
+        model.selectedSubject = nil
+        model.manualSubjectCode = "9709"
+
+        XCTAssertTrue(model.hasSearchSubject)
+        XCTAssertEqual(model.activeSubject?.code, "9709")
+        XCTAssertEqual(model.activeSubject?.name, "手动输入 9709")
+    }
+
+    func testSelectedSubjectTakesPriorityOverManualSubjectCode() {
+        let model = AppModel()
+        model.selectedSubject = Subject(code: "9701", name: "Chemistry")
+        model.manualSubjectCode = "9709"
+
+        XCTAssertEqual(model.activeSubject?.code, "9701")
+    }
+
     func testSettingsCodingKeysRoundTrip() throws {
         let settings = DownloadSettings(
             theme: "light",

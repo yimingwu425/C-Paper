@@ -17,6 +17,42 @@ struct PastPapersSource: PaperSource {
         self.requestBuilder = requestBuilder
     }
 
+    func fetchSubjects() async throws -> [Subject] {
+        var subjects = PastPapersSubjectDirectory.seed.compactMap { code, directory -> Subject? in
+            SubjectNormalizer.subject(fromDirectoryName: directory.relPath.split(separator: "/").last.map(String.init) ?? code)
+        }
+        var challengeSeen = false
+        var errors: [String] = []
+
+        for level in PastPapersLevel.allCases {
+            let url = caieURL(level.viewPath)
+            do {
+                let html = String(decoding: try await networkClient.data(for: requestBuilder.get(url)), as: UTF8.self)
+                if CloudflareChallengeDetector.isChallenge(html: html) {
+                    challengeSeen = true
+                    continue
+                }
+                let entries = PastPapersEntriesExtractor.entries(from: html)
+                subjects.append(contentsOf: entries.compactMap(subject(from:)))
+            } catch let error as NetworkClientError where error.isLikelyChallenge {
+                challengeSeen = true
+            } catch {
+                errors.append(error.localizedDescription)
+            }
+        }
+
+        let deduped = SubjectNormalizer.deduplicate(subjects)
+        if !deduped.isEmpty {
+            return deduped
+        }
+        if challengeSeen {
+            throw PaperSourceError.sourceUnavailable("PastPapers 暂不可用：Cloudflare challenge 拦截了科目目录")
+        }
+        throw PaperSourceError.sourceUnavailable(
+            "PastPapers 暂不可用：无法读取科目目录\(errors.isEmpty ? "" : "（\(errors.joined(separator: "; "))）")"
+        )
+    }
+
     func search(_ query: PaperSourceQuery) async throws -> SourceSearchResult {
         guard let year = query.year, let season = PastPapersSeason(query: query, year: year) else {
             throw PaperSourceError.invalidResponse("PastPapers 需要指定年份和季度")
@@ -164,6 +200,12 @@ struct PastPapersSource: PaperSource {
     private func component(from filename: String, relPath: String) -> PaperComponent? {
         guard let parsed = PaperFilenameParser.parse(filename) else { return nil }
         return .sourceComponent(sourceID: id, parsed: parsed, url: caieFileURL(relPath: relPath))
+    }
+
+    private func subject(from entry: PastPapersEntry) -> Subject? {
+        guard entry.isDir else { return nil }
+        return SubjectNormalizer.subject(fromDirectoryName: entry.name)
+            ?? SubjectNormalizer.subject(fromDirectoryName: entry.relPath.split(separator: "/").last.map(String.init) ?? entry.relPath)
     }
 
     private func caieURL(_ pathComponents: String...) -> URL {

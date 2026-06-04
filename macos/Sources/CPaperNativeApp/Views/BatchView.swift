@@ -63,7 +63,11 @@ private struct BatchFilterPanel: View {
             )
 
             FieldBlock("科目") {
-                SubjectPicker(subjects: model.subjects, selection: $model.selectedSubject)
+                SubjectPicker(
+                    subjects: model.subjects,
+                    selection: $model.selectedSubject,
+                    manualCode: $model.manualSubjectCode
+                )
             }
 
             FieldBlock("年份") {
@@ -123,7 +127,7 @@ private struct BatchFilterPanel: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GlassButtonStyle(model.batchGroups.isEmpty ? .primary : .normal))
-                .disabled(model.selectedSubject == nil || model.batchSeasons.isEmpty || model.batchPaperGroups.isEmpty || model.isLoading || !model.backendState.isAvailable)
+                .disabled(!model.hasSearchSubject || model.batchSeasons.isEmpty || model.batchPaperGroups.isEmpty || model.isLoading || !model.backendState.isAvailable)
 
                 Button {
                     Task { await model.startBatchDownload() }

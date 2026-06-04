@@ -17,6 +17,16 @@ struct FrankcieSource: PaperSource {
         self.requestBuilder = requestBuilder
     }
 
+    func fetchSubjects() async throws -> [Subject] {
+        let url = baseURL
+            .appendingPathComponent("obj")
+            .appendingPathComponent("Common")
+            .appendingPathComponent("Subject")
+            .appendingPathComponent("combo")
+        let data = try await networkClient.data(for: requestBuilder.postForm(url, form: [:]))
+        return try FrankcieSubjectParser.subjects(from: data)
+    }
+
     func search(_ query: PaperSourceQuery) async throws -> SourceSearchResult {
         let url = baseURL
             .appendingPathComponent("obj")
@@ -49,6 +59,33 @@ struct FrankcieSource: PaperSource {
         } catch {
             return SourceHealth(sourceID: id, status: .unavailable, message: error.localizedDescription)
         }
+    }
+}
+
+enum FrankcieSubjectParser {
+    static func subjects(from data: Data) throws -> [Subject] {
+        let json: Any
+        do {
+            json = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw PaperSourceError.invalidResponse("Frankcie returned invalid subject JSON")
+        }
+
+        let subjects = collectDictionaries(from: json).compactMap { dictionary -> Subject? in
+            let stringDictionary = dictionary.compactMapValues { $0 as? String }
+            return SubjectNormalizer.subject(fromFrankcie: stringDictionary)
+        }
+        return SubjectNormalizer.deduplicate(subjects)
+    }
+
+    private static func collectDictionaries(from value: Any) -> [[String: Any]] {
+        if let dictionary = value as? [String: Any] {
+            return [dictionary] + dictionary.values.flatMap(collectDictionaries)
+        }
+        if let array = value as? [Any] {
+            return array.flatMap(collectDictionaries)
+        }
+        return []
     }
 }
 

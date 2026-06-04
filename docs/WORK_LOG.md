@@ -540,3 +540,28 @@ This file is a concise running log of meaningful code, configuration, and docume
 - `bash -n scripts/build_native_dmg.sh`
 - `python3 -m json.tool version.json`
 - `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+
+### 2026-06-04 - Restore native backend source usability and Python parity
+
+**Task**
+- Diagnose why the Swift-native backend could still feel unusable after the 6.0.1 provider hotfix, and close concrete behavior gaps against the archived Python backend.
+
+**Changed**
+- Added source-level subject fetching and `SourceRegistry.fetchSubjects()` so automatic mode can populate subjects through EasyPaper/PastPapers when Frankcie's subject API is unavailable.
+- Added manual subject-code fallback in Search and Batch views, allowing users to search/download by a 4-digit Cambridge code even when every subject-list provider is temporarily unavailable.
+- Moved Frankcie subject parsing into `FrankcieSource` and added directory-name subject parsing for EasyPaper/PastPapers directory formats.
+- Connected Swift download history to the active download path: successful downloads now record history, and duplicate `skip`/`missing` modes use history like the archived Python backend.
+- Fixed the settings data-source hint so it matches the actual automatic order: Frankcie, EasyPaper, PastPapers, PapaCambridge.
+- Strengthened live source smoke tests with subject fallback coverage and short PDF retry logic for transient EasyPaper TLS/handshake failures.
+
+**Reason**
+- The old Swift path still loaded subjects only from Frankcie, so fallback sources were unreachable from the UI whenever Frankcie failed before search.
+- The Swift download manager had a history store but did not use it to implement duplicate behavior, which diverged from the Python backend.
+- Live testing showed EasyPaper can transiently fail a direct PDF request even after search succeeds; production downloads retry, so live verification should reflect that behavior.
+
+**Tested**
+- `swift test --jobs 1 --filter 'DownloadManagerTests|SourceRegistryTests|ModelTests|PaperParsingTests'`
+- `swift test --jobs 1`
+- `swift build`
+- `RUN_LIVE_SOURCE_TESTS=1 swift test --jobs 1 --filter LiveSourceTests`
+- `python3 -m pytest legacy/python-backend/tests`

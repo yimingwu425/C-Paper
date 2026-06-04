@@ -41,7 +41,7 @@ private struct SearchHeader: View {
         PageHero(
             eyebrow: "Smart Search",
             title: "搜索试卷",
-            subtitle: model.selectedSubject?.displayName ?? "选择科目、年份和考季，快速定位可下载试卷。",
+            subtitle: model.activeSubject?.displayName ?? "选择科目、年份和考季，快速定位可下载试卷。",
             symbolName: "doc.text.magnifyingglass"
         ) {
             HeaderCount(value: model.searchResults.count, unit: "个文件")
@@ -66,7 +66,11 @@ private struct SearchFilterPanel: View {
             )
 
             FieldBlock("科目") {
-                SubjectPicker(subjects: model.subjects, selection: $model.selectedSubject)
+                SubjectPicker(
+                    subjects: model.subjects,
+                    selection: $model.selectedSubject,
+                    manualCode: $model.manualSubjectCode
+                )
             }
 
             FieldBlock("考季") {
@@ -87,7 +91,7 @@ private struct SearchFilterPanel: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GlassButtonStyle(.primary))
-                .disabled(model.selectedSubject == nil || model.isLoading || !model.backendState.isAvailable)
+                .disabled(!model.hasSearchSubject || model.isLoading || !model.backendState.isAvailable)
 
                 Button {
                     Task {
@@ -102,7 +106,7 @@ private struct SearchFilterPanel: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GlassButtonStyle(.subtle))
-                .disabled(model.selectedSubject == nil || !model.backendState.isAvailable)
+                .disabled(!model.hasSearchSubject || !model.backendState.isAvailable)
 
                 if !model.searchResults.isEmpty {
                     Button {
@@ -479,19 +483,48 @@ struct FieldBlock<Content: View>: View {
 struct SubjectPicker: View {
     let subjects: [Subject]
     @Binding var selection: Subject?
+    @Binding var manualCode: String
 
     var body: some View {
-        Picker("科目", selection: $selection) {
-            Text(subjects.isEmpty ? "正在载入科目" : "选择科目")
-                .tag(Optional<Subject>.none)
-            ForEach(subjects) { subject in
-                Text(subject.displayName).tag(Optional(subject))
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("科目", selection: $selection) {
+                Text(subjects.isEmpty ? "科目列表不可用" : "选择科目")
+                    .tag(Optional<Subject>.none)
+                ForEach(subjects) { subject in
+                    Text(subject.displayName).tag(Optional(subject))
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onChange(of: selection) { _, newValue in
+                if newValue != nil {
+                    manualCode = ""
+                }
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "number")
+                    .foregroundStyle(.secondary)
+                TextField("手动输入科目代码，如 9709", text: manualBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: manualCode) { _, newValue in
+                        if SubjectNormalizer.subjectCode(in: newValue) != nil {
+                            selection = nil
+                        }
+                    }
             }
         }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .controlSize(.small)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var manualBinding: Binding<String> {
+        Binding(
+            get: { manualCode },
+            set: { value in
+                manualCode = String(value.filter(\.isNumber).prefix(4))
+            }
+        )
     }
 }
 

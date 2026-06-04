@@ -24,6 +24,29 @@ struct EasyPaperSource: PaperSource {
         self.crypto = crypto
     }
 
+    func fetchSubjects() async throws -> [Subject] {
+        var subjects: [Subject] = []
+        var errors: [String] = []
+
+        for root in subjectRoots {
+            do {
+                let listing = try await loadDirectory(root)
+                subjects.append(contentsOf: listing.folders.compactMap(SubjectNormalizer.subject(fromDirectoryName:)))
+            } catch {
+                errors.append(error.localizedDescription)
+            }
+        }
+
+        let deduped = SubjectNormalizer.deduplicate(subjects)
+        if !deduped.isEmpty {
+            return deduped
+        }
+
+        throw PaperSourceError.sourceUnavailable(
+            "EasyPaper 暂不可用：无法读取科目目录\(errors.isEmpty ? "" : "（\(errors.joined(separator: "; "))）")"
+        )
+    }
+
     func search(_ query: PaperSourceQuery) async throws -> SourceSearchResult {
         guard let year = query.year, let seasonDirectory = seasonDirectory(for: query) else {
             throw PaperSourceError.invalidResponse("EasyPaper 需要指定年份和季度")
@@ -59,8 +82,7 @@ struct EasyPaperSource: PaperSource {
     }
 
     private func resolveSubjectDirectory(subjectCode: String) async throws -> String {
-        let roots = ["CAIE|AS and A Level", "CAIE|IGCSE", "CAIE|O Level", "CAIE|Pre-U"]
-        for root in roots {
+        for root in subjectRoots {
             let listing = try await loadDirectory(root)
             if let folder = listing.folders.first(where: { $0.contains("(\(subjectCode))") }) {
                 return "\(root)|\(folder)"
@@ -128,6 +150,8 @@ extension URL {
         return String(data: data, encoding: .utf8)
     }
 }
+
+private let subjectRoots = ["CAIE|AS and A Level", "CAIE|IGCSE", "CAIE|O Level", "CAIE|Pre-U"]
 
 struct EasyPaperDirectoryResponse: Decodable, Equatable {
     let status: Bool

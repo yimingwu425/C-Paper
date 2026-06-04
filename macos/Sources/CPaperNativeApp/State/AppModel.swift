@@ -37,6 +37,7 @@ final class AppModel {
     var subjects: [Subject] = []
     var favorites: [Subject] = []
     var selectedSubject: Subject?
+    var manualSubjectCode: String = ""
     var selectedYear: Int = Calendar.current.component(.year, from: Date())
     var selectedSeason: Season = .nov
     var batchYearFrom: Int = max(2000, Calendar.current.component(.year, from: Date()) - 2)
@@ -85,12 +86,26 @@ final class AppModel {
     }
 
     var isSelectedSubjectFavorite: Bool {
-        guard let selectedSubject else { return false }
-        return favorites.contains { $0.code == selectedSubject.code }
+        guard let activeSubject else { return false }
+        return favorites.contains { $0.code == activeSubject.code }
     }
 
     var backendRuntimePath: String {
         backend.appSupportPath
+    }
+
+    var activeSubject: Subject? {
+        if let selectedSubject {
+            return selectedSubject
+        }
+        guard let code = SubjectNormalizer.subjectCode(in: manualSubjectCode) else {
+            return nil
+        }
+        return Subject(code: code, name: "手动输入 \(code)")
+    }
+
+    var hasSearchSubject: Bool {
+        activeSubject != nil
     }
 
     func bootstrap() async {
@@ -111,10 +126,10 @@ final class AppModel {
     }
 
     func addSelectedSubjectToFavorites() async {
-        guard let selectedSubject, !isSelectedSubjectFavorite else { return }
+        guard let subject = activeSubject, !isSelectedSubjectFavorite else { return }
 
         do {
-            try backend.addFavorite(selectedSubject)
+            try backend.addFavorite(subject)
             await loadFavorites()
         } catch {
             handleBackendError(error)
@@ -135,16 +150,25 @@ final class AppModel {
         defer { isLoading = false }
 
         do {
-            let payload = try await backend.loadSubjects(proxyURL: settings.proxyURL)
+            let payload = try await backend.loadSubjects(proxyURL: settings.proxyURL, sourceMode: settings.sourceMode)
             markBackendConnected()
             subjects = payload.sorted { $0.code < $1.code }
             if let preferred = subjects.first(where: { $0.code == settings.lastSubject }) {
                 selectedSubject = preferred
+                manualSubjectCode = ""
             } else if selectedSubject == nil {
                 selectedSubject = subjects.first
+                if selectedSubject != nil {
+                    manualSubjectCode = ""
+                } else if !settings.lastSubject.isEmpty {
+                    manualSubjectCode = settings.lastSubject
+                }
             }
         } catch {
             handleBackendError(error)
+            if selectedSubject == nil, manualSubjectCode.isEmpty, !settings.lastSubject.isEmpty {
+                manualSubjectCode = settings.lastSubject
+            }
         }
     }
 
@@ -163,7 +187,7 @@ final class AppModel {
     }
 
     func saveSettings() async {
-        settings.lastSubject = selectedSubject?.code ?? ""
+        settings.lastSubject = activeSubject?.code ?? ""
         settings.lastMode = route.rawValue
 
         do {
@@ -192,7 +216,7 @@ final class AppModel {
     }
 
     func search() async {
-        guard let selectedSubject else { return }
+        guard let selectedSubject = activeSubject else { return }
         isLoading = true
         defer { isLoading = false }
 
@@ -209,7 +233,7 @@ final class AppModel {
     }
 
     func previewBatch() async {
-        guard let selectedSubject else { return }
+        guard let selectedSubject = activeSubject else { return }
         isLoading = true
         defer { isLoading = false }
 

@@ -61,7 +61,7 @@ final class DownloadManagerTests: XCTestCase {
         XCTAssertEqual(plan.tasks.map(\.filename), ["9709_s23_qp_12.pdf"])
     }
 
-    func testDuplicateSkipAndMissingModesSkipExistingFiles() throws {
+    func testDuplicateSkipAndMissingModesFollowDownloadHistoryLikePythonBackend() throws {
         let root = temporaryDirectory()
         let existing = root.appendingPathComponent("2023/QP/9709_s23_qp_12.pdf")
         try FileManager.default.createDirectory(at: existing.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -80,12 +80,14 @@ final class DownloadManagerTests: XCTestCase {
         let skipPlan = try DownloadDestinationBuilder.build(
             groups: [group],
             saveDirectory: root,
-            options: options(duplicateMode: .skip)
+            options: options(duplicateMode: .skip),
+            downloadedFilenames: ["9709_s23_qp_12.pdf"]
         )
         let missingPlan = try DownloadDestinationBuilder.build(
             groups: [group],
             saveDirectory: root,
-            options: options(duplicateMode: .missing)
+            options: options(duplicateMode: .missing),
+            downloadedFilenames: ["9709_s23_qp_12.pdf"]
         )
         let overwritePlan = try DownloadDestinationBuilder.build(
             groups: [group],
@@ -99,6 +101,33 @@ final class DownloadManagerTests: XCTestCase {
         XCTAssertEqual(missingPlan.skipped, 1)
         XCTAssertEqual(overwritePlan.tasks.count, 1)
         XCTAssertEqual(overwritePlan.skipped, 0)
+    }
+
+    func testDuplicateMissingDownloadsExistingFileWhenHistoryDoesNotContainIt() throws {
+        let root = temporaryDirectory()
+        let existing = root.appendingPathComponent("2023/QP/9709_s23_qp_12.pdf")
+        try FileManager.default.createDirectory(at: existing.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("manual".utf8).write(to: existing)
+        let group = NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: "s23",
+            number: "12",
+            paperGroup: 1,
+            qp: component(filename: "9709_s23_qp_12.pdf", type: "QP"),
+            ms: nil,
+            extras: []
+        )
+
+        let plan = try DownloadDestinationBuilder.build(
+            groups: [group],
+            saveDirectory: root,
+            options: options(duplicateMode: .missing),
+            downloadedFilenames: []
+        )
+
+        XCTAssertEqual(plan.tasks.count, 1)
+        XCTAssertEqual(plan.skipped, 0)
     }
 
     func testDownloadManagerCancelsPendingAndActiveItems() async throws {
@@ -274,6 +303,51 @@ final class DownloadManagerTests: XCTestCase {
         XCTAssertNil(sourceURL.fragment)
     }
 
+    func testNativeBackendRecordsHistoryAndSkipsPreviouslyDownloadedFiles() async throws {
+        let storageRoot = temporaryDirectory()
+        let saveRoot = temporaryDirectory()
+        let paths = try AppStoragePaths(rootURL: storageRoot)
+        try FileManager.default.createDirectory(at: paths.appSupportDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: paths.migrationMarkerURL)
+        let historyRecorder = NativeHistoryRecorder(paths: paths)
+        let manager = DownloadManager { _, partialURL in
+            try Data("ok".utf8).write(to: partialURL)
+        } completionRecorder: { task in
+            await historyRecorder.record(task)
+        }
+        let service = try NativeBackendService(paths: paths, downloadManager: manager)
+        let group = NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: "s23",
+            number: "12",
+            paperGroup: 1,
+            qp: component(filename: "9709_s23_qp_12.pdf", type: "QP"),
+            ms: nil,
+            extras: []
+        )
+
+        let first = try await service.startDownload(
+            groups: [group],
+            saveDirectory: saveRoot.path,
+            options: options(threads: 1)
+        )
+        XCTAssertEqual(first.total, 1)
+        _ = try await waitForCompletion(manager)
+
+        let history = DownloadHistoryStore(paths: paths).load()
+        XCTAssertEqual(history.map(\.filename), ["9709_s23_qp_12.pdf"])
+
+        let second = try await service.startDownload(
+            groups: [group],
+            saveDirectory: saveRoot.path,
+            options: options(threads: 1, duplicateMode: .skip)
+        )
+
+        XCTAssertEqual(second.total, 0)
+        XCTAssertEqual(second.skipped, 1)
+    }
+
     private func paperGroup(sy: String) -> NativePaperGroup {
         NativePaperGroup(
             sourceID: .frankcie,
@@ -366,5 +440,22 @@ private actor DownloadURLRecorder {
 
     func set(_ url: URL) {
         recordedURL = url
+    }
+}
+
+private actor NativeHistoryRecorder {
+    private let store: DownloadHistoryStore
+
+    init(paths: AppStoragePaths) {
+        self.store = DownloadHistoryStore(paths: paths)
+    }
+
+    func record(_ task: DownloadDestinationTask) {
+        try? store.record(
+            filename: task.filename,
+            label: task.label,
+            year: task.year,
+            savePath: task.saveURL.path
+        )
     }
 }

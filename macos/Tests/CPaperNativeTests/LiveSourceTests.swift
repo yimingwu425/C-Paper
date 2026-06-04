@@ -3,6 +3,23 @@ import XCTest
 @testable import CPaperNativeApp
 
 final class LiveSourceTests: XCTestCase {
+    func testLiveSubjectFallbackCanPopulateSearchInputsWithoutFrankcie() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_LIVE_SOURCE_TESTS"] == "1",
+            "Set RUN_LIVE_SOURCE_TESTS=1 to verify third-party source websites."
+        )
+
+        let registry = SourceRegistry(sources: [
+            UnavailableLiveSource(id: .frankcie),
+            EasyPaperSource(),
+            PastPapersSource(),
+            PapaCambridgeSource()
+        ])
+        let subjects = try await registry.fetchSubjects()
+
+        XCTAssertTrue(subjects.contains { $0.code == "9709" })
+    }
+
     func testLiveEasyPaperSearchReturnsDownloadablePDF() async throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["RUN_LIVE_SOURCE_TESTS"] == "1",
@@ -62,9 +79,37 @@ final class LiveSourceTests: XCTestCase {
     }
 
     private func assertDownloadablePDF(_ url: URL) async throws {
-        let (data, response) = try await URLSession.shared.data(from: url)
-        let httpResponse = try XCTUnwrap(response as? HTTPURLResponse)
-        XCTAssertEqual(httpResponse.statusCode, 200)
-        XCTAssertEqual(String(decoding: data.prefix(5), as: UTF8.self), "%PDF-")
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                let httpResponse = try XCTUnwrap(response as? HTTPURLResponse)
+                XCTAssertEqual(httpResponse.statusCode, 200)
+                XCTAssertEqual(String(decoding: data.prefix(5), as: UTF8.self), "%PDF-")
+                return
+            } catch {
+                lastError = error
+                if attempt < 3 {
+                    try await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+                }
+            }
+        }
+        throw try XCTUnwrap(lastError)
+    }
+}
+
+private struct UnavailableLiveSource: PaperSource {
+    let id: PaperSourceID
+
+    func fetchSubjects() async throws -> [Subject] {
+        throw PaperSourceError.sourceUnavailable("\(id.title) forced unavailable in live smoke")
+    }
+
+    func search(_ query: PaperSourceQuery) async throws -> SourceSearchResult {
+        throw PaperSourceError.sourceUnavailable("\(id.title) forced unavailable in live smoke")
+    }
+
+    func healthCheck() async -> SourceHealth {
+        SourceHealth(sourceID: id, status: .unavailable)
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 
 typealias DownloadWriter = @Sendable (_ sourceURL: URL, _ partialURL: URL) async throws -> Void
+typealias DownloadCompletionRecorder = @Sendable (_ task: DownloadDestinationTask) async -> Void
 
 actor DownloadManager {
     private var queue = DownloadQueue<Int>()
@@ -21,21 +22,29 @@ actor DownloadManager {
     private var rateLimiter: RateLimiter
     private var circuitBreaker: CircuitBreaker
     private let download: DownloadWriter
+    private let completionRecorder: DownloadCompletionRecorder
     private let fileManager: FileManager
     private let maxRetries = 3
 
     init(
         download: @escaping DownloadWriter = DownloadManager.defaultDownload,
+        completionRecorder: @escaping DownloadCompletionRecorder = { _ in },
         fileManager: FileManager = .default
     ) {
         self.download = download
+        self.completionRecorder = completionRecorder
         self.fileManager = fileManager
         self.rateLimiter = RateLimiter(rate: 5)
         self.circuitBreaker = CircuitBreaker()
     }
 
     @discardableResult
-    func start(groups: [NativePaperGroup], saveDirectory: URL, options: DownloadOptions) throws -> DownloadStartResult {
+    func start(
+        groups: [NativePaperGroup],
+        saveDirectory: URL,
+        options: DownloadOptions,
+        downloadedFilenames: Set<String> = []
+    ) throws -> DownloadStartResult {
         runnerTask?.cancel()
         isCancelled = false
         queue.removeAll()
@@ -46,6 +55,7 @@ actor DownloadManager {
             groups: groups,
             saveDirectory: saveDirectory,
             options: options,
+            downloadedFilenames: downloadedFilenames,
             fileManager: fileManager
         )
 
@@ -184,6 +194,7 @@ actor DownloadManager {
             try atomicReplace(partialURL: partialURL, destinationURL: task.saveURL)
             await circuitBreaker.recordSuccess()
             setStatus(id: task.id, status: .done, error: "", errorType: "")
+            await completionRecorder(task)
         } catch is CancellationError {
             setStatus(id: task.id, status: .cancelled, error: "用户取消", errorType: "cancelled")
         } catch CircuitBreakerError.open {

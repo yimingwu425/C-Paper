@@ -26,6 +26,17 @@ final class PaperParsingTests: XCTestCase {
         XCTAssertEqual(PaperFilenameParser.seasonName(fromSY: "w23"), "Nov")
     }
 
+    func testSubjectNormalizerParsesDirectoryNamesFromFallbackSources() {
+        XCTAssertEqual(
+            SubjectNormalizer.subject(fromDirectoryName: "Mathematics (9709)"),
+            Subject(code: "9709", name: "Mathematics")
+        )
+        XCTAssertEqual(
+            SubjectNormalizer.subject(fromDirectoryName: "Chemistry-0620"),
+            Subject(code: "0620", name: "Chemistry")
+        )
+    }
+
     func testGroupsQuestionPaperAndMarkSchemePairs() {
         let groups = PaperGrouper.groups(from: [
             component("9701_s23_qp_12.pdf"),
