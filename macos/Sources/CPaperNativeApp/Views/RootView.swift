@@ -13,13 +13,6 @@ struct RootView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    if !model.backendState.isAvailable {
-                        BackendStatusBanner(model: model)
-                            .padding(.horizontal, CPDesign.Spacing.lg)
-                            .padding(.top, CPDesign.Spacing.md)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-
                     Group {
                         switch model.route {
                         case .search:
@@ -43,17 +36,13 @@ struct RootView: View {
         }
         .frame(minWidth: 1100, minHeight: 720)
         .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.route)
-        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.backendState.isAvailable)
         .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.isLoading)
         .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: model.downloadSnapshot.phase)
         .task {
             await model.bootstrap()
+            await model.checkForUpdates(source: .startup)
         }
         .toolbar {
-            ToolbarItem {
-                BackendStatusPill(state: model.backendState)
-            }
-
             ToolbarItemGroup {
                 Button {
                     Task {
@@ -69,7 +58,7 @@ struct RootView: View {
                 } label: {
                     Label("刷新", systemImage: "arrow.clockwise")
                 }
-                .disabled(model.isLoading || !model.backendState.isAvailable)
+                .disabled(model.isLoading)
 
                 Button {
                     withAnimation(CPDesign.Motion.standard(reduceMotion: reduceMotion)) {
@@ -110,81 +99,30 @@ struct RootView: View {
                 Text(model.errorMessage ?? "")
             }
         )
-    }
-}
-
-private struct BackendStatusPill: View {
-    let state: BackendConnectionState
-
-    var body: some View {
-        StatusBadge(text: state.title, systemImage: symbolName, tint: foregroundStyle)
-    }
-
-    private var symbolName: String {
-        switch state {
-        case .checking: "clock"
-        case .connected: "checkmark.circle.fill"
-        case .failed: "exclamationmark.triangle.fill"
-        }
-    }
-
-    private var foregroundStyle: Color {
-        switch state {
-        case .checking: .secondary
-        case .connected: .green
-        case .failed: .orange
-        }
-    }
-}
-
-private struct BackendStatusBanner: View {
-    @Bindable var model: AppModel
-
-    var body: some View {
-        HStack(alignment: .top, spacing: CPDesign.Spacing.md) {
-            statusIcon
-                .frame(width: 24, height: 24)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.backendState.title)
-                    .font(.headline)
-                Text(model.backendState.detail)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                Text(model.backendRuntimePath)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
+        .alert(
+            "发现新版本",
+            isPresented: Binding(
+                get: { model.pendingUpdatePrompt != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        model.pendingUpdatePrompt = nil
+                    }
+                }
+            ),
+            actions: {
+                Button("稍后", role: .cancel) {
+                    model.pendingUpdatePrompt = nil
+                }
+                Button("下载更新") {
+                    Task { await model.downloadAvailableUpdate() }
+                }
+            },
+            message: {
+                if let release = model.pendingUpdatePrompt {
+                    Text("当前版本 \(BackendConstants.version)，最新版本 \(release.version)。下载完成后打开 DMG 安装；如果 macOS 阻止启动，请到“系统设置 > 隐私与安全性”允许打开 C-Paper。")
+                }
             }
-
-            Spacer(minLength: CPDesign.Spacing.md)
-
-            Button {
-                Task { await model.bootstrap() }
-            } label: {
-                Label("重试", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(GlassButtonStyle(.primary))
-        }
-        .padding(CPDesign.Spacing.md)
-        .liquidGlassSurface(.floating)
-    }
-
-    @ViewBuilder
-    private var statusIcon: some View {
-        switch model.backendState {
-        case .checking:
-            ProgressView()
-                .controlSize(.small)
-        case .connected:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-        }
+        )
     }
 }
 
@@ -209,7 +147,7 @@ private struct StatusToast: View {
     }
 
     private var isVisible: Bool {
-        model.isLoading || model.downloadSnapshot.isRunning || model.backendState == .checking
+        model.isLoading || model.downloadSnapshot.isRunning
     }
 
     private var message: String {
@@ -219,12 +157,12 @@ private struct StatusToast: View {
         if model.isLoading {
             return "正在更新试卷数据"
         }
-        return model.backendState.detail
+        return ""
     }
 
     @ViewBuilder
     private var icon: some View {
-        if model.downloadSnapshot.isRunning || model.isLoading || model.backendState == .checking {
+        if model.downloadSnapshot.isRunning || model.isLoading {
             ProgressView()
                 .controlSize(.small)
         } else {

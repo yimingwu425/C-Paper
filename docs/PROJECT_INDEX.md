@@ -8,6 +8,7 @@ This file is a compact native-first map of the repository so future contributors
 
 - `macos/`: Active SwiftUI/AppKit app, Swift-native backend, and Swift tests
 - `scripts/`: Active native build/release scripts
+- `scripts/lib/`: Shared shell helpers used by active native scripts
 - `assets/`: Shared icons and image assets
 - `docs/`: Project memory and internal documentation
 - `site/`: Static project site
@@ -23,13 +24,14 @@ These directories are preserved for reference and limited maintenance only. Do n
 ## Important Source Files
 
 - `Package.swift`: Root Swift package definition
-- `macos/Sources/CPaperNativeApp/State/AppModel.swift`: Active app state and UI workflow coordination
+- `macos/Sources/CPaperNativeApp/State/AppModel.swift` and `AppModel+*.swift`: Active app state and UI workflow coordination
 - `macos/Sources/CPaperNativeApp/Backend/Core/NativeBackendService.swift`: Swift backend facade used by the app
 - `macos/Sources/CPaperNativeApp/Backend/Sources/`: Data source registry and providers
 - `macos/Sources/CPaperNativeApp/Backend/Parsing/`: Filename, subject, grouping, and HTML link parsing
 - `macos/Sources/CPaperNativeApp/Backend/Networking/`: URLSession request, proxy, and HTTP handling
 - `macos/Sources/CPaperNativeApp/Backend/Downloads/`: Swift download queue, limiter, circuit breaker, and manager
 - `macos/Sources/CPaperNativeApp/Backend/Persistence/`: Settings, favorites, history, cache, and legacy migration stores
+- `macos/Sources/CPaperNativeApp/Backend/Updates/`: GitHub Release update checking and native DMG download service
 - `macos/Tests/CPaperNativeTests/`: Active Swift test suite
 
 ## Runtime Relationships
@@ -37,8 +39,9 @@ These directories are preserved for reference and limited maintenance only. Do n
 - The macOS app is the active maintained product.
 - The macOS app calls `NativeBackendService` directly.
 - `NativeBackendService` coordinates persistence, source lookup, parsing, and downloads.
-- `SourceRegistry` uses automatic fallback in the order Frankcie, EasyPaper, PastPapers, then PapaCambridge. EasyPaper is the primary non-Frankcie fallback; PastPapers is best-effort because directory pages may be Cloudflare-challenged; PapaCambridge reports unavailable when Cloudflare blocks the HTTP client.
+- `SourceRegistry` uses automatic fallback in the order FrankCIE, EasyPaper, PastPapers, then PapaCambridge. EasyPaper is the primary non-FrankCIE fallback; PastPapers is best-effort because directory pages may be Cloudflare-challenged; PapaCambridge reports unavailable when Cloudflare blocks the HTTP client.
 - The active app no longer starts or packages a Python bridge.
+- Startup update checks use GitHub Releases and prompt before downloading a newer native DMG.
 
 ## UI Locations
 
@@ -63,6 +66,7 @@ These directories are preserved for reference and limited maintenance only. Do n
 - `Package.swift`: Active Swift package definition
 - `.github/workflows/build.yml`: Active GitHub Actions workflow for native macOS
 - `scripts/build_native_dmg.sh`: Active native release script
+- `scripts/lib/native_dmg_helpers.sh`: Shared DMG build helper functions
 - `legacy/python-backend/requirements.txt`: Archived Python backend/test dependencies
 - `legacy/pywebview/requirements.txt`: Legacy pywebview dependencies
 - `LICENSE`

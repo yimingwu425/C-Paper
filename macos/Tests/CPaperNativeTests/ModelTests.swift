@@ -58,4 +58,128 @@ final class ModelTests: XCTestCase {
         let decoded = try JSONDecoder().decode(DownloadSettings.self, from: data)
         XCTAssertEqual(decoded, settings)
     }
+
+    func testStartupUpdateCheckRunsOnlyOnceAndDoesNotPromptWhenUpToDate() async throws {
+        let counter = UpdateCallCounter()
+        let model = try makeModel(
+            currentVersion: "6.0.2",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.2"),
+            counter: counter
+        )
+
+        await model.checkForUpdates(source: .startup)
+        await model.checkForUpdates(source: .startup)
+
+        let callCount = await counter.value()
+        XCTAssertEqual(callCount, 1)
+        XCTAssertNil(model.pendingUpdatePrompt)
+        XCTAssertEqual(model.updateStatus, .upToDate(current: "6.0.2", latest: "6.0.2"))
+    }
+
+    func testStartupUpdateCheckPromptsWhenNewVersionExistsWithoutDownloading() async throws {
+        let counter = UpdateCallCounter()
+        let model = try makeModel(
+            currentVersion: "6.0.2",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.3"),
+            counter: counter
+        )
+
+        await model.checkForUpdates(source: .startup)
+
+        let callCount = await counter.value()
+        XCTAssertEqual(callCount, 1)
+        XCTAssertEqual(model.pendingUpdatePrompt?.version, "6.0.3")
+        XCTAssertEqual(model.updateStatus.availableRelease?.version, "6.0.3")
+    }
+
+    func testDownloadAvailableUpdateClearsPromptAndStoresDownloadedURL() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperModelUpdateTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let model = try makeModel(
+            currentVersion: "6.0.2",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.3"),
+            updatesDirectory: tempDirectory
+        )
+        await model.checkForUpdates(source: .startup)
+
+        await model.downloadAvailableUpdate()
+
+        XCTAssertNil(model.pendingUpdatePrompt)
+        guard let downloadedURL = model.updateStatus.downloadedURL else {
+            return XCTFail("Expected downloaded update URL")
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: downloadedURL.path))
+        XCTAssertEqual(try String(contentsOf: downloadedURL), "update")
+    }
+
+    private func makeModel(
+        currentVersion: String,
+        releaseJSON: Data,
+        updatesDirectory: URL? = nil,
+        counter: UpdateCallCounter = UpdateCallCounter()
+    ) throws -> AppModel {
+        let pathsRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperModelTests-\(UUID().uuidString)", isDirectory: true)
+        let paths = try AppStoragePaths(rootURL: pathsRoot)
+        let updateService = UpdateService(
+            currentVersion: currentVersion,
+            updatesDirectory: updatesDirectory,
+            networkClientFactory: { _ in
+                CountedUpdateNetworkClient(data: releaseJSON, counter: counter)
+            },
+            downloadWriter: { _, destinationURL, _, progress in
+                await progress(0.5)
+                try Data("update".utf8).write(to: destinationURL)
+            }
+        )
+        let backend = try NativeBackendService(paths: paths, updateService: updateService)
+        return AppModel(backend: backend)
+    }
+
+    private static func releaseJSON(tag: String) -> Data {
+        let version = tag.replacingOccurrences(of: "v", with: "")
+        return """
+        {
+          "tag_name": "\(tag)",
+          "name": "C-Paper Native \(version)",
+          "html_url": "https://github.com/yimingwu425/C-Paper/releases/tag/\(tag)",
+          "assets": [
+            {
+              "name": "C-Paper-Native-\(version)-standalone-20260604.dmg",
+              "content_type": "application/x-apple-diskimage",
+              "browser_download_url": "https://github.com/yimingwu425/C-Paper/releases/download/\(tag)/C-Paper-Native-\(version)-standalone-20260604.dmg"
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+    }
+}
+
+private actor UpdateCallCounter {
+    private var count = 0
+
+    func increment() {
+        count += 1
+    }
+
+    func value() -> Int {
+        count
+    }
+}
+
+private final class CountedUpdateNetworkClient: NetworkClientProtocol, @unchecked Sendable {
+    let data: Data
+    let counter: UpdateCallCounter
+
+    init(data: Data, counter: UpdateCallCounter) {
+        self.data = data
+        self.counter = counter
+    }
+
+    func data(for request: URLRequest) async throws -> Data {
+        await counter.increment()
+        return data
+    }
 }

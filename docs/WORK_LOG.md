@@ -588,3 +588,86 @@ This file is a concise running log of meaningful code, configuration, and docume
 - `RUN_LIVE_SOURCE_TESTS=1 swift test --jobs 1 --filter LiveSourceTests`
 - `python3 -m pytest legacy/python-backend/tests`
 - `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+
+### 2026-06-04 - Add native update checking and simplify backend status UI
+
+**Task**
+- Improve the native app settings and startup experience after the Swift backend migration.
+
+**Changed**
+- Added glass-styled reusable input/menu controls and updated the subject selector to match the rest of the app chrome.
+- Removed Python-bridge-era backend availability badges, banners, button gating, and empty-state copy.
+- Added Settings "About" content for author, website, GitHub repository, paper sources, and copyright/disclaimer text.
+- Added a native GitHub Release update service with startup checking, user-confirmed DMG download, `.part` temporary files, and Settings update status/actions.
+- Added tests for update version comparison, release asset parsing, update download movement, and startup update prompt behavior.
+- Updated `docs/PROJECT_INDEX.md` for the new update backend module.
+
+**Reason**
+- The Swift-native backend does not have a bridge connection state that users need to monitor.
+- Update checking should be available inside the app without mixing app DMGs into the paper download queue.
+
+**Tested**
+- `swift test --jobs 1`
+
+### 2026-06-04 - Normalize FrankCIE display name
+
+**Task**
+- Correct the user-facing source name spelling from Frankcie to FrankCIE.
+
+**Changed**
+- Updated `PaperSourceID.title` and Settings source/about copy to display `FrankCIE`.
+- Updated current README and project index source-order text.
+
+**Reason**
+- The data source should be presented with the intended capitalization in the app UI.
+
+**Tested**
+- `swift test --jobs 1 --filter 'SourceRegistryTests|ModelTests|UpdateServiceTests'`
+- `swift test --jobs 1`
+- `swift build`
+
+### 2026-06-05 - Split active code files over 300 lines
+
+**Task**
+- Break up active Swift and native build script files that exceeded 300 lines.
+
+**Changed**
+- Split large SwiftUI views into focused view, panel, control, and shared chrome files.
+- Split model DTOs into paper, download, and update model files.
+- Split `AppModel` workflow methods into setup, paper/download, and update extensions.
+- Moved PastPapers support models/extractor and EasyPaper download URL resolution into dedicated backend helpers.
+- Split download tests into destination-builder tests, manager tests, and shared test support.
+- Moved native DMG shell helper functions into `scripts/lib/native_dmg_helpers.sh`.
+- Updated `docs/PROJECT_INDEX.md` for the new script helper location.
+
+**Reason**
+- Keep active code files below the requested 300-line threshold while preserving existing behavior.
+
+**Tested**
+- `bash -n scripts/build_native_dmg.sh`
+- `bash -n scripts/lib/native_dmg_helpers.sh`
+- `git diff --check`
+- `swift test --jobs 1`
+
+### 2026-06-05 - Combine 6.0.3 download hotfix with native UI update release
+
+**Task**
+- Preserve the GitHub 6.0.3 download retry/circuit-breaker fix while keeping the local subject-control, settings, and update-checking UI improvements.
+
+**Changed**
+- Re-added circuit-breaker recovery waiting to the split `DownloadManager` and `CircuitBreaker` code.
+- Restored the 6.0.3 download recovery regression tests in the split download test layout.
+- Carried the native DMG mount path wait fix into the split script helper layout.
+- Unified release metadata, README current-version text, build script version, and release notes around native `6.0.3`.
+
+**Reason**
+- The existing GitHub 6.0.3 release fixed download retry behavior, but did not include the newer native UI/settings/update experience.
+
+**Tested**
+- `bash -n scripts/build_native_dmg.sh`
+- `bash -n scripts/lib/native_dmg_helpers.sh`
+- `python3 -m json.tool version.json`
+- `git diff --check`
+- `swift test --jobs 1`
+- `swift build`
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`

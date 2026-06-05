@@ -30,6 +30,15 @@ actor CircuitBreaker {
         self.recoveryTimeout = recoveryTimeout
     }
 
+    func retryDelayBeforeNextRequest() -> Duration? {
+        guard state == .open else { return nil }
+        guard let openedAt else { return recoveryTimeout }
+
+        let elapsed = openedAt.duration(to: clock.now)
+        guard elapsed < recoveryTimeout else { return nil }
+        return recoveryTimeout - elapsed
+    }
+
     func allowRequest() throws {
         guard state == .open else { return }
         guard let openedAt else {

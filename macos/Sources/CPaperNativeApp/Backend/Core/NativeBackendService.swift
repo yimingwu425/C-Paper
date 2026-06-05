@@ -8,10 +8,12 @@ final class NativeBackendService: @unchecked Sendable {
     private let historyStore: DownloadHistoryStore
     private let cacheStore: SearchCacheStore
     private let downloadManager: DownloadManager
+    private let updateService: UpdateService
 
     init(
         paths: AppStoragePaths? = nil,
-        downloadManager: DownloadManager? = nil
+        downloadManager: DownloadManager? = nil,
+        updateService: UpdateService? = nil
     ) throws {
         let resolvedPaths = try paths ?? AppStoragePaths()
         self.paths = resolvedPaths
@@ -24,6 +26,7 @@ final class NativeBackendService: @unchecked Sendable {
         self.downloadManager = downloadManager ?? DownloadManager(completionRecorder: { task in
             await historyRecorder.record(task)
         })
+        self.updateService = updateService ?? UpdateService()
         try LegacyCacheMigrator(paths: resolvedPaths).migrateIfNeeded()
     }
 
@@ -166,6 +169,18 @@ final class NativeBackendService: @unchecked Sendable {
 
     func cancelDownloads() async {
         await downloadManager.cancel()
+    }
+
+    func checkForUpdate(proxyURL: String) async throws -> AppUpdateCheckResult {
+        try await updateService.checkForUpdate(proxyURL: proxyURL)
+    }
+
+    func downloadUpdate(
+        _ release: AppUpdateRelease,
+        proxyURL: String,
+        progress: @escaping @Sendable (Double?) async -> Void
+    ) async throws -> URL {
+        try await updateService.downloadUpdate(release, proxyURL: proxyURL, progress: progress)
     }
 
     private func registry(proxyURL: String) -> SourceRegistry {

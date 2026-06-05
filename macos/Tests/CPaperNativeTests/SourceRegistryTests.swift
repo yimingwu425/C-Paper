@@ -59,7 +59,7 @@ final class SourceRegistryTests: XCTestCase {
             guard case let .sourceUnavailable(message) = error else {
                 return XCTFail("Unexpected error: \(error)")
             }
-            XCTAssertTrue(message.contains("Frankcie"))
+            XCTAssertTrue(message.contains("FrankCIE"))
             XCTAssertTrue(message.contains("暂不可用"))
             XCTAssertTrue(message.contains("重新适配"))
         }

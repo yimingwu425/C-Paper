@@ -6,7 +6,7 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            SidebarAppHeader(model: model)
+            SidebarAppHeader()
 
             VStack(spacing: 6) {
                 ForEach(AppRoute.allCases) { route in
@@ -32,7 +32,7 @@ struct SidebarView: View {
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
-                    .disabled(model.selectedSubject == nil || model.isSelectedSubjectFavorite || !model.backendState.isAvailable)
+                    .disabled(model.activeSubject == nil || model.isSelectedSubjectFavorite)
                     .help("添加当前科目")
                 }
                 .padding(.horizontal, CPDesign.Spacing.sm)
@@ -86,41 +86,17 @@ struct SidebarView: View {
 }
 
 private struct SidebarAppHeader: View {
-    @Bindable var model: AppModel
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
             Text("C-Paper")
                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(model.backendState == .connected ? Color.green : Color.orange)
-                        .frame(width: 8, height: 8)
-                    Text(model.backendState.title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                Text(model.backendState.detail)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(12)
-            .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.regularMaterial)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.28), lineWidth: 1)
-            }
+            Text("Cambridge past paper toolkit")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .padding(.bottom, 2)
+        .padding(.bottom, 8)
     }
 }
 
