@@ -4,7 +4,7 @@ set -euo pipefail
 APP_NAME="CPaperNative"
 DISPLAY_NAME="C-Paper"
 BUNDLE_ID="com.yimingwu.CPaperNative"
-VERSION="6.0.2"
+VERSION="6.0.3"
 MIN_SYSTEM_VERSION="14.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
 
@@ -80,6 +80,20 @@ verify_codesign_best_effort() {
     sleep 0.2
   done
   echo "Warning: strict codesign verification failed for $target; continuing." >&2
+}
+
+wait_for_path() {
+  local target="$1"
+
+  for _ in {1..50}; do
+    if [ -e "$target" ]; then
+      return
+    fi
+    sleep 0.1
+  done
+
+  echo "Missing expected path: $target" >&2
+  return 1
 }
 
 create_dmg_background() {
@@ -259,6 +273,8 @@ hdiutil create \
   "$DMG_RW"
 
 hdiutil attach "$DMG_RW" -readwrite -noverify -noautoopen -mountpoint "$DMG_MOUNT" >/dev/null
+wait_for_path "$DMG_MOUNT/$APP_NAME.app"
+wait_for_path "$DMG_MOUNT/Applications"
 cleanup_mount() {
   if mount | grep -q "on $DMG_MOUNT "; then
     hdiutil detach "$DMG_MOUNT" >/dev/null 2>&1 || hdiutil detach "$DMG_MOUNT" -force >/dev/null 2>&1 || true
@@ -286,7 +302,9 @@ tell application "Finder"
     set icon size of viewOptions to 96
     set background picture of viewOptions to file ".background:background.png"
     set position of item "$APP_NAME.app" of container window to {185, 205}
-    set position of item "Applications" of container window to {475, 205}
+    try
+      set position of item "Applications" of container window to {475, 205}
+    end try
     close
     open
     update without registering applications
@@ -295,6 +313,7 @@ tell application "Finder"
 end tell
 APPLESCRIPT
 
+wait_for_path "$DMG_MOUNT/$APP_NAME.app"
 clear_bundle_metadata "$DMG_MOUNT/$APP_NAME.app"
 verify_codesign_best_effort "$DMG_MOUNT/$APP_NAME.app"
 

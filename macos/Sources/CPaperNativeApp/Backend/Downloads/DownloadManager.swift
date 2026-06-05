@@ -24,18 +24,21 @@ actor DownloadManager {
     private let download: DownloadWriter
     private let completionRecorder: DownloadCompletionRecorder
     private let fileManager: FileManager
+    private let circuitBreakerRecoveryTimeout: Duration
     private let maxRetries = 3
 
     init(
         download: @escaping DownloadWriter = DownloadManager.defaultDownload,
         completionRecorder: @escaping DownloadCompletionRecorder = { _ in },
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        circuitBreakerRecoveryTimeout: Duration = .seconds(30)
     ) {
         self.download = download
         self.completionRecorder = completionRecorder
         self.fileManager = fileManager
+        self.circuitBreakerRecoveryTimeout = circuitBreakerRecoveryTimeout
         self.rateLimiter = RateLimiter(rate: 5)
-        self.circuitBreaker = CircuitBreaker()
+        self.circuitBreaker = CircuitBreaker(recoveryTimeout: circuitBreakerRecoveryTimeout)
     }
 
     @discardableResult
@@ -66,7 +69,7 @@ actor DownloadManager {
         }
 
         rateLimiter = RateLimiter(rate: max(1, min(options.rate, 20)))
-        circuitBreaker = CircuitBreaker()
+        circuitBreaker = CircuitBreaker(recoveryTimeout: circuitBreakerRecoveryTimeout)
         snapshot = DownloadStatusSnapshot(
             phase: plan.tasks.isEmpty ? "done" : "running",
             done: 0,
@@ -141,6 +144,15 @@ actor DownloadManager {
 
             if !failed.isEmpty && retryRound < maxRetries {
                 retryRound += 1
+                if let retryDelay = await circuitBreaker.retryDelayBeforeNextRequest() {
+                    updateProgress(message: "熔断器恢复中，等待后重试...")
+                    do {
+                        try await Task.sleep(for: retryDelay)
+                    } catch {
+                        cancel()
+                        return
+                    }
+                }
                 for item in failed {
                     setStatus(id: item.id, status: .pending, error: "", errorType: "")
                     queue.enqueue(item.id)

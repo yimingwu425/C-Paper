@@ -197,6 +197,91 @@ final class DownloadManagerTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: root.appendingPathComponent("2024/QP/retry.pdf")), "ok")
     }
 
+    func testDownloadManagerWaitsForCircuitBreakerRecoveryBeforeRetrying() async throws {
+        let root = temporaryDirectory()
+        let attempts = CircuitBreakerAttemptRecorder()
+        let recoveryTimeout: Duration = .milliseconds(75)
+        let manager = DownloadManager(download: { _, partialURL in
+            let current = await attempts.next()
+
+            if current <= 5 {
+                throw NSError(domain: "DownloadManagerTests", code: current, userInfo: [NSLocalizedDescriptionKey: "temporary"])
+            }
+
+            try Data("ok".utf8).write(to: partialURL)
+        }, circuitBreakerRecoveryTimeout: recoveryTimeout)
+        let group = NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: "s24",
+            number: "12",
+            paperGroup: 1,
+            qp: component(filename: "breaker-1.pdf", type: "QP", sy: "s24"),
+            ms: nil,
+            extras: [
+                component(filename: "breaker-2.pdf", type: "QP", sy: "s24"),
+                component(filename: "breaker-3.pdf", type: "QP", sy: "s24"),
+                component(filename: "breaker-4.pdf", type: "QP", sy: "s24"),
+                component(filename: "breaker-5.pdf", type: "QP", sy: "s24"),
+                component(filename: "breaker-6.pdf", type: "QP", sy: "s24")
+            ]
+        )
+
+        try await manager.start(groups: [group], saveDirectory: root, options: options(threads: 1))
+        let snapshot = try await waitForCompletion(manager)
+        let attemptCount = await attempts.value
+        let recordedRecoveryDelay = await attempts.recoveryDelay
+        let recoveryDelay = try XCTUnwrap(recordedRecoveryDelay)
+
+        XCTAssertEqual(snapshot.success, 6)
+        XCTAssertEqual(snapshot.failed, 0)
+        XCTAssertEqual(snapshot.message, "完成 (6/6 成功) (经过 1 轮重试)")
+        XCTAssertEqual(attemptCount, 11)
+        XCTAssertGreaterThanOrEqual(recoveryDelay, 0.07)
+    }
+
+    func testDownloadManagerWaitsWhenCircuitBreakerOpensAtRetryBoundary() async throws {
+        let root = temporaryDirectory()
+        let attempts = CircuitBreakerAttemptRecorder()
+        let recoveryTimeout: Duration = .milliseconds(75)
+        let manager = DownloadManager(download: { _, partialURL in
+            let current = await attempts.next()
+
+            if current <= 5 {
+                throw NSError(domain: "DownloadManagerTests", code: current, userInfo: [NSLocalizedDescriptionKey: "temporary"])
+            }
+
+            try Data("ok".utf8).write(to: partialURL)
+        }, circuitBreakerRecoveryTimeout: recoveryTimeout)
+        let group = NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: "s24",
+            number: "12",
+            paperGroup: 1,
+            qp: component(filename: "breaker-boundary-1.pdf", type: "QP", sy: "s24"),
+            ms: nil,
+            extras: [
+                component(filename: "breaker-boundary-2.pdf", type: "QP", sy: "s24"),
+                component(filename: "breaker-boundary-3.pdf", type: "QP", sy: "s24"),
+                component(filename: "breaker-boundary-4.pdf", type: "QP", sy: "s24"),
+                component(filename: "breaker-boundary-5.pdf", type: "QP", sy: "s24")
+            ]
+        )
+
+        try await manager.start(groups: [group], saveDirectory: root, options: options(threads: 1))
+        let snapshot = try await waitForCompletion(manager)
+        let attemptCount = await attempts.value
+        let recordedRecoveryDelay = await attempts.recoveryDelay
+        let recoveryDelay = try XCTUnwrap(recordedRecoveryDelay)
+
+        XCTAssertEqual(snapshot.success, 5)
+        XCTAssertEqual(snapshot.failed, 0)
+        XCTAssertEqual(snapshot.message, "完成 (5/5 成功) (经过 1 轮重试)")
+        XCTAssertEqual(attemptCount, 10)
+        XCTAssertGreaterThanOrEqual(recoveryDelay, 0.07)
+    }
+
     func testDownloadManagerStatusCountsDoneAndFailedItems() async throws {
         let root = temporaryDirectory()
         let manager = DownloadManager { sourceURL, partialURL in
@@ -427,6 +512,31 @@ private actor AttemptCounter {
 
     func next() -> Int {
         count += 1
+        return count
+    }
+}
+
+private actor CircuitBreakerAttemptRecorder {
+    private var count = 0
+    private var openedAt: Date?
+    private var recoveredAt: Date?
+
+    var value: Int {
+        count
+    }
+
+    var recoveryDelay: TimeInterval? {
+        guard let openedAt, let recoveredAt else { return nil }
+        return recoveredAt.timeIntervalSince(openedAt)
+    }
+
+    func next() -> Int {
+        count += 1
+        if count == 5 {
+            openedAt = Date()
+        } else if count == 6 {
+            recoveredAt = Date()
+        }
         return count
     }
 }

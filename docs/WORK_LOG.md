@@ -566,6 +566,27 @@ This file is a concise running log of meaningful code, configuration, and docume
 - `RUN_LIVE_SOURCE_TESTS=1 swift test --jobs 1 --filter LiveSourceTests`
 - `python3 -m pytest legacy/python-backend/tests`
 
+### 2026-06-05 - Prepare native 6.0.3 circuit breaker retry hotfix
+
+**Task**
+- Package the Swift-native download circuit breaker recovery fix as C-Paper Native 6.0.3.
+
+**Changed**
+- Download retries now wait for the circuit breaker recovery window before failed tasks are re-queued.
+- Added DownloadManager tests for observed `rate_limit` breaker-open failures and the threshold-boundary case where the breaker opens at the end of a retry batch.
+- Bumped native metadata from 6.0.2 to 6.0.3 in `version.json`, `BackendConstants.swift`, `HTTPRequestBuilder.swift`, `scripts/build_native_dmg.sh`, and `README.md`.
+- Added `.github/release-notes/native-v6.0.3.md`.
+
+**Reason**
+- The 6.0.3 release was blocked by retry rounds being consumed immediately while the download circuit breaker remained open.
+
+**Tested**
+- `swift test --filter DownloadManagerTests/testDownloadManagerWaitsForCircuitBreakerRecoveryBeforeRetrying --jobs 1`
+- `swift test --filter DownloadManagerTests/testDownloadManagerWaitsWhenCircuitBreakerOpensAtRetryBoundary --jobs 1`
+- `swift build --product CPaperNative`
+- `swift test --jobs 1`
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+
 ### 2026-06-04 - Prepare native 6.0.2 backend parity release
 
 **Task**

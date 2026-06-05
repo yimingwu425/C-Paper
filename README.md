@@ -22,10 +22,13 @@ swift run CPaperNative
 
 ## 当前版本
 
-当前 native 主线版本：`6.0.2`
+当前 native 主线版本：`6.0.3`
 
-6.0.2 重点：
+6.0.3 重点：
 
+- 修复批量下载中熔断器打开后重试轮次被立即耗尽的问题
+- 下载失败进入熔断恢复窗口时，会等待 recovery timeout 后再重新入队
+- 增加下载熔断恢复和阈值边界打开场景的 Swift 单测覆盖
 - 后端改为 Swift 原生实现，active app 不再依赖 Python bridge
 - 搜索、解析、缓存、下载、设置和数据源逻辑拆成模块化 Swift 后端
 - 自动数据源 fallback：Frankcie 优先，EasyPaper 作为主要备用；PastPapers 为 best-effort 备用，PapaCambridge 遇到 Cloudflare challenge 时会明确报告不可用
@@ -106,9 +109,9 @@ CONFIGURATION=release bash scripts/build_native_dmg.sh
 常规发布步骤：
 
 ```bash
-git tag v6.0.2
+git tag v6.0.3
 git push origin main
-git push origin v6.0.2
+git push origin v6.0.3
 ```
 
 tag 触发后，workflow 会：

@@ -1,8 +1,8 @@
 {
-  "version": "6.0.2",
+  "version": "6.0.3",
   "min_version": "6.0.0",
-  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.2",
-  "release_notes": "- 修复 Frankcie 科目接口不可用时 Swift 原生 app 无法进入备用数据源的问题\n- 自动科目列表现在可通过 EasyPaper/PastPapers fallback 填充，搜索和批量下载也支持手动输入 4 位科目代码\n- 下载历史重新接入 Swift 下载流程，重复文件 skip/missing 行为对齐归档 Python 后端\n- 修正设置页数据源自动顺序文案：Frankcie、EasyPaper、PastPapers、PapaCambridge\n- 增强 live source smoke tests，覆盖备用科目入口和 EasyPaper 瞬时 TLS/握手抖动重试",
+  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.3",
+  "release_notes": "- 修复 Swift native 批量下载中熔断器打开后重试轮次被立即耗尽的问题\n- 下载管理器现在会等待熔断器 recovery timeout 后再重新入队失败任务\n- 补充单测覆盖 breaker open 后等待恢复窗口，以及阈值边界刚打开 breaker 的重试场景",
   "force_update": false,
-  "published_at": "2026-06-04T00:00:00Z"
+  "published_at": "2026-06-05T00:00:00Z"
 }
