@@ -687,3 +687,23 @@ This file is a concise running log of meaningful code, configuration, and docume
 **Tested**
 - Read-only plan structure review with `rg`.
 - Subagent plan review for dependency ordering, parallelization conflicts, and missing edge cases.
+
+### 2026-06-06 - Clean workspace pollution baseline
+
+**Task**
+- Complete `T0.1` from `cpaper-professionalization-plan.md`.
+
+**Changed**
+- Removed byte-identical Finder-style duplicate `* 2.*` files after comparing each source/doc/script duplicate to its canonical counterpart.
+- Removed ignored generated outputs and `.DS_Store` files.
+- Added `.codex/` as an explicit local ignore.
+- Updated the professionalization plan with completion status and validation evidence.
+
+**Reason**
+- The repository must be free of duplicate Swift source files and generated pollution before restoring the parsing baseline.
+
+**Tested**
+- `find . -name '* 2.*' -print`
+- `find . -name '.DS_Store' -print`
+- `git status --short`
+- Generated output existence check for `build/`, `dist/`, `.build/`, `scripts/dist/`, `.pytest_cache/`, and `.git/objects/maintenance 2.lock`

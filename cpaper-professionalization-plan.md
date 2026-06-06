@@ -48,9 +48,9 @@ All implementation tasks -> T5
 - **location**: repo root, `.gitignore`, duplicate untracked files
 - **description**: Remove only confirmed pollution: byte-identical `* 2.swift`, `* 2.py`, `* 2.md`, `requirements 2.txt`, `.DS_Store`, and ignored build outputs. Add only explicit local ignores such as `.codex/`; do not hide broad `* 2.*` patterns in `.gitignore`. Remove `.worktrees/` entries only when `git worktree list` confirms they are stale and contain no unique work. If any `* 2.*` file differs from its canonical file, stop and inspect before deletion.
 - **validation**: Target pollution patterns no longer appear: `find . -name '* 2.*' -print`, `find . -name '.DS_Store' -print`, and checks for the explicitly listed generated outputs are clean. Unrelated dirty worktree entries, if any, are left untouched and documented.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: reason_not_testable: workspace pollution cleanup is a filesystem hygiene task, so validation used static shell checks rather than RED/GREEN tests. Compared all source/doc/script `* 2.*` files outside ignored generated directories with their canonical counterparts and deleted only byte-identical copies. Removed ignored generated outputs (`build/`, `dist/`, `.build/`, `scripts/dist/`, `.pytest_cache/`) and `.DS_Store` files. Preserved the registered `.worktrees/swift-native-backend-6` worktree and removed only its ignored `.build` cache. Removed stale nonstandard `.git/objects/maintenance 2.lock` after confirming it was not open. Added explicit `.codex/` ignore. Validation: `find . -name '* 2.*' -print` produced no output; `find . -name '.DS_Store' -print` produced no output; generated output existence check printed `pollution-validation-clean`; `git status --short` shows only `.gitignore` modified and the pre-existing `PaperFilenameParser.swift` deletion left for T0.2.
+- **files edited/created**: `.gitignore`; deleted byte-identical duplicate `* 2.*` source/doc/script files; removed ignored generated output directories and `.DS_Store` files.
 
 ### T0.2: Restore Compilable Parsing Baseline
 

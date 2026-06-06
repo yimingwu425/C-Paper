@@ -39,6 +39,7 @@ tox.ini
 .cie_cache/
 
 # IDE
+.codex/
 .vscode/
 .idea/
 *.swp
