@@ -170,6 +170,7 @@ private struct StartupLoadingView: View {
                 VStack(spacing: CPDesign.Spacing.md) {
                     ProgressView()
                         .controlSize(.regular)
+                        .accessibilityLabel("正在启动 C-Paper")
                     Text("正在启动 C-Paper")
                         .font(.headline.weight(.semibold))
                     Text("正在准备设置、收藏与下载状态。")
@@ -281,6 +282,7 @@ private struct StatusToast: View {
         if model.downloadSnapshot.isRunning || model.isLoading {
             ProgressView()
                 .controlSize(.small)
+                .accessibilityLabel(message)
         } else {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(.green)

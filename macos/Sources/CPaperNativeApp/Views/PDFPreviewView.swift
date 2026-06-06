@@ -22,6 +22,7 @@ struct PDFPreviewView: View {
                     if isDownloading {
                         VStack(spacing: 16) {
                             ProgressView()
+                                .accessibilityLabel("正在缓存试卷预览")
                             Text("正在缓存试卷预览...")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)

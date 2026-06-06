@@ -1121,3 +1121,30 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - The support report currently stores the latest diagnostic only. That keeps local data small and avoids creating a long-lived log history.
+
+### 2026-06-06 — Polish native UI states and support wording
+
+**Task**
+- Complete `T4.2` from `cpaper-professionalization-plan.md` with a focused product polish pass over state language, accessibility, settings copy, and visual restraint.
+
+**Changed**
+- Added cancelled and skipped download counts to `AppModel` and the downloads summary.
+- Updated the downloads queue to show cancelled/skipped context, clearer queue summary text, and accessible progress labels/values.
+- Added accessibility labels to startup, search, preview caching, status, and update progress indicators.
+- Added a visible privacy row in Settings that explains local-only settings/history/diagnostics and redaction behavior.
+- Clarified DMG install guidance in the update settings section.
+- Removed local decorative light blobs from search, batch, and download summary surfaces while keeping the shared `ProductBackdrop` glass system.
+- Expanded `ModelTests.testDownloadCounts` for cancelled/skipped counts.
+- Updated `cpaper-professionalization-plan.md` to mark `T4.2` completed.
+
+**Reason**
+- The app already had the main workflows in place, but cancellation/skipped states, accessibility text, privacy/disclaimer visibility, and visual restraint needed a final product-quality pass.
+
+**Tested**
+- `reason_not_testable`: this is a UI/product polish pass, so validation is compilation, existing behavior tests, and static UI checks.
+- `swift test --jobs 1`
+- `rg -n "blur\\(radius|隐私|accessibilityLabel|已取消|已跳过|DMG 下载完成" macos/Sources/CPaperNativeApp/Views macos/Sources/CPaperNativeApp/State macos/Tests/CPaperNativeTests/ModelTests.swift`
+- `git diff --check`
+
+**Risks / Notes**
+- The remaining large blur usage is the existing shared `ProductBackdrop`, not newly added panel decoration.

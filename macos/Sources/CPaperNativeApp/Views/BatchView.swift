@@ -16,13 +16,6 @@ struct BatchView: View {
                             BatchFilterPanel(model: model)
                         }
                         .frame(width: 322)
-                        .overlay(alignment: .bottomLeading) {
-                            Circle()
-                                .fill(Color(red: 0.42, green: 0.80, blue: 0.95).opacity(0.14))
-                                .frame(width: 120, height: 120)
-                                .blur(radius: 34)
-                                .offset(x: -32, y: 42)
-                        }
                         BatchPreviewPanel(model: model)
                     }
                     .frame(minHeight: max(460, size.height - 220), alignment: .top)

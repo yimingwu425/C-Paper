@@ -15,13 +15,6 @@ struct SearchView: View {
                         SearchFilterPanel(model: model)
                     }
                     .frame(width: 322)
-                    .overlay(alignment: .topTrailing) {
-                        Circle()
-                            .fill(Color.accentColor.opacity(0.18))
-                            .frame(width: 84, height: 84)
-                            .blur(radius: 28)
-                            .offset(x: 26, y: -30)
-                    }
                     SearchResultsPanel(model: model)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -48,6 +41,7 @@ private struct SearchHeader: View {
             if model.isLoading {
                 ProgressView()
                     .controlSize(.small)
+                    .accessibilityLabel("正在搜索试卷")
                     .transition(.opacity)
             }
         }
@@ -90,6 +84,7 @@ private struct SearchFilterPanel: View {
                     Label(model.isLoading ? "搜索中" : "搜索", systemImage: "magnifyingglass")
                         .frame(maxWidth: .infinity)
                 }
+                .accessibilityLabel(model.isLoading ? "正在搜索" : "搜索试卷")
                 .buttonStyle(GlassButtonStyle(.primary))
                 .disabled(!model.hasSearchSubject || model.isLoading)
 

@@ -228,9 +228,9 @@ All implementation tasks -> T5
 - **location**: SwiftUI views, DMG assets, docs
 - **description**: Review empty states, loading states, cancellation states, accessibility labels, Settings language, DMG install guidance, privacy/disclaimer visibility, and consistency with the existing glass design system. Keep UI task-focused, not marketing-heavy.
 - **validation**: Manual smoke test covers search, preview, batch preview, batch download, single download, cancellation, settings save/cancel, update check, and failure states.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: `reason_not_testable`: this is a product/UI polish pass, so validation used full Swift compilation/tests plus static UI checks rather than a new RED/GREEN runtime contract. Improved download queue state language by adding cancelled/skipped counts and summary text; added accessibility labels/values to search, startup, preview, update, status, and download progress controls; made Settings privacy/disclaimer text more visible; clarified DMG install guidance in the update section; removed several panel-local decorative light blobs while keeping the established `ProductBackdrop` glass background. Validation PASS: `swift test --jobs 1` passed with 78 tests, 4 skipped, and 0 failures. Static check: `rg -n "blur\\(radius|隐私|accessibilityLabel|已取消|已跳过|DMG 下载完成" macos/Sources/CPaperNativeApp/Views macos/Sources/CPaperNativeApp/State macos/Tests/CPaperNativeTests/ModelTests.swift` confirmed the new labels/language and showed remaining blur only in the shared backdrop.
+- **files edited/created**: `macos/Sources/CPaperNativeApp/State/AppModel.swift`; `macos/Sources/CPaperNativeApp/Views/SearchView.swift`; `macos/Sources/CPaperNativeApp/Views/BatchView.swift`; `macos/Sources/CPaperNativeApp/Views/DownloadsView.swift`; `macos/Sources/CPaperNativeApp/Views/PDFPreviewView.swift`; `macos/Sources/CPaperNativeApp/Views/RootView.swift`; `macos/Sources/CPaperNativeApp/Views/SettingsInfoSections.swift`; `macos/Tests/CPaperNativeTests/ModelTests.swift`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T5: Final Verification And Release Readiness Audit
 

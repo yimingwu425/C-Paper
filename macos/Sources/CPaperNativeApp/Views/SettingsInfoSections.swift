@@ -4,7 +4,7 @@ struct AboutSettingsSection: View {
     var body: some View {
         SettingsSection(
             title: "关于我们",
-            subtitle: "项目信息、资料来源和版权说明。",
+            subtitle: "项目信息、资料来源、隐私和版权说明。",
             systemImage: "info.circle"
         ) {
             VStack(alignment: .leading, spacing: 10) {
@@ -19,6 +19,10 @@ struct AboutSettingsSection: View {
                 }
                 AboutRow(label: "试卷来源") {
                     Text("FrankCIE、EasyPaper、PastPapers.co、PapaCambridge")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                AboutRow(label: "隐私") {
+                    Text("设置、下载历史和支持诊断保存在本机。诊断信息会脱敏代理凭据、EasyPaper token 和本机用户路径；C-Paper 不上传这些数据。")
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 AboutRow(label: "版权") {
@@ -59,6 +63,8 @@ struct UpdateSettingsSection: View {
                             ProgressView(value: progress ?? 0)
                                 .progressViewStyle(.linear)
                                 .frame(maxWidth: 260)
+                                .accessibilityLabel("更新下载进度")
+                                .accessibilityValue(progress.map { "\(Int($0 * 100))%" } ?? "正在准备")
                         }
                     }
                 }
@@ -102,7 +108,7 @@ struct UpdateSettingsSection: View {
                     }
                 }
 
-                SettingsHint("安装新版本后，如果 macOS 阻止打开，请进入“系统设置 > 隐私与安全性”，在安全性提示处允许打开 C-Paper。")
+                SettingsHint("DMG 下载完成后拖入 Applications。若 macOS 阻止打开，请进入“系统设置 > 隐私与安全性”，在安全性提示处允许打开 C-Paper。")
             }
         }
     }

@@ -52,6 +52,14 @@ final class AppModel {
         downloads.filter { $0.status == .failed }.count
     }
 
+    var cancelledDownloadCount: Int {
+        downloads.filter { $0.status == .cancelled }.count
+    }
+
+    var skippedDownloadCount: Int {
+        downloads.filter { $0.status == .skipped }.count
+    }
+
     var activeDownloadCount: Int {
         downloads.filter { $0.status == .pending || $0.status == .downloading }.count
     }

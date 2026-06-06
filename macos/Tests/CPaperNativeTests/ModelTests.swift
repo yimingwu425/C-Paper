@@ -13,11 +13,15 @@ final class ModelTests: XCTestCase {
         model.downloads = [
             DownloadTaskItem(id: 0, filename: "a.pdf", ftype: "QP", label: "Paper 1", year: "2023", savePath: "/tmp/a.pdf", status: .done, error: "", errorType: ""),
             DownloadTaskItem(id: 1, filename: "b.pdf", ftype: "MS", label: "Paper 1", year: "2023", savePath: "/tmp/b.pdf", status: .failed, error: "boom", errorType: "network"),
-            DownloadTaskItem(id: 2, filename: "c.pdf", ftype: "QP", label: "Paper 2", year: "2023", savePath: "/tmp/c.pdf", status: .downloading, error: "", errorType: "")
+            DownloadTaskItem(id: 2, filename: "c.pdf", ftype: "QP", label: "Paper 2", year: "2023", savePath: "/tmp/c.pdf", status: .downloading, error: "", errorType: ""),
+            DownloadTaskItem(id: 3, filename: "d.pdf", ftype: "QP", label: "Paper 3", year: "2023", savePath: "/tmp/d.pdf", status: .cancelled, error: "", errorType: ""),
+            DownloadTaskItem(id: 4, filename: "e.pdf", ftype: "QP", label: "Paper 4", year: "2023", savePath: "/tmp/e.pdf", status: .skipped, error: "", errorType: "")
         ]
 
-        XCTAssertEqual(model.completedDownloadCount, 1)
+        XCTAssertEqual(model.completedDownloadCount, 2)
         XCTAssertEqual(model.failedDownloadCount, 1)
+        XCTAssertEqual(model.cancelledDownloadCount, 1)
+        XCTAssertEqual(model.skippedDownloadCount, 1)
         XCTAssertEqual(model.activeDownloadCount, 1)
     }
 

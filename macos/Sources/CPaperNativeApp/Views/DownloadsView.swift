@@ -55,7 +55,7 @@ struct DownloadsView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     ResultPanelToolbar(
                         title: "队列概览",
-                        subtitle: model.downloads.isEmpty ? "等待从批量页加入文件" : "\(model.completedDownloadCount) 个已完成，\(model.failedDownloadCount) 个需要处理",
+                        subtitle: model.downloads.isEmpty ? "等待从批量页加入文件" : queueSummaryText,
                         symbolName: "chart.line.uptrend.xyaxis"
                     ) {
                         Text("\(Int(progressValue * 100))%")
@@ -66,12 +66,15 @@ struct DownloadsView: View {
                     ProgressView(value: progressValue)
                         .progressViewStyle(.linear)
                         .tint(Color.accentColor)
+                        .accessibilityLabel("下载队列进度")
+                        .accessibilityValue("\(Int(progressValue * 100))%")
                         .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: progressValue)
 
                     HStack(spacing: 12) {
-                        queueStage(title: "准备", value: model.downloadSnapshot.total - model.completedDownloadCount - model.failedDownloadCount, tint: .orange)
+                        queueStage(title: "准备", value: pendingDownloadCount, tint: .orange)
                         queueStage(title: "完成", value: model.completedDownloadCount, tint: .green)
                         queueStage(title: "失败", value: model.failedDownloadCount, tint: .red)
+                        queueStage(title: "取消", value: model.cancelledDownloadCount, tint: .orange)
                     }
                 }
             }
@@ -124,6 +127,8 @@ struct DownloadsView: View {
                             TableColumn("进度") { item in
                                 ProgressView(value: item.progress)
                                     .tint(item.status.tint)
+                                    .accessibilityLabel("\(item.filename) 下载进度")
+                                    .accessibilityValue("\(Int(item.progress * 100))%")
                                     .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: item.progress)
                             }
                             .width(140)
@@ -164,6 +169,27 @@ struct DownloadsView: View {
         return Double(model.downloadSnapshot.done) / Double(model.downloadSnapshot.total)
     }
 
+    private var pendingDownloadCount: Int {
+        model.downloadSnapshot.total
+            - model.completedDownloadCount
+            - model.failedDownloadCount
+            - model.cancelledDownloadCount
+    }
+
+    private var queueSummaryText: String {
+        var parts = [
+            "\(model.completedDownloadCount) 个已完成",
+            "\(model.failedDownloadCount) 个失败"
+        ]
+        if model.cancelledDownloadCount > 0 {
+            parts.append("\(model.cancelledDownloadCount) 个已取消")
+        }
+        if model.skippedDownloadCount > 0 {
+            parts.append("\(model.skippedDownloadCount) 个已跳过")
+        }
+        return parts.joined(separator: "，")
+    }
+
     private func summaryBlock(title: String, value: String, symbol: String, tint: Color) -> some View {
         GlassSurface(role: .content, padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
@@ -181,13 +207,6 @@ struct DownloadsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(width: 164)
-        .overlay(alignment: .topTrailing) {
-            Circle()
-                .fill(tint.opacity(0.16))
-                .frame(width: 58, height: 58)
-                .blur(radius: 20)
-                .offset(x: 16, y: -18)
-        }
     }
 
     private func queueStage(title: String, value: Int, tint: Color) -> some View {
