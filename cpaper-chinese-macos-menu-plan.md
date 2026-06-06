@@ -160,9 +160,20 @@ T0 ──┬── T1 ──┬── T3 ──┐
 - **location**: full repo, local app window
 - **description**: Run deterministic checks and create a visual proof for the user. Build a release app, launch `dist/CPaperNative.app`, capture a screenshot showing the Chinese macOS menu bar and at least one expanded menu. Do not click actions that start downloads or upload/transmit user files. The only allowed network action in manual QA is the existing `检查更新...` check; do not click `下载更新`.
 - **validation**: `swift test --jobs 1`, `git diff --check`, and `CONFIGURATION=release bash scripts/build_native_dmg.sh` pass. Manual QA confirms the menu bar contains Chinese menus and product actions. Screenshot path is reported to the user.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - Ran final deterministic validation after T1-T5 completed.
+  - `swift test --jobs 1` passed with 95 executed tests, 4 skipped live-source tests, and 0 failures.
+  - `git diff --check` passed with no output before final record edits.
+  - `CONFIGURATION=release bash scripts/build_native_dmg.sh` passed, rebuilding:
+    - `dist/CPaperNative.app`
+    - `dist/C-Paper-Native-6.0.3-standalone-20260606.dmg`
+  - Launched `dist/CPaperNative.app` and confirmed the app used the new Chinese macOS menu bar.
+  - Manual screenshot QA evidence was provided by the user at `/var/folders/tw/7g3xnj296rg901hqqb7g5sh40000gn/T/TemporaryItems/NSIRD_screencaptureui_H5DGuP/截屏2026-06-06 22.43.28.jpeg`, showing `C-Paper`, `文件`, `编辑`, `显示`, `窗口`, and `帮助` in the macOS menu bar.
+  - No download-start or update-download action was triggered during final QA.
 - **files edited/created**:
+  - `cpaper-chinese-macos-menu-plan.md`
+  - `docs/WORK_LOG.md`
 
 ## Parallel Execution Groups
 

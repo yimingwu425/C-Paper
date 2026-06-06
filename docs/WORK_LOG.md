@@ -30,6 +30,30 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-06 — Complete Chinese macOS menu bar validation
+
+**Task**
+- Complete final validation and screenshot QA for `cpaper-chinese-macos-menu-plan.md`.
+
+**Changed**
+- Updated `cpaper-chinese-macos-menu-plan.md` to mark T6 complete and record final validation evidence.
+- Added this work-log entry for the final menu-bar QA pass.
+
+**Reason**
+- The Chinese menu bar implementation needed final full-suite validation, release packaging confirmation, and visual proof before closing the plan.
+
+**Tested**
+- `swift test --jobs 1`: passed with 95 executed tests, 4 skipped live-source tests, and 0 failures.
+- `git diff --check`: passed with no output before final record edits.
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`: passed and rebuilt `dist/CPaperNative.app` plus `dist/C-Paper-Native-6.0.3-standalone-20260606.dmg`.
+- Launched `dist/CPaperNative.app`.
+- User-provided screenshot confirmed the macOS menu bar shows `C-Paper`, `文件`, `编辑`, `显示`, `窗口`, and `帮助`.
+
+**Risks / Notes**
+- No merge, push, or `main` branch edit was performed.
+- Live source tests remain skipped unless `RUN_LIVE_SOURCE_TESTS=1` is set.
+- No download-start or update-download action was triggered during QA.
+
 ### 2026-06-06 — Document Chinese macOS menu bar integration
 
 **Task**
