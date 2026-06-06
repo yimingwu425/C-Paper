@@ -30,6 +30,28 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-06 — Document Chinese macOS menu bar integration
+
+**Task**
+- Update active project documentation after the native Chinese AppKit menu bar landed.
+
+**Changed**
+- Updated `docs/PROJECT_INDEX.md` to list the active AppKit menu layer and its startup/binding roles.
+- Updated `cpaper-chinese-macos-menu-plan.md` to mark T5 complete and record static validation evidence.
+- Appended this `docs/WORK_LOG.md` entry.
+
+**Reason**
+- The active native file map needed to reflect the new menu infrastructure without naming legacy or inactive paths as current UI.
+
+**Tested**
+- Static validation only for this documentation task:
+- `git diff --check` -> no output
+- Reviewed active native menu files referenced by the docs: `macos/Sources/CPaperNativeApp/AppDelegate.swift`, `AppMenuCommand.swift`, `AppMenuCommandCenter.swift`, `AppMenuController.swift`, `Views/RootView.swift`
+- Manual screenshot validation was not performed in T5; screenshot QA remains owned by T6.
+
+**Risks / Notes**
+- This task intentionally did not rerun menu behavior tests; implementation and smoke coverage were already recorded by T1-T4.
+
 ### 2026-06-06 — Correct active architecture boundaries
 
 **Task**

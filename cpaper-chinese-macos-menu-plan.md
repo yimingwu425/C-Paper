@@ -142,9 +142,17 @@ T0 ──┬── T1 ──┬── T3 ──┐
 - **location**: `docs/PROJECT_INDEX.md`, `docs/WORK_LOG.md`
 - **description**: If new menu source files are added, update `docs/PROJECT_INDEX.md` to mention the AppKit menu layer as part of active UI infrastructure. Append a concise `docs/WORK_LOG.md` entry describing the Chinese menu bar implementation, tests, and any manual screenshot validation. Do not edit `AGENTS.md`.
 - **validation**: Documentation is concise, factual, and names only active native files. `git diff --check` reports no whitespace issues.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+- Updated `docs/PROJECT_INDEX.md` so the active native file map now includes `AppDelegate`, `AppMenuCommand`, `AppMenuCommandCenter`, `AppMenuController`, and `Views/RootView.swift` as the AppKit menu startup/binding layer.
+- Appended a concise `docs/WORK_LOG.md` entry describing the Chinese menu bar documentation update, prior T1-T4 test coverage, and that screenshot QA remains with T6.
+- Static validation:
+  - `git diff --check` -> `(no output)`
+- `reason_not_testable`: This is documentation/static-check work, not a runnable behavior change. Exact validation evidence is `git diff --check` -> `(no output)`.
 - **files edited/created**:
+  - `docs/PROJECT_INDEX.md`
+  - `docs/WORK_LOG.md`
+  - `cpaper-chinese-macos-menu-plan.md`
 
 ### T6: Full Validation And Screenshot QA
 

@@ -28,7 +28,10 @@ These directories are preserved for reference and limited maintenance only. Do n
 ## Important Source Files
 
 - `Package.swift`: Root Swift package definition
+- `macos/Sources/CPaperNativeApp/AppDelegate.swift`: Native app startup and AppKit main-menu installation
+- `macos/Sources/CPaperNativeApp/AppMenuCommand.swift`, `AppMenuCommandCenter.swift`, and `AppMenuController.swift`: Active menu command contract, routing, and Chinese macOS menu-bar construction
 - `macos/Sources/CPaperNativeApp/State/AppModel.swift` and `AppModel+*.swift`: Active app state and UI workflow coordination
+- `macos/Sources/CPaperNativeApp/Views/RootView.swift`: Root UI composition and ready-state menu command binding
 - `macos/Sources/CPaperNativeApp/Backend/Core/NativeBackendService.swift`: Swift backend facade used by the app
 - `macos/Sources/CPaperNativeApp/Backend/Sources/`: Data source registry and providers
 - `macos/Sources/CPaperNativeApp/Backend/Parsing/`: Filename, subject, grouping, and HTML link parsing
@@ -44,6 +47,7 @@ These directories are preserved for reference and limited maintenance only. Do n
 - The macOS app is the active maintained product.
 - The root `Package.swift` builds and runs the active app target.
 - The SwiftUI/AppKit UI in `macos/` calls `NativeBackendService` directly.
+- `AppDelegate` installs the AppKit main menu, and `ReadyRootView` binds product menu actions into `AppMenuCommandCenter` only while the ready UI is active.
 - `NativeBackendService` coordinates persistence, source lookup, parsing, and downloads.
 - The active app no longer starts or packages a Python bridge.
 
@@ -51,6 +55,7 @@ These directories are preserved for reference and limited maintenance only. Do n
 
 - Active UI: `macos/Sources/CPaperNativeApp/Views/`
 - Active state: `macos/Sources/CPaperNativeApp/State/`
+- Active menu layer: `macos/Sources/CPaperNativeApp/AppMenuCommand.swift`, `AppMenuCommandCenter.swift`, `AppMenuController.swift`
 - Legacy UI:
   - `legacy/pywebview/ui_v2.html`
   - `legacy/pywebview/ui_v2.css`
