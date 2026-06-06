@@ -9,7 +9,7 @@ final class ModelTests: XCTestCase {
     }
 
     func testDownloadCounts() {
-        let model = AppModel()
+        let model = try! makeBasicModel()
         model.downloads = [
             DownloadTaskItem(id: 0, filename: "a.pdf", ftype: "QP", label: "Paper 1", year: "2023", savePath: "/tmp/a.pdf", status: .done, error: "", errorType: ""),
             DownloadTaskItem(id: 1, filename: "b.pdf", ftype: "MS", label: "Paper 1", year: "2023", savePath: "/tmp/b.pdf", status: .failed, error: "boom", errorType: "network"),
@@ -22,7 +22,7 @@ final class ModelTests: XCTestCase {
     }
 
     func testManualSubjectCodeActsAsFallbackWhenSubjectListIsUnavailable() {
-        let model = AppModel()
+        let model = try! makeBasicModel()
         model.selectedSubject = nil
         model.manualSubjectCode = "9709"
 
@@ -32,7 +32,7 @@ final class ModelTests: XCTestCase {
     }
 
     func testSelectedSubjectTakesPriorityOverManualSubjectCode() {
-        let model = AppModel()
+        let model = try! makeBasicModel()
         model.selectedSubject = Subject(code: "9701", name: "Chemistry")
         model.manualSubjectCode = "9709"
 
@@ -57,6 +57,68 @@ final class ModelTests: XCTestCase {
         let data = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(DownloadSettings.self, from: data)
         XCTAssertEqual(decoded, settings)
+    }
+
+    func testEditingSettingsDraftDoesNotMutateModelOrPersistenceUntilCommitted() async throws {
+        let initialSettings = DownloadSettings(
+            theme: "light",
+            saveDirectory: "/tmp/original",
+            includeMarkSchemes: true,
+            rate: 5,
+            threads: 4,
+            mergeFolders: false,
+            proxyURL: "",
+            lastSubject: "9701",
+            lastMode: AppRoute.search.rawValue,
+            duplicateMode: .overwrite,
+            sourceMode: .automatic
+        )
+        let model = try await makePersistentModel(initialSettings: initialSettings)
+
+        var draft = model.settings
+        draft.saveDirectory = "/tmp/updated"
+        draft.proxyURL = "http://127.0.0.1:7890"
+        draft.rate = 8
+        draft.threads = 7
+        draft.sourceMode = .easyPaper
+
+        XCTAssertEqual(model.settings, initialSettings)
+        XCTAssertEqual(model.backend.loadSettings(), initialSettings)
+    }
+
+    func testSavingSettingsDraftCommitsToModelAndPersistence() async throws {
+        let initialSettings = DownloadSettings(
+            theme: "light",
+            saveDirectory: "/tmp/original",
+            includeMarkSchemes: true,
+            rate: 5,
+            threads: 4,
+            mergeFolders: false,
+            proxyURL: "",
+            lastSubject: "",
+            lastMode: AppRoute.search.rawValue,
+            duplicateMode: .overwrite,
+            sourceMode: .automatic
+        )
+        let model = try await makePersistentModel(initialSettings: initialSettings)
+        model.route = .batch
+        model.selectedSubject = Subject(code: "9709", name: "Mathematics")
+
+        var draft = model.settings
+        draft.saveDirectory = "/tmp/updated"
+        draft.proxyURL = "http://127.0.0.1:7890"
+        draft.rate = 8
+        draft.threads = 7
+        draft.sourceMode = .easyPaper
+
+        await model.saveSettings(draft)
+
+        var expectedSettings = draft
+        expectedSettings.lastSubject = "9709"
+        expectedSettings.lastMode = AppRoute.batch.rawValue
+
+        XCTAssertEqual(model.settings, expectedSettings)
+        XCTAssertEqual(model.backend.loadSettings(), expectedSettings)
     }
 
     func testStartupUpdateCheckRunsOnlyOnceAndDoesNotPromptWhenUpToDate() async throws {
@@ -136,6 +198,25 @@ final class ModelTests: XCTestCase {
         )
         let backend = try NativeBackendService(paths: paths, updateService: updateService)
         return AppModel(backend: backend)
+    }
+
+    private func makeBasicModel() throws -> AppModel {
+        let pathsRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperBasicModelTests-\(UUID().uuidString)", isDirectory: true)
+        let backend = try NativeBackendService(paths: AppStoragePaths(rootURL: pathsRoot))
+        return AppModel(backend: backend)
+    }
+
+    private func makePersistentModel(initialSettings: DownloadSettings) async throws -> AppModel {
+        let pathsRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperSettingsModelTests-\(UUID().uuidString)", isDirectory: true)
+        let paths = try AppStoragePaths(rootURL: pathsRoot)
+        let backend = try NativeBackendService(paths: paths)
+        try backend.saveSettings(initialSettings)
+
+        let model = AppModel(backend: backend)
+        await model.loadSettings()
+        return model
     }
 
     private static func releaseJSON(tag: String) -> Data {

@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct SaveSettingsSection: View {
-    @Bindable var model: AppModel
+    @Binding var settings: DownloadSettings
+    let chooseSaveDirectory: () async -> Void
 
     var body: some View {
         SettingsSection(
@@ -11,9 +12,9 @@ struct SaveSettingsSection: View {
         ) {
             SettingsRow(label: "保存目录") {
                 HStack(spacing: 8) {
-                    GlassTextField("保存目录", text: $model.settings.saveDirectory, systemImage: "folder")
+                    GlassTextField("保存目录", text: $settings.saveDirectory, systemImage: "folder")
                     Button("浏览") {
-                        Task { await model.chooseSaveDirectory() }
+                        Task { await chooseSaveDirectory() }
                     }
                     .buttonStyle(GlassButtonStyle(.subtle))
                 }
@@ -24,8 +25,9 @@ struct SaveSettingsSection: View {
 }
 
 struct ProxySettingsSection: View {
-    @Bindable var model: AppModel
+    @Binding var settings: DownloadSettings
     @Binding var proxyStatus: String
+    let testProxy: (String) async -> String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -36,7 +38,7 @@ struct ProxySettingsSection: View {
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 SettingsRow(label: "代理 URL") {
-                    GlassTextField("http://127.0.0.1:7890", text: $model.settings.proxyURL, systemImage: "network")
+                    GlassTextField("http://127.0.0.1:7890", text: $settings.proxyURL, systemImage: "network")
                 }
                 SettingsHint("如果学校网络或地区访问不稳定，可在这里填本机代理地址。留空则直连。")
 
@@ -44,7 +46,7 @@ struct ProxySettingsSection: View {
                     Spacer()
                         .frame(width: 86)
                     Button("测试代理") {
-                        Task { proxyStatus = await model.testProxy() }
+                        Task { proxyStatus = await testProxy(settings.proxyURL) }
                     }
                     .buttonStyle(GlassButtonStyle(.subtle))
                     if !proxyStatus.isEmpty {
@@ -60,7 +62,7 @@ struct ProxySettingsSection: View {
 }
 
 struct SourceSettingsSection: View {
-    @Bindable var model: AppModel
+    @Binding var settings: DownloadSettings
 
     var body: some View {
         SettingsSection(
@@ -70,12 +72,12 @@ struct SourceSettingsSection: View {
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 SettingsRow(label: "来源") {
-                    GlassMenuField(selection: $model.settings.sourceMode, systemImage: "tray.full") {
+                    GlassMenuField(selection: $settings.sourceMode, systemImage: "tray.full") {
                         ForEach(PaperSourceID.allCases) { source in
                             Text(source.title).tag(source)
                         }
                     } label: {
-                        Text(model.settings.sourceMode.title)
+                        Text(settings.sourceMode.title)
                             .font(.callout.weight(.medium))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
@@ -83,7 +85,7 @@ struct SourceSettingsSection: View {
                     .frame(width: 220)
                 }
 
-                SettingsHint(model.settings.sourceMode == .automatic
+                SettingsHint(settings.sourceMode == .automatic
                     ? "自动顺序：FrankCIE、EasyPaper、PastPapers、PapaCambridge。"
                     : "手动模式只使用选定来源，失败时不会自动切换。")
             }
@@ -92,7 +94,7 @@ struct SourceSettingsSection: View {
 }
 
 struct DownloadSettingsSection: View {
-    @Bindable var model: AppModel
+    @Binding var settings: DownloadSettings
 
     var body: some View {
         SettingsSection(
@@ -103,25 +105,25 @@ struct DownloadSettingsSection: View {
             VStack(alignment: .leading, spacing: 12) {
                 SettingsRow(label: "速率") {
                     HStack(spacing: 10) {
-                        Slider(value: $model.settings.rate, in: 1...10, step: 1)
-                        Text("\(Int(model.settings.rate))/s")
+                        Slider(value: $settings.rate, in: 1...10, step: 1)
+                        Text("\(Int(settings.rate))/s")
                             .monospacedDigit()
                             .frame(width: 42, alignment: .trailing)
                     }
                 }
 
                 SettingsRow(label: "并发") {
-                    Stepper("\(model.settings.threads)", value: $model.settings.threads, in: 1...8)
+                    Stepper("\(settings.threads)", value: $settings.threads, in: 1...8)
                         .frame(width: 100, alignment: .leading)
                 }
 
                 SettingsRow(label: "重复文件") {
-                    GlassMenuField(selection: $model.settings.duplicateMode, systemImage: "doc.on.doc") {
+                    GlassMenuField(selection: $settings.duplicateMode, systemImage: "doc.on.doc") {
                         ForEach(DuplicateMode.allCases) { mode in
                             Text(mode.title).tag(mode)
                         }
                     } label: {
-                        Text(model.settings.duplicateMode.title)
+                        Text(settings.duplicateMode.title)
                             .font(.callout.weight(.medium))
                             .foregroundStyle(.primary)
                             .lineLimit(1)

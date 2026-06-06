@@ -5,6 +5,12 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var proxyStatus = ""
+    @State private var draftSettings: DownloadSettings
+
+    init(model: AppModel) {
+        self.model = model
+        _draftSettings = State(initialValue: model.settings)
+    }
 
     var body: some View {
         ZStack {
@@ -15,10 +21,16 @@ struct SettingsView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
-                        SaveSettingsSection(model: model)
-                        SourceSettingsSection(model: model)
-                        ProxySettingsSection(model: model, proxyStatus: $proxyStatus)
-                        DownloadSettingsSection(model: model)
+                        SaveSettingsSection(settings: $draftSettings) {
+                            if let selectedPath = await model.chooseSaveDirectory() {
+                                draftSettings.saveDirectory = selectedPath
+                            }
+                        }
+                        SourceSettingsSection(settings: $draftSettings)
+                        ProxySettingsSection(settings: $draftSettings, proxyStatus: $proxyStatus) { proxyURL in
+                            await model.testProxy(proxyURL)
+                        }
+                        DownloadSettingsSection(settings: $draftSettings)
                         AboutSettingsSection()
                         UpdateSettingsSection(model: model)
                     }
@@ -49,7 +61,7 @@ struct SettingsView: View {
 
             Button("保存") {
                 Task {
-                    await model.saveSettings()
+                    await model.saveSettings(draftSettings)
                     dismiss()
                 }
             }

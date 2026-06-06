@@ -128,9 +128,9 @@ All implementation tasks -> T5
 - **location**: `SettingsView.swift`, settings section views, model/view tests
 - **description**: Edit settings through a draft copy. Save writes draft values into `model.settings` and persists them; cancel closes without mutating app state. Preserve existing control layout and design language.
 - **validation**: Automated tests cover draft rollback on cancel and persisted commit on save. Focused manual smoke covers directory picker and proxy test button behavior.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: RED: `swift test --jobs 1 --filter ModelTests` initially failed at `macos/Tests/CPaperNativeTests/ModelTests.swift:114` because `AppModel.saveSettings` did not accept a draft value, so the new save-commit test could not compile. Implemented local settings draft state in `SettingsView`, rebound the editable settings sections to that draft, changed save to commit the draft via `AppModel.saveSettings(_:)`, and updated the save-directory/proxy helpers so the directory picker and proxy test operate on draft values without mutating live settings on cancel. Added focused `ModelTests` coverage for draft rollback/no-op cancel semantics and persisted commit-on-save behavior. GREEN: `swift build --product CPaperNative` passed, and an additional temporary compiled harness against the built `CPaperNativeApp` module completed both new draft scenarios and printed `settings-draft-check: ok`. `swift test --jobs 1 --filter ModelTests` remains blocked after the T1.5 fix by concurrent untracked `macos/Tests/CPaperNativeTests/StartupBootCoordinatorTests.swift` referencing missing `AppBootCoordinator`, so the T1.5 behavior was green-verified with the built-module harness instead of a passing SwiftPM test run. Manual/static-check evidence: the browse action now only assigns the selected path into `draftSettings.saveDirectory` in `SettingsView.swift`, cancel still just dismisses, and the proxy test button now calls `model.testProxy(proxyURL)` with the draft proxy URL while only updating local `proxyStatus`.
+- **files edited/created**: `macos/Sources/CPaperNativeApp/State/AppModel+Setup.swift`; `macos/Sources/CPaperNativeApp/Views/SettingsView.swift`; `macos/Sources/CPaperNativeApp/Views/SettingsFormSections.swift`; `macos/Tests/CPaperNativeTests/ModelTests.swift`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T1.6: Integrate Transfer-Related Support Facade Cleanup
 

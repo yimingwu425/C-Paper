@@ -73,25 +73,36 @@ extension AppModel {
     }
 
     func saveSettings() async {
-        settings.lastSubject = activeSubject?.code ?? ""
-        settings.lastMode = route.rawValue
+        await saveSettings(settings)
+    }
+
+    func saveSettings(_ draftSettings: DownloadSettings) async {
+        var committedSettings = draftSettings
+        committedSettings.lastSubject = activeSubject?.code ?? ""
+        committedSettings.lastMode = route.rawValue
 
         do {
-            try backend.saveSettings(settings)
+            try backend.saveSettings(committedSettings)
+            settings = committedSettings
         } catch {
             handleBackendError(error)
         }
     }
 
-    func chooseSaveDirectory() async {
+    func chooseSaveDirectory() async -> String? {
         let path = await backend.chooseDirectory()
-        if !path.isEmpty {
-            settings.saveDirectory = path
+        if path.isEmpty {
+            return nil
         }
+        return path
     }
 
     func testProxy() async -> String {
-        let result = await backend.testProxy(settings.proxyURL)
+        await testProxy(settings.proxyURL)
+    }
+
+    func testProxy(_ proxyURL: String) async -> String {
+        let result = await backend.testProxy(proxyURL)
         if result.ok, let latency = result.latencyMs {
             return "连接成功 (\(latency) ms)"
         }

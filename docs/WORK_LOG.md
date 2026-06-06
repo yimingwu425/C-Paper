@@ -795,3 +795,27 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - `swift test --jobs 1 --filter UpdateServiceTests` is currently blocked by pre-existing compile errors in `macos/Tests/CPaperNativeTests/StartupBootCoordinatorTests.swift` from parallel T1.1 work (`cannot find 'AppBootCoordinator' in scope`), so T2.1 validation used drift/build checks plus an app-target build instead of a passing focused test run.
+
+### 2026-06-06 — Make settings cancel revert drafts
+
+**Task**
+- Complete `T1.5` from `cpaper-professionalization-plan.md` so Settings edits happen on a draft copy, Save commits and persists, and Cancel closes without mutating live app state.
+
+**Changed**
+- Updated `macos/Sources/CPaperNativeApp/Views/SettingsView.swift` to initialize a local `draftSettings` copy, bind editable sections to that draft, and commit only on Save.
+- Updated `macos/Sources/CPaperNativeApp/Views/SettingsFormSections.swift` so save directory, source, proxy, and download controls edit `Binding<DownloadSettings>` instead of mutating `model.settings` directly.
+- Updated `macos/Sources/CPaperNativeApp/State/AppModel+Setup.swift` with `saveSettings(_:)`, plus draft-friendly save-directory and proxy helper flows.
+- Added focused draft rollback / save-persistence coverage in `macos/Tests/CPaperNativeTests/ModelTests.swift`.
+- Updated `cpaper-professionalization-plan.md` to mark `T1.5` completed and record validation evidence.
+
+**Reason**
+- The Settings sheet previously bound controls directly to `model.settings`, so tapping Cancel left edited values in live memory even without saving.
+
+**Tested**
+- RED: `swift test --jobs 1 --filter ModelTests`
+- GREEN: `swift build --product CPaperNative`
+- GREEN: temporary built-module harness covering the two new draft scenarios, output `settings-draft-check: ok`
+- Static check: confirmed `SettingsView.swift` browse action only updates `draftSettings.saveDirectory`, Cancel still only dismisses, and proxy testing uses the draft proxy URL while only mutating local `proxyStatus`
+
+**Risks / Notes**
+- The focused SwiftPM test run is currently blocked after the T1.5 fix by concurrent untracked `macos/Tests/CPaperNativeTests/StartupBootCoordinatorTests.swift` from parallel T1.1 work (`cannot find 'AppBootCoordinator' in scope`), so final behavior validation used the built app target plus a temporary compiled harness against the real `CPaperNativeApp` module.
