@@ -98,9 +98,9 @@ All implementation tasks -> T5
 - **location**: `macos/Sources/CPaperNativeApp/Backend/Networking/`, `DownloadSourceURLResolver.swift`, tests
 - **description**: Add a shared transfer module, for example `HTTPFileTransferClient`, that owns proxy configuration, User-Agent, request construction, HTTP status validation, chunked file writing, cancellation cleanup, and progress callback behavior. Reuse `HTTPRequestBuilder`, `ProxyConfiguration`, and `DownloadSourceURLResolver`.
 - **validation**: Unit tests cover successful transfer, non-2xx response, proxy configuration, progress reporting, cancellation, and partial-file cleanup.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: RED: `swift test --jobs 1 --filter HTTPFileTransferClientTests` failed at compile time because the new test suite referenced missing `HTTPFileTransferClient` symbols. GREEN: added `HTTPFileTransferClient` to own request building, proxy-aware session construction, shared HTTP status validation, chunked file writes, progress callbacks, and cleanup on failure/cancellation; `swift test --jobs 1 --filter HTTPFileTransferClientTests` then passed 5 tests with 0 failures, and `swift test --jobs 1` passed 67 tests with 4 skipped and 0 failures.
+- **files edited/created**: `macos/Sources/CPaperNativeApp/Backend/Networking/HTTPFileTransferClient.swift`; `macos/Sources/CPaperNativeApp/Backend/Networking/NetworkClient.swift`; `macos/Tests/CPaperNativeTests/HTTPFileTransferClientTests.swift`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T1.3: Isolate Download Sessions Before Changing Writer
 

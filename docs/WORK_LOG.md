@@ -887,3 +887,27 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - `swiftlint` and `swiftformat` are not installed in the current environment, so `scripts/check_swift_quality.sh` currently prints explicit skip messages instead of running those tools; T2.2 can still wire the script into CI as-is because it already handles both installed and unavailable-tool states.
+
+### 2026-06-06 — Add shared file transfer layer
+
+**Task**
+- Complete `T1.2` from `cpaper-professionalization-plan.md` by adding a shared HTTP file transfer client for future download/update reuse.
+
+**Changed**
+- Added `macos/Sources/CPaperNativeApp/Backend/Networking/HTTPFileTransferClient.swift`.
+- Reused `HTTPRequestBuilder` for GET request construction and `ProxyConfiguration` for proxy-aware `URLSession` setup.
+- Reused `NetworkClientError` plus shared `NetworkClient.validate(_:)` HTTP status validation for non-2xx handling.
+- Implemented chunked file writes, progress callbacks, and destination cleanup on failure or cancellation.
+- Added `macos/Tests/CPaperNativeTests/HTTPFileTransferClientTests.swift` covering successful transfer, non-2xx response, proxy configuration, progress reporting, cancellation, and partial-file cleanup.
+- Updated `cpaper-professionalization-plan.md` to mark `T1.2` completed.
+
+**Reason**
+- Download and update flows both need the same proxy, request-header, status-validation, file-write, and cleanup behavior, and that logic should live in one narrow reusable module before later migration tasks.
+
+**Tested**
+- RED: `swift test --jobs 1 --filter HTTPFileTransferClientTests`
+- GREEN: `swift test --jobs 1 --filter HTTPFileTransferClientTests`
+- GREEN: `swift test --jobs 1`
+
+**Risks / Notes**
+- This task intentionally did not migrate `DownloadManager` or `UpdateService` to the new client yet; those call-site integrations remain for later plan tasks.

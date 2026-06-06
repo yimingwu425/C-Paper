@@ -51,11 +51,15 @@ final class NetworkClient: NetworkClientProtocol, @unchecked Sendable {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkClientError.invalidResponse
         }
-        try validate(httpResponse)
+        try Self.validate(httpResponse)
         return data
     }
 
     func validate(_ response: HTTPURLResponse) throws {
+        try Self.validate(response)
+    }
+
+    static func validate(_ response: HTTPURLResponse) throws {
         switch response.statusCode {
         case 200..<300:
             return
