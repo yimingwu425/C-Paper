@@ -1015,3 +1015,27 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - Preview cache keys still use the remote filename, matching the previous UI-side temp-cache behavior; if future sources can serve distinct preview documents under the same filename across hosts, T1.6 is the right place to revisit cache-keying without widening this task.
+
+### 2026-06-06 — Freeze legacy archive boundary
+
+**Task**
+- Complete `T3.2` from `cpaper-professionalization-plan.md` by making the legacy area clearly archival and keeping the final legacy release workflow understandable.
+
+**Changed**
+- Added `legacy/README.md` describing `legacy/` as archival, pointing active maintenance to root `Package.swift` + `macos/`, and documenting that legacy-only changes should not trigger the native workflow.
+- Updated `.github/workflows/legacy-release.yml` with final archived legacy release naming, run name, job names, and comments tying it to the final 5.2.1 pywebview release path.
+- Updated `.github/workflows/build.yml` comments to make the native-owned path filter boundary explicit.
+- Tightened `.github/release-notes/legacy-v5.2.1.md` wording so the final legacy release cannot be mistaken for part of the active native product line.
+- Updated `cpaper-professionalization-plan.md` to mark `T3.2` completed.
+
+**Reason**
+- Legacy code and its final release workflow should remain understandable for archival/reproducibility purposes without implying that Python/pywebview is still part of the active native app or routine native CI path.
+
+**Tested**
+- `reason_not_testable`: this is documentation and workflow-boundary work, so no meaningful RED/GREEN runtime test applies.
+- `ruby - <<'RUBY' ... YAML.load_file(...) ... RUBY` parsing `.github/workflows/build.yml` and `.github/workflows/legacy-release.yml`.
+- `ruby - <<'RUBY' ... assert path filters exclude legacy/ and archival terms exist ... RUBY`.
+- `git diff --check`.
+
+**Risks / Notes**
+- Python dependency locking was intentionally not added because the legacy workflow only runs manually or from `v*-legacy` tags, not from ordinary legacy file changes.

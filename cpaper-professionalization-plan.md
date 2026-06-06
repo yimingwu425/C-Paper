@@ -198,9 +198,9 @@ All implementation tasks -> T5
 - **location**: `legacy/`, `.github/workflows/build.yml`, `.github/workflows/legacy-release.yml`, legacy release notes
 - **description**: Document legacy as archival. Keep final legacy release workflow understandable, but prevent legacy docs or path triggers from implying it is part of the active native product. Python dependency locking is optional and only needed if legacy CI continues running.
 - **validation**: Legacy workflow and docs describe archival status; native workflow is not triggered by ordinary legacy-only changes.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: `reason_not_testable`: this task freezes documentation and workflow boundaries rather than changing runtime behavior, so no meaningful RED/GREEN unit test applies. Added `legacy/README.md` to mark `legacy/` as archival, point active maintenance to root `Package.swift` + `macos/`, and state that legacy-only changes should not trigger the native workflow. Updated `.github/workflows/legacy-release.yml` with final archived legacy release naming, run name, job names, and comments that keep the final 5.2.1 pywebview release path understandable without making it look like the active product line. Updated `.github/workflows/build.yml` comments to document that native branch path filters intentionally exclude `legacy/`, and tightened `.github/release-notes/legacy-v5.2.1.md` archival wording. Python dependency locking was intentionally not added because no routine legacy CI runs from ordinary branch or pull-request changes. Validation PASS: `ruby - <<'RUBY' ... YAML.load_file(...) ... RUBY` parsed `.github/workflows/build.yml` and `.github/workflows/legacy-release.yml`; `ruby - <<'RUBY' ... assert path filters exclude legacy/ and archival terms exist ... RUBY` proved `pull_request` and branch `push` path filters contain 12 native-owned paths and no `legacy/` entries, and proved archival status is described in `legacy/README.md`, `.github/workflows/legacy-release.yml`, and `.github/release-notes/legacy-v5.2.1.md`; `git diff --check` passed.
+- **files edited/created**: `legacy/README.md`; `.github/workflows/build.yml`; `.github/workflows/legacy-release.yml`; `.github/release-notes/legacy-v5.2.1.md`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T3.3: Refresh Release And Validation Documentation
 

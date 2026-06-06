@@ -1,10 +1,15 @@
-name: Release Legacy pywebview 5.2.1
+# Final archival workflow for the old Python + pywebview product line.
+# It is kept only so the final 5.2.1 legacy artifacts remain understandable
+# and reproducible. Native releases use `.github/workflows/build.yml`.
+name: Final Archived Legacy pywebview 5.2.1
+
+run-name: Final archived legacy release ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Git tag to create for the final legacy release"
+        description: "Git tag to create for the final archived legacy release"
         required: true
         default: "v5.2.1-legacy"
   push:
@@ -16,6 +21,7 @@ permissions:
 
 jobs:
   build-legacy-macos:
+    name: Build archived legacy macOS artifact
     runs-on: macos-latest
 
     steps:
@@ -46,6 +52,7 @@ jobs:
           retention-days: 30
 
   build-legacy-windows:
+    name: Build archived legacy Windows artifact
     runs-on: windows-latest
 
     steps:
@@ -93,6 +100,7 @@ jobs:
           retention-days: 30
 
   publish-legacy-release:
+    name: Publish final archived legacy release
     needs: [build-legacy-macos, build-legacy-windows]
     runs-on: ubuntu-latest
 

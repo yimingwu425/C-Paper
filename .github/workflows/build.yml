@@ -3,6 +3,8 @@ name: Build Native macOS
 on:
   workflow_dispatch:
   pull_request:
+    # Native-owned paths only. Archived legacy sources under `legacy/` are
+    # intentionally excluded from the active native validation/release workflow.
     paths:
       - "Package.swift"
       - "macos/**"
@@ -21,6 +23,8 @@ on:
       - main
     tags:
       - "v*"
+    # Native-owned paths only for branch pushes. Tag pushes publish the native
+    # product line; the final pywebview release uses `legacy-release.yml`.
     paths:
       - "Package.swift"
       - "macos/**"
