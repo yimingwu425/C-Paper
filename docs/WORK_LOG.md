@@ -747,3 +747,24 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - No parser behavior was expanded; the file was restored to the current git-tracked contract used by active call sites and tests.
+
+### 2026-06-06 — Record deterministic Swift baseline
+
+**Task**
+- Complete `T0.4` from `cpaper-professionalization-plan.md` by recording the post-cleanup deterministic Swift test baseline without changing product code.
+
+**Changed**
+- Updated `cpaper-professionalization-plan.md` to mark `T0.4` completed and record `reason_not_testable` plus baseline evidence.
+- Appended this baseline entry to `docs/WORK_LOG.md`.
+
+**Reason**
+- Wave 1 work needs the true current repository state captured after cleanup and parser restoration, before any feature fixes begin.
+
+**Tested**
+- `swift test --jobs 1`
+- Exit status: `0`
+- Output summary: build completed, all suites passed, `58` tests executed, `4` skipped, `0` failures.
+
+**Risks / Notes**
+- `reason_not_testable`: this was a baseline measurement task rather than a code-fix/TDD task, so no new RED/GREEN test was introduced.
+- The four skipped tests are the existing live-source checks gated by `RUN_LIVE_SOURCE_TESTS=1`.

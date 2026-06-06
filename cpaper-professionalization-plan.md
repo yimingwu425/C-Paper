@@ -78,9 +78,9 @@ All implementation tasks -> T5
 - **location**: full repo
 - **description**: Run the deterministic baseline after the repository is no longer structurally polluted. Capture the true current state before feature fixes.
 - **validation**: `swift test --jobs 1` runs to completion or to a real test failure; result is recorded in `docs/WORK_LOG.md`.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: reason_not_testable: this task is a baseline measurement task, not a code-fix/TDD task, so the evidence is the exact `swift test --jobs 1` run output and exit status rather than a new RED/GREEN cycle. Baseline evidence: `swift test --jobs 1` exited with status `0`; output included `Build complete! (0.14s)`, `Executed 58 tests, with 4 tests skipped and 0 failures (0 unexpected) in 1.614 (1.623) seconds`, and `Test Suite 'All tests' passed`.
+- **files edited/created**: `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T1.1: Make Startup Failure Recoverable
 
