@@ -106,6 +106,12 @@ private struct ReadyRootView: View {
             SettingsView(model: model)
                 .presentationBackground(.regularMaterial)
         }
+        .onAppear {
+            ReadyRootMenuBindings.bind(model: model)
+        }
+        .onDisappear {
+            ReadyRootMenuBindings.unbind()
+        }
         .alert(
             "C-Paper",
             isPresented: Binding(
@@ -157,6 +163,115 @@ private struct ReadyRootView: View {
                 }
             }
         )
+    }
+}
+
+@MainActor
+enum ReadyRootMenuBindings {
+    struct Environment {
+        let showAboutPanel: () -> Void
+        let openURL: (URL) -> Void
+
+        @MainActor
+        static func live() -> Environment {
+            Environment(
+                showAboutPanel: {
+                    NSApp.orderFrontStandardAboutPanel(nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                },
+                openURL: { url in
+                    NSWorkspace.shared.open(url)
+                }
+            )
+        }
+    }
+
+    static let websiteURL = URL(string: "https://yiming.us/c-paper")!
+    static let gitHubURL = URL(string: "https://github.com/yimingwu425/C-Paper")!
+    static let issueURL = URL(string: "https://github.com/yimingwu425/C-Paper/issues")!
+
+    static func bind(
+        model: AppModel,
+        commandCenter: AppMenuCommandCenter = .shared,
+        environment: Environment = .live()
+    ) {
+        commandCenter.bind(
+            handler: { command in
+                dispatch(command, model: model, environment: environment)
+            },
+            canPerform: { command in
+                canPerform(command, model: model)
+            }
+        )
+    }
+
+    static func unbind(commandCenter: AppMenuCommandCenter = .shared) {
+        commandCenter.unbind()
+    }
+
+    private static func dispatch(
+        _ command: AppMenuCommand,
+        model: AppModel,
+        environment: Environment
+    ) {
+        switch command {
+        case .showAbout:
+            environment.showAboutPanel()
+        case .showSettings:
+            model.isSettingsPresented = true
+        case .checkForUpdates:
+            Task { await model.checkForUpdates(source: .manual) }
+        case .refreshCurrentView:
+            Task {
+                switch model.route {
+                case .search:
+                    await model.search()
+                case .batch:
+                    await model.previewBatch()
+                case .downloads:
+                    await model.refreshDownloads()
+                }
+            }
+        case .showSearch:
+            model.route = .search
+        case .showBatch:
+            model.route = .batch
+        case .showDownloads:
+            model.route = .downloads
+            Task { await model.refreshDownloads() }
+        case .revealSaveDirectory:
+            model.revealSaveDirectory()
+        case .copyLatestDiagnostic:
+            model.copyLatestDiagnostic()
+        case .revealSupportDirectory:
+            model.revealSupportDirectory()
+        case .openWebsite:
+            environment.openURL(websiteURL)
+        case .openGitHub:
+            environment.openURL(gitHubURL)
+        case .reportIssue:
+            environment.openURL(issueURL)
+        }
+    }
+
+    private static func canPerform(_ command: AppMenuCommand, model: AppModel) -> Bool {
+        switch command {
+        case .refreshCurrentView:
+            return !model.isLoading
+        case .checkForUpdates:
+            switch model.updateStatus {
+            case .checking, .downloading:
+                return false
+            default:
+                return true
+            }
+        case .copyLatestDiagnostic:
+            return model.lastDiagnostic != nil
+        case .revealSaveDirectory:
+            return model.usableSaveDirectoryURL() != nil
+        default:
+            return true
+        }
     }
 }
 

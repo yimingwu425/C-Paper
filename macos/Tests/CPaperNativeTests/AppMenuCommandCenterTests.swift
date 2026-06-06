@@ -4,6 +4,11 @@ import XCTest
 
 @MainActor
 final class AppMenuCommandCenterTests: XCTestCase {
+    override func tearDown() async throws {
+        ReadyRootMenuBindings.unbind(commandCenter: AppMenuCommandCenter.shared)
+        try await super.tearDown()
+    }
+
     func testDispatchInvokesBoundHandlerForCommand() {
         let center = AppMenuCommandCenter()
         var received: [AppMenuCommand] = []
@@ -68,5 +73,118 @@ final class AppMenuCommandCenterTests: XCTestCase {
 
         XCTAssertTrue(center.validateMenuItem(allowedItem))
         XCTAssertFalse(center.validateMenuItem(deniedItem))
+    }
+
+    func testReadyBindingDispatchesCommandsIntoModelAndWorkspaceTargets() throws {
+        let center = AppMenuCommandCenter()
+        let model = try makeBasicModel()
+        var openedURLs: [URL] = []
+        var didShowAboutPanel = false
+
+        ReadyRootMenuBindings.bind(
+            model: model,
+            commandCenter: center,
+            environment: .init(
+                showAboutPanel: { didShowAboutPanel = true },
+                openURL: { openedURLs.append($0) }
+            )
+        )
+
+        center.dispatch(.showSettings)
+        center.dispatch(.showBatch)
+        center.dispatch(.showDownloads)
+        center.dispatch(.showAbout)
+        center.dispatch(.openWebsite)
+        center.dispatch(.openGitHub)
+        center.dispatch(.reportIssue)
+
+        XCTAssertTrue(model.isSettingsPresented)
+        XCTAssertEqual(model.route, .downloads)
+        XCTAssertTrue(didShowAboutPanel)
+        XCTAssertEqual(
+            openedURLs,
+            [
+                ReadyRootMenuBindings.websiteURL,
+                ReadyRootMenuBindings.gitHubURL,
+                ReadyRootMenuBindings.issueURL
+            ]
+        )
+    }
+
+    func testReadyBindingUnbindDisablesCommandsAgain() throws {
+        let center = AppMenuCommandCenter()
+        let model = try makeBasicModel()
+
+        ReadyRootMenuBindings.bind(model: model, commandCenter: center)
+        XCTAssertTrue(center.canPerform(.showSearch))
+
+        ReadyRootMenuBindings.unbind(commandCenter: center)
+
+        XCTAssertFalse(center.canPerform(.showSearch))
+        center.dispatch(.showSettings)
+        XCTAssertFalse(model.isSettingsPresented)
+    }
+
+    func testReadyBindingDisablesRefreshWhileLoading() throws {
+        let center = AppMenuCommandCenter()
+        let model = try makeBasicModel()
+        model.isLoading = true
+
+        ReadyRootMenuBindings.bind(model: model, commandCenter: center)
+
+        XCTAssertFalse(center.canPerform(.refreshCurrentView))
+        XCTAssertTrue(center.canPerform(.showDownloads))
+    }
+
+    func testReadyBindingDisablesManualUpdateCheckWhileCheckingOrDownloading() throws {
+        let center = AppMenuCommandCenter()
+        let model = try makeBasicModel()
+
+        model.updateStatus = .checking
+        ReadyRootMenuBindings.bind(model: model, commandCenter: center)
+        XCTAssertFalse(center.canPerform(.checkForUpdates))
+
+        model.updateStatus = .downloading(progress: 0.5)
+        XCTAssertFalse(center.canPerform(.checkForUpdates))
+
+        model.updateStatus = .idle
+        XCTAssertTrue(center.canPerform(.checkForUpdates))
+    }
+
+    func testReadyBindingDisablesCopyDiagnosticWithoutLatestDiagnostic() throws {
+        let center = AppMenuCommandCenter()
+        let model = try makeBasicModel()
+
+        ReadyRootMenuBindings.bind(model: model, commandCenter: center)
+        XCTAssertFalse(center.canPerform(.copyLatestDiagnostic))
+
+        _ = model.recordDiagnostic(context: .general, message: "boom")
+        XCTAssertTrue(center.canPerform(.copyLatestDiagnostic))
+    }
+
+    func testReadyBindingDisablesRevealSaveDirectoryWhenDirectoryIsNotUsable() throws {
+        let center = AppMenuCommandCenter()
+        let model = try makeBasicModel()
+
+        ReadyRootMenuBindings.bind(model: model, commandCenter: center)
+        XCTAssertFalse(center.canPerform(.revealSaveDirectory))
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperMenuDirectory-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        model.settings.saveDirectory = directory.path
+
+        XCTAssertTrue(center.canPerform(.revealSaveDirectory))
+    }
+}
+
+private extension AppMenuCommandCenterTests {
+    func makeBasicModel() throws -> AppModel {
+        let pathsRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperMenuCommandCenterTests-\(UUID().uuidString)", isDirectory: true)
+        let backend = try NativeBackendService(paths: AppStoragePaths(rootURL: pathsRoot))
+        return AppModel(backend: backend)
     }
 }

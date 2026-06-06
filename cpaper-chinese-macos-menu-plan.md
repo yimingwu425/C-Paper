@@ -119,9 +119,22 @@ T0 ──┬── T1 ──┬── T3 ──┐
 - **location**: `macos/Sources/CPaperNativeApp/Views/RootView.swift`, `macos/Tests/CPaperNativeTests/AppMenuCommandCenterTests.swift`
 - **description**: Bind `AppMenuCommandCenter.shared` from `ReadyRootView` when the model is ready. Menu actions should mirror existing toolbar/settings behavior: open settings sheet, run manual update check, refresh the current route, switch to search/batch/downloads, refresh downloads when switching to downloads, reveal the save directory through the shared usable-directory helper, copy the latest diagnostic, reveal the support directory, show the standard AppKit About panel, and open website/GitHub/issues URLs through `NSWorkspace`. Unbind when the ready view disappears so product commands return to disabled/no-op during loading or failure states. Menu validation should disable `刷新当前视图` while `model.isLoading`, disable `检查更新...` while `updateStatus` is `.checking` or `.downloading`, disable `复制最近诊断` when `model.lastDiagnostic == nil`, and disable `显示下载文件夹` when the shared usable-save-directory helper returns nil.
 - **validation**: Command-center tests cover ready binding, `unbind()` after ready view disappearance, disabled startup/failure state behavior, update-check state gating, save-directory validation, and successful dispatch. Manual smoke testing confirms `设置...`, `搜索`, `批量`, and `下载` perform the expected UI actions without starting downloads. Manual update QA may click `检查更新...` only to perform the existing update check and must not click `下载更新`.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - Added `ReadyRootMenuBindings` in `RootView.swift` and bound it from `ReadyRootView` with `.onAppear` / `.onDisappear` so `AppMenuCommandCenter.shared` is only active while the ready app model is visible.
+  - Routed menu commands to existing ready-state behaviors: settings sheet presentation, manual update check, route refresh, search/batch/downloads switching, downloads refresh when entering downloads, save-directory reveal, diagnostic copy, support-directory reveal, standard AppKit About panel, and website/GitHub/issues URL opening via `NSWorkspace`.
+  - Implemented menu validation rules in the ready binding layer:
+    - disable `刷新当前视图` while `model.isLoading`
+    - disable `检查更新...` while `updateStatus` is `.checking` or `.downloading`
+    - disable `复制最近诊断` when `model.lastDiagnostic == nil`
+    - disable `显示下载文件夹` when `usableSaveDirectoryURL()` returns `nil`
+  - RED evidence: `swift test --jobs 1 --filter AppMenuCommandCenterTests` failed before implementation because `ReadyRootMenuBindings` did not exist.
+  - GREEN evidence: `swift test --jobs 1 --filter AppMenuCommandCenterTests` passed with 10/10 tests after implementation.
+  - Manual smoke check: launched `dist/CPaperNative.app` and confirmed `设置` opens the settings sheet, `搜索` / `批量` / `下载` switch the visible product area correctly, and no download was started during the check.
 - **files edited/created**:
+  - `macos/Sources/CPaperNativeApp/Views/RootView.swift`
+  - `macos/Tests/CPaperNativeTests/AppMenuCommandCenterTests.swift`
+  - `cpaper-chinese-macos-menu-plan.md`
 
 ### T5: Update Project Documentation
 
