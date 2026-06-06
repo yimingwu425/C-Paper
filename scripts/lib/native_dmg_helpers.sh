@@ -42,18 +42,36 @@ current_signing_mode() {
 
 sign_app_bundle() {
   local target="$1"
+  local codesign_error="$BUILD_ROOT/codesign-error.log"
 
+  clear_bundle_metadata "$target"
   if signing_identity_configured; then
     echo "Using Developer ID identity: $CPAPER_CODESIGN_IDENTITY"
-    codesign \
+    if ! codesign \
       --force \
       --deep \
       --options runtime \
       --timestamp \
       --sign "$CPAPER_CODESIGN_IDENTITY" \
-      "$target"
-  elif ! codesign --force --deep --sign - "$target"; then
-    echo "Warning: ad hoc codesign failed for $target; continuing with unsigned bundle." >&2
+      "$target" 2>"$codesign_error"; then
+      clear_bundle_metadata "$target"
+      if ! codesign \
+        --force \
+        --deep \
+        --options runtime \
+        --timestamp \
+        --sign "$CPAPER_CODESIGN_IDENTITY" \
+        "$target"; then
+        cat "$codesign_error" >&2
+        return 1
+      fi
+    fi
+  elif ! codesign --force --deep --sign - "$target" 2>"$codesign_error"; then
+    clear_bundle_metadata "$target"
+    if ! codesign --force --deep --sign - "$target"; then
+      cat "$codesign_error" >&2
+      echo "Warning: ad hoc codesign failed for $target; continuing with unsigned bundle." >&2
+    fi
   fi
   clear_bundle_metadata "$target"
 }

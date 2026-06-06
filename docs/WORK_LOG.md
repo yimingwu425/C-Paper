@@ -1167,3 +1167,25 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - Only cancellation errors are normalized; non-cancellation transfer failures still propagate unchanged.
+
+### 2026-06-06 — Retry native codesign after metadata cleanup
+
+**Task**
+- Harden the release packaging path after `T5` release build surfaced local Finder metadata interfering with ad hoc signing.
+
+**Changed**
+- Updated `scripts/lib/native_dmg_helpers.sh` so `sign_app_bundle` clears bundle metadata inside the signing function and retries codesign once after cleanup for both Developer ID and ad hoc signing paths.
+
+**Reason**
+- The release build succeeded, but local Finder/file-provider metadata made the first ad hoc signing attempt fail with `resource fork, Finder information, or similar detritus not allowed`, causing the script to continue with an unsigned app bundle.
+
+**Tested**
+- FAIL evidence: `CONFIGURATION=release bash scripts/build_native_dmg.sh` produced the DMG but logged `ad hoc codesign failed ... continuing with unsigned bundle`.
+- Manual confirmation: after clearing Finder/file-provider metadata, `codesign --force --deep --sign - dist/CPaperNative.app` succeeded.
+- GREEN: `bash -n scripts/build_native_dmg.sh scripts/lib/native_dmg_helpers.sh`
+- GREEN: `CONFIGURATION=release bash scripts/build_native_dmg.sh` completed with clean ad hoc signing output and produced `dist/C-Paper-Native-6.0.3-standalone-20260606.dmg`.
+- GREEN: `hdiutil verify dist/C-Paper-Native-6.0.3-standalone-20260606.dmg`
+- GREEN: mounted the DMG and verified `CPaperNative.app`, `Applications` symlink, `.background/background.png`, and `codesign --verify --deep --strict` on the mounted app.
+
+**Risks / Notes**
+- This keeps no-secret builds on the ad hoc path and does not require Apple signing credentials.
