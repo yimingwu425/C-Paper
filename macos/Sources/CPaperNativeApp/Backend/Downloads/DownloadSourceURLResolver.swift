@@ -2,14 +2,22 @@ import Foundation
 
 enum DownloadSourceURLResolver {
     static func resolvedSourceURL(for component: PaperComponent) throws -> URL {
-        guard component.sourceID == .easyPaper, let filePath = component.url.easyPaperFilePath else {
-            return component.url
+        try resolvedSourceURL(sourceID: component.sourceID, url: component.url)
+    }
+
+    static func resolvedSourceURL(for file: PaperFile) throws -> URL {
+        try resolvedSourceURL(sourceID: file.sourceID, url: file.url)
+    }
+
+    private static func resolvedSourceURL(sourceID: PaperSourceID, url: URL) throws -> URL {
+        guard sourceID == .easyPaper, let filePath = url.easyPaperFilePath else {
+            return url
         }
         let token = try EasyPaperCrypto().encryptedRequestToken(payload: [
             "dir": filePath,
             "source": "website"
         ])
-        return try easyPaperBaseURL(from: component.url)
+        return try easyPaperBaseURL(from: url)
             .appendingPathComponent("paperdownload")
             .appendingPathComponent("dir_v3")
             .appendingPathComponent(token)

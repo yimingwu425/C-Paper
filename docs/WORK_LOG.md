@@ -987,3 +987,31 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - The workflow now has a documented optional path, but the actual secret values and Apple account material still need to be provisioned in GitHub before a notarized release can run end to end.
+
+### 2026-06-06 — Route preview and update downloads through shared transfer
+
+**Task**
+- Complete `T1.4` from `cpaper-professionalization-plan.md` by moving PDF preview caching and update downloads onto the shared transfer path while preserving preview local-file reuse and update `.part` atomic replacement behavior.
+
+**Changed**
+- Updated `macos/Sources/CPaperNativeApp/Backend/Core/NativeBackendService.swift` to add `previewURL(for:settings:)`, which first reuses already-downloaded local files, then reuses cache hits under the native cache directory, and finally downloads preview PDFs through `HTTPFileTransferClient` with the current proxy setting.
+- Updated `macos/Sources/CPaperNativeApp/Backend/Downloads/DownloadSourceURLResolver.swift` so preview and download code can both resolve refreshed EasyPaper download URLs from either `PaperComponent` or `PaperFile`.
+- Updated `macos/Sources/CPaperNativeApp/Views/PDFPreviewView.swift` to remove direct `URLSession.shared.download` usage and rely on the backend preview path instead.
+- Updated `macos/Sources/CPaperNativeApp/Backend/Updates/UpdateService.swift` so the default update download path uses `HTTPFileTransferClient`, keeps `.part` staging plus atomic replace/move, and removes leftover partials when transfer fails.
+- Added `macos/Tests/CPaperNativeTests/NativeBackendServicePreviewTests.swift` to cover local preview reuse plus EasyPaper/proxy/cache behavior.
+- Expanded `macos/Tests/CPaperNativeTests/UpdateServiceTests.swift` to cover chunked shared-transfer success, non-2xx failure, partial cleanup, and replacement of an existing final DMG.
+- Added `macos/Tests/CPaperNativeTests/TransferTestSupport.swift` and reused it from `macos/Tests/CPaperNativeTests/HTTPFileTransferClientTests.swift` for shared mock transfer plumbing.
+- Updated `cpaper-professionalization-plan.md` to mark `T1.4` completed.
+
+**Reason**
+- Preview and update downloads still bypassed the shared proxy-aware transfer layer added in earlier tasks, which meant EasyPaper preview resolution, proxy behavior, chunked writes, and cleanup semantics were inconsistent across download surfaces.
+
+**Tested**
+- RED: `swift test --jobs 1 --filter UpdateServiceTests`
+- RED: `swift test --jobs 1 --filter NativeBackendServicePreviewTests`
+- GREEN: `swift test --jobs 1 --filter UpdateServiceTests`
+- GREEN: `swift test --jobs 1 --filter NativeBackendServicePreviewTests`
+- GREEN: `swift test --jobs 1`
+
+**Risks / Notes**
+- Preview cache keys still use the remote filename, matching the previous UI-side temp-cache behavior; if future sources can serve distinct preview documents under the same filename across hosts, T1.6 is the right place to revisit cache-keying without widening this task.

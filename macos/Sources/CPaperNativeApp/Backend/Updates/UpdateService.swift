@@ -3,7 +3,6 @@ import Foundation
 enum UpdateServiceError: Error, LocalizedError, Equatable {
     case invalidLatestRelease
     case noCompatibleDMGAsset
-    case invalidDownloadResponse
     case invalidVersion(String)
 
     var errorDescription: String? {
@@ -12,8 +11,6 @@ enum UpdateServiceError: Error, LocalizedError, Equatable {
             "GitHub Release 信息格式无效"
         case .noCompatibleDMGAsset:
             "最新版本没有可下载的 macOS DMG"
-        case .invalidDownloadResponse:
-            "更新下载响应无效"
         case .invalidVersion(let version):
             "版本号格式无效：\(version)"
         }
@@ -47,12 +44,14 @@ struct AppVersion: Comparable, Equatable {
 final class UpdateService: @unchecked Sendable {
     typealias NetworkClientFactory = @Sendable (_ proxyURL: String) -> any NetworkClientProtocol
     typealias DownloadWriter = @Sendable (_ sourceURL: URL, _ destinationURL: URL, _ proxyURL: String, _ progress: @escaping @Sendable (Double?) async -> Void) async throws -> Void
+    typealias TransferClientFactory = @Sendable (_ proxyURL: String) -> HTTPFileTransferClient
 
     private let currentVersion: String
     private let latestReleaseURL: URL
     private let updatesDirectory: URL
     private let networkClientFactory: NetworkClientFactory
-    private let downloadWriter: DownloadWriter
+    private let downloadWriter: DownloadWriter?
+    private let transferClientFactory: TransferClientFactory
     private let fileManager: FileManager
 
     init(
@@ -62,7 +61,10 @@ final class UpdateService: @unchecked Sendable {
         networkClientFactory: @escaping NetworkClientFactory = { proxyURL in
             NetworkClient(proxy: ProxyConfiguration(rawValue: proxyURL))
         },
-        downloadWriter: @escaping DownloadWriter = UpdateService.defaultDownload,
+        downloadWriter: DownloadWriter? = nil,
+        transferClientFactory: @escaping TransferClientFactory = { proxyURL in
+            HTTPFileTransferClient(proxy: ProxyConfiguration(rawValue: proxyURL))
+        },
         fileManager: FileManager = .default
     ) {
         self.currentVersion = currentVersion
@@ -70,6 +72,7 @@ final class UpdateService: @unchecked Sendable {
         self.updatesDirectory = updatesDirectory ?? Self.defaultUpdatesDirectory()
         self.networkClientFactory = networkClientFactory
         self.downloadWriter = downloadWriter
+        self.transferClientFactory = transferClientFactory
         self.fileManager = fileManager
     }
 
@@ -104,7 +107,12 @@ final class UpdateService: @unchecked Sendable {
         let partialURL = updatesDirectory.appendingPathComponent("\(filename).part")
         try? fileManager.removeItem(at: partialURL)
 
-        try await downloadWriter(release.downloadURL, partialURL, proxyURL, progress)
+        do {
+            try await writeDownload(from: release.downloadURL, to: partialURL, proxyURL: proxyURL, progress: progress)
+        } catch {
+            try? fileManager.removeItem(at: partialURL)
+            throw error
+        }
         if fileManager.fileExists(atPath: destinationURL.path) {
             _ = try fileManager.replaceItemAt(destinationURL, withItemAt: partialURL)
         } else {
@@ -122,39 +130,16 @@ final class UpdateService: @unchecked Sendable {
             .appendingPathComponent("Updates", isDirectory: true)
     }
 
-    private static func defaultDownload(
-        sourceURL: URL,
-        destinationURL: URL,
+    private func writeDownload(
+        from sourceURL: URL,
+        to destinationURL: URL,
         proxyURL: String,
         progress: @escaping @Sendable (Double?) async -> Void
     ) async throws {
-        let configuration = URLSessionConfiguration.default
-        configuration.httpAdditionalHeaders = ["User-Agent": HTTPRequestBuilder.defaultUserAgent]
-        let session = URLSession(configuration: ProxyConfiguration(rawValue: proxyURL).applying(to: configuration))
-        let (bytes, response) = try await session.bytes(from: sourceURL)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw UpdateServiceError.invalidDownloadResponse
-        }
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            throw NetworkClientError.httpStatus(httpResponse.statusCode)
-        }
-
-        let expected = httpResponse.expectedContentLength
-        var received: Int64 = 0
-        await progress(expected > 0 ? 0 : nil)
-
-        FileManager.default.createFile(atPath: destinationURL.path, contents: nil)
-        let handle = try FileHandle(forWritingTo: destinationURL)
-        defer {
-            try? handle.close()
-        }
-
-        for try await byte in bytes {
-            try handle.write(contentsOf: [byte])
-            received += 1
-            if expected > 0, received % 64_000 == 0 {
-                await progress(min(Double(received) / Double(expected), 0.99))
-            }
+        if let downloadWriter {
+            try await downloadWriter(sourceURL, destinationURL, proxyURL, progress)
+        } else {
+            try await transferClientFactory(proxyURL).transfer(from: sourceURL, to: destinationURL, progress: progress)
         }
     }
 }

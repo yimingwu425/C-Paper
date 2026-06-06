@@ -120,64 +120,12 @@ struct PDFPreviewView: View {
         loadingError = nil
         localURL = nil
 
-        // 1. 优先检测是否已经下载过本地文件
-        if let localPath = checkLocalDownloadedFile(file: file) {
-            self.localURL = localPath
-            isDownloading = false
-            return
-        }
-
-        // 2. 否则，异步缓存网络 PDF
         do {
-            let tempDir = FileManager.default.temporaryDirectory
-            let destinationURL = tempDir.appendingPathComponent(file.filename)
-
-            // 如果临时文件夹已经有该缓存了，则直接载入
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                self.localURL = destinationURL
-                isDownloading = false
-                return
-            }
-
-            let (tempURL, response) = try await URLSession.shared.download(from: file.url)
-
-            if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
-                throw NSError(domain: "PDFDownload", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "服务器错误: HTTP \(httpResponse.statusCode)"])
-            }
-
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                try? FileManager.default.removeItem(at: destinationURL)
-            }
-            try FileManager.default.moveItem(at: tempURL, to: destinationURL)
-            self.localURL = destinationURL
+            self.localURL = try await model.backend.previewURL(for: file, settings: model.settings)
         } catch {
             self.loadingError = error.localizedDescription
         }
         isDownloading = false
-    }
-
-    private func checkLocalDownloadedFile(file: PaperFile) -> URL? {
-        let expandedPath = (model.settings.saveDirectory as NSString).expandingTildeInPath
-
-        // 场景 A: 合并文件夹
-        let pathMerge = URL(fileURLWithPath: expandedPath).appendingPathComponent(file.filename)
-        if FileManager.default.fileExists(atPath: pathMerge.path) {
-            return pathMerge
-        }
-
-        // 场景 B: 年份与子文件夹
-        if let year = file.year.map(String.init), let type = file.paperType?.uppercased() {
-            let subfolder = (type == "QP" || type == "MS") ? type : ""
-            let pathSplit = URL(fileURLWithPath: expandedPath)
-                .appendingPathComponent(year)
-                .appendingPathComponent(subfolder)
-                .appendingPathComponent(file.filename)
-            if FileManager.default.fileExists(atPath: pathSplit.path) {
-                return pathSplit
-            }
-        }
-
-        return nil
     }
 }
 
