@@ -839,3 +839,25 @@ This file is a concise running log of meaningful code, configuration, and docume
 - RED: parallel T1.1 test phase produced a compile failure for `StartupBootCoordinatorTests` while `AppBootCoordinator` was missing from the target.
 - GREEN: `swift test --jobs 1 --filter StartupBootCoordinatorTests`
 - GREEN: `swift test --jobs 1`
+
+### 2026-06-06 — Refresh architecture boundary documentation
+
+**Task**
+- Complete `T3.1` from `cpaper-professionalization-plan.md` by making the contributor-facing architecture docs consistently native-first and legacy-bounded.
+
+**Changed**
+- Updated `README.md` to identify the active source, active tests, active script/support directories, external project-site status, and archived legacy paths without mixing in release-flow steps.
+- Updated `docs/PROJECT_INDEX.md` to keep the repo map focused on the active native target, Swift tests, build-script locations, and legacy boundaries.
+- Updated `MAINTENANCE_BASELINE.md` to describe only the current native maintenance boundary and the default `swift test --jobs 1` validation command.
+- Updated `native/CPaperNative/README.md` so the moved-project note points contributors to the root package, `macos/`, active tests, and active script directories.
+
+**Reason**
+- The boundary docs still mixed native architecture guidance with release-flow details and older directory assumptions, which made it harder for a new contributor to identify the active implementation quickly.
+
+**Tested**
+- `reason_not_testable`: this task is a documentation-boundary refresh, so no meaningful RED/GREEN runtime test applies.
+- `rg -n "Package\\.swift|macos/Tests/CPaperNativeTests|scripts/lib|swift test --jobs 1|legacy/python-backend|legacy/pywebview|site/" README.md docs/PROJECT_INDEX.md MAINTENANCE_BASELINE.md native/CPaperNative/README.md`
+- `rg -n "Build Native macOS|workflow|GitHub Actions|site/.*active|active app directory|main implementation under legacy|legacy is active" README.md docs/PROJECT_INDEX.md MAINTENANCE_BASELINE.md native/CPaperNative/README.md`
+
+**Risks / Notes**
+- The second `rg` still matches the unchanged README workflow badge link, but the refreshed architecture sections no longer describe release flow or suggest that legacy/site paths are part of the active app tree.

@@ -188,9 +188,9 @@ All implementation tasks -> T5
 - **location**: `README.md`, `docs/PROJECT_INDEX.md`, `MAINTENANCE_BASELINE.md`, `native/CPaperNative/README.md`
 - **description**: Refresh architecture boundary docs only: native 6.x reality, active source, archived legacy, external site link placeholder, and where tests/build scripts live. Avoid release-flow details that depend on T2.2/T2.3.
 - **validation**: A new contributor can read README + PROJECT_INDEX and correctly identify active source, tests, and legacy boundaries.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: `reason_not_testable`: this task only refreshes contributor-facing architecture boundary documentation, so there is no meaningful RED/GREEN runtime test to add. Updated `README.md`, `docs/PROJECT_INDEX.md`, `MAINTENANCE_BASELINE.md`, and `native/CPaperNative/README.md` to consistently mark the root `Package.swift` + `macos/` as the active native 6.x implementation, point active tests to `macos/Tests/CPaperNativeTests/`, list `scripts/` and `scripts/lib/` as active build-script locations, keep the project site as external-link pending, and confine Python/pywebview references to `legacy/`. Validation PASS: `rg -n "Package\\.swift|macos/Tests/CPaperNativeTests|scripts/lib|swift test --jobs 1|legacy/python-backend|legacy/pywebview|site/" README.md docs/PROJECT_INDEX.md MAINTENANCE_BASELINE.md native/CPaperNative/README.md` showed the required active/legacy boundary terms in all four docs. Validation PASS: `rg -n "Build Native macOS|workflow|GitHub Actions|site/.*active|active app directory|main implementation under legacy|legacy is active" README.md docs/PROJECT_INDEX.md MAINTENANCE_BASELINE.md native/CPaperNative/README.md` found no release-flow prose in the refreshed boundary sections; the only remaining workflow match is the unchanged README badge link.
+- **files edited/created**: `README.md`; `docs/PROJECT_INDEX.md`; `MAINTENANCE_BASELINE.md`; `native/CPaperNative/README.md`
 
 ### T3.2: Freeze Legacy Clearly
 

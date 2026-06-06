@@ -40,11 +40,10 @@ These directories are preserved for reference and limited maintenance only. Do n
 ## Runtime Relationships
 
 - The macOS app is the active maintained product.
-- The macOS app calls `NativeBackendService` directly.
+- The root `Package.swift` builds and runs the active app target.
+- The SwiftUI/AppKit UI in `macos/` calls `NativeBackendService` directly.
 - `NativeBackendService` coordinates persistence, source lookup, parsing, and downloads.
-- `SourceRegistry` uses automatic fallback in the order FrankCIE, EasyPaper, PastPapers, then PapaCambridge. EasyPaper is the primary non-FrankCIE fallback; PastPapers is best-effort because directory pages may be Cloudflare-challenged; PapaCambridge reports unavailable when Cloudflare blocks the HTTP client.
 - The active app no longer starts or packages a Python bridge.
-- Startup update checks use GitHub Releases and prompt before downloading a newer native DMG.
 
 ## UI Locations
 
@@ -59,13 +58,13 @@ These directories are preserved for reference and limited maintenance only. Do n
 ## Tests
 
 - Active Swift tests: `macos/Tests/CPaperNativeTests/`
+- Default validation command: `swift test --jobs 1`
 - Legacy Python tests: `legacy/python-backend/tests/`
 
 ## Config And Metadata Files
 
 - `Package.swift`: Active Swift package definition
-- `.github/workflows/build.yml`: Active GitHub Actions workflow for native macOS
-- `scripts/build_native_dmg.sh`: Active native release script
+- `scripts/build_native_dmg.sh`: Active native build script
 - `scripts/lib/native_dmg_helpers.sh`: Shared DMG build helper functions
 - `legacy/python-backend/requirements.txt`: Archived Python backend/test dependencies
 - `legacy/pywebview/requirements.txt`: Legacy pywebview dependencies
@@ -79,8 +78,7 @@ These directories are preserved for reference and limited maintenance only. Do n
 - `macos/Sources/CPaperNativeApp/Backend/Sources/`: Sensitive to third-party source format changes
 - `macos/Sources/CPaperNativeApp/Backend/Downloads/`: Core download safety, cancellation, and filesystem logic
 - `macos/Sources/CPaperNativeApp/Backend/Persistence/`: User settings/history migration and local data handling
-- `scripts/build_native_dmg.sh`: Main native release path
-- `.github/workflows/build.yml`: Main release automation
+- `scripts/build_native_dmg.sh`: Main native build path
 - `legacy/`: Archived implementations; only edit when explicitly required
 
 ## High-Noise Or Generated Paths To Ignore During Normal Inspection
