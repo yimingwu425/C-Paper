@@ -36,9 +36,15 @@ T0 ──┬── T1 ──┬── T3 ──┐
 - **location**: repository root
 - **description**: Confirm the implementation starts from a clean `codex/cpaper-professionalization` worktree and that no merge/push/main change is attempted. Read `AGENTS.md`, `docs/PROJECT_INDEX.md`, and `docs/WORK_LOG.md` before editing.
 - **validation**: `git status --short` is clean before implementation; `git branch --show-current` returns `codex/cpaper-professionalization`.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
-- **files edited/created**:
+  - Read `AGENTS.md`, `docs/PROJECT_INDEX.md`, and `docs/WORK_LOG.md` before editing.
+  - Static baseline evidence captured at repo root:
+    - `git status --short` -> `(no output)`
+    - `git branch --show-current` -> `codex/cpaper-professionalization`
+  - Confirmed this task is documentation-only baseline guarding; no menu implementation, merge, push, or `main` branch edit was attempted.
+  - `reason_not_testable`: This is a non-testable static precondition check. Validation is limited to exact command evidence from `git status --short` and `git branch --show-current`.
+- **files edited/created**: `cpaper-chinese-macos-menu-plan.md`
 
 ### T1: Build Chinese AppKit Menu Layer
 
