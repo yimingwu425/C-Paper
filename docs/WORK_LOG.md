@@ -1068,3 +1068,28 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - Preview cache filenames still intentionally match the existing filename-based behavior from T1.4; this task only moved ownership out of the facade.
+
+### 2026-06-06 — Refresh release and validation documentation
+
+**Task**
+- Complete `T3.3` from `cpaper-professionalization-plan.md` by updating release, validation, install, signing/notarization, privacy/disclaimer, and data-source reliability documentation.
+
+**Changed**
+- Updated `README.md` with the current native `validate/package/release` flow, tag-only release behavior, manual `workflow_dispatch` packaging behavior, install notes, ad hoc default signing, optional Developer ID/notary setup, external-link pending project-site wording, and data-source reliability boundaries.
+- Added `docs/RELEASE_AND_VALIDATION.md` as the focused native release and validation reference.
+- Updated `docs/PROJECT_INDEX.md` to index the release/validation guide and summarize the active workflow behavior.
+- Updated `.github/release-notes/native-v6.0.3.md` with current release/install/signing/privacy/source-reliability notes.
+- Updated `cpaper-professionalization-plan.md` to mark `T3.3` completed.
+
+**Reason**
+- CI and optional signing/notarization behavior had stabilized, but public docs still needed to describe the actual validation, packaging, release, install, privacy/disclaimer, and data-source reliability boundaries.
+
+**Tested**
+- `reason_not_testable`: this is a documentation-only task with no meaningful RED/GREEN runtime test.
+- Ruby parsed `.github/workflows/build.yml` and asserted `package -> validate`, `release -> package`, package gating for `workflow_dispatch`/`push`, and tag-only release gating.
+- Ruby static doc consistency check confirmed public docs include the required release terms and do not contradict workflow behavior.
+- `rg -n "validate/package/release|tag-only|workflow_dispatch|ad hoc|Developer ID/notary|external-link pending|privacy/disclaimer/data source reliability" README.md docs/PROJECT_INDEX.md docs/RELEASE_AND_VALIDATION.md .github/release-notes/native-v6.0.3.md`
+- `git diff --check`
+
+**Risks / Notes**
+- Unrelated in-progress `macos/` support/diagnostics files were present in the worktree during this task and were intentionally not edited, reverted, staged, or committed.

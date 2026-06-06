@@ -208,9 +208,9 @@ All implementation tasks -> T5
 - **location**: `README.md`, `docs/PROJECT_INDEX.md`, release notes, signing/notarization docs
 - **description**: Update release, validation, install, privacy/disclaimer, and data-source reliability documentation after CI and signing/notarization placeholders are stable. Keep website references as external-link pending.
 - **validation**: Public docs describe the actual validate/package/release flow and no longer conflict with workflow behavior.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: `reason_not_testable`: this is a documentation refresh for release, validation, install, privacy/disclaimer, data-source reliability, and signing/notarization behavior, so there is no meaningful RED/GREEN runtime test. Updated README release/install/signing/source-reliability wording, added `docs/RELEASE_AND_VALIDATION.md` as the focused native release reference, indexed it from `docs/PROJECT_INDEX.md`, and updated the latest native release note to describe the current tag-only release path, manual `workflow_dispatch` packaging behavior, ad hoc default signing, and optional Developer ID/notary path. Kept website/project-site wording as external-link pending. Validation PASS: Ruby parsed `.github/workflows/build.yml` and asserted `package -> validate`, `release -> package`, package event gating for `workflow_dispatch`/`push`, and tag-only release gating. Validation PASS: static doc consistency check confirmed required release terms in public docs and no contradiction with workflow behavior; `rg -n "validate/package/release|tag-only|workflow_dispatch|ad hoc|Developer ID/notary|external-link pending|privacy/disclaimer/data source reliability" README.md docs/PROJECT_INDEX.md docs/RELEASE_AND_VALIDATION.md .github/release-notes/native-v6.0.3.md`; `git diff --check`.
+- **files edited/created**: `README.md`; `docs/PROJECT_INDEX.md`; `docs/RELEASE_AND_VALIDATION.md`; `.github/release-notes/native-v6.0.3.md`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T4.1: Add Supportability And Diagnostics
 

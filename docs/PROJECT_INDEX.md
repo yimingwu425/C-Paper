@@ -11,10 +11,11 @@ This file is a compact native-first map of the repository so future contributors
 - `scripts/lib/`: Shared shell helpers used by active native scripts
 - `assets/`: Shared icons and image assets
 - `docs/`: Project memory and internal documentation
+- `docs/RELEASE_AND_VALIDATION.md`: Native release, validation, install, signing/notarization, privacy/disclaimer, and data source reliability notes
 
 Project site note:
 
-- External project site: link/location pending; do not treat `site/` as an active in-repo directory
+- External project site: external-link pending; do not treat `site/` as an active in-repo directory
 
 ## Legacy Directories
 
@@ -36,6 +37,7 @@ These directories are preserved for reference and limited maintenance only. Do n
 - `macos/Sources/CPaperNativeApp/Backend/Persistence/`: Settings, favorites, history, cache, and legacy migration stores
 - `macos/Sources/CPaperNativeApp/Backend/Updates/`: GitHub Release update checking and native DMG download service
 - `macos/Tests/CPaperNativeTests/`: Active Swift test suite
+- `docs/RELEASE_AND_VALIDATION.md`: Current native `validate/package/release` flow and optional Developer ID/notary release notes
 
 ## Runtime Relationships
 
@@ -60,6 +62,15 @@ These directories are preserved for reference and limited maintenance only. Do n
 - Active Swift tests: `macos/Tests/CPaperNativeTests/`
 - Default validation command: `swift test --jobs 1`
 - Legacy Python tests: `legacy/python-backend/tests/`
+
+## Release And Validation
+
+- Native workflow: `.github/workflows/build.yml`
+- `validate`: shell syntax, JSON metadata, workflow YAML, version drift, repo hygiene, Swift quality checks, and `swift test --jobs 1`
+- `package`: runs after `validate` for `workflow_dispatch` and `push`, builds/verifies/mounts the native DMG, and uploads the DMG artifact
+- `release`: tag-only GitHub Release job; runs only for `push` events to `v*` tags after `package`
+- Signing defaults to ad hoc; optional Developer ID/notary signing and notarization require the documented local env vars or all GitHub Actions secrets
+- Release/install/privacy/disclaimer/data source reliability details live in `docs/RELEASE_AND_VALIDATION.md`
 
 ## Config And Metadata Files
 
@@ -95,5 +106,5 @@ These directories are preserved for reference and limited maintenance only. Do n
 
 - Swift/macOS is the only actively maintained product line.
 - Python bridge/backend code is archived and not part of active packaging.
-- The project site is documented as external; do not assume an in-repo `site/` app tree.
+- The project site is documented as external-link pending; do not assume an in-repo `site/` app tree.
 - The repository may still contain historical Python/pywebview references in legacy-only files.
