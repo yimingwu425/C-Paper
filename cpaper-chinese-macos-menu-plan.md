@@ -93,9 +93,25 @@ T0 ──┬── T1 ──┬── T3 ──┐
 - **location**: `macos/Sources/CPaperNativeApp/AppDelegate.swift`, `macos/Sources/CPaperNativeApp/main.swift`
 - **description**: Add a retained `AppMenuController` property to `AppDelegate` and install the menu before or during first window creation. Review the current startup chain where `applicationDidFinishLaunching` and `main.swift` can both call `showMainWindow()`, and keep that window behavior unchanged. Do not move the app to a SwiftUI `@main App` lifecycle.
 - **validation**: App launches with the same main window size/title behavior; menu installation is idempotent and only installs one main menu; the menu is visible before the user can interact with the window; unbound product menu items are disabled during loading or startup failure states. `swift test --jobs 1 --filter AppMenuControllerTests` passes.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - Added a retained `AppMenuController` property to `AppDelegate` and installed the menu through a private `installMainMenuIfNeeded()` guard.
+  - Kept the existing startup chain unchanged: `applicationDidFinishLaunching(_:)` still calls `showMainWindow()`, and `main.swift` may still call `showMainWindow()` again after `finishLaunching()`.
+  - Installed the main menu before first-window creation by calling `installMainMenuIfNeeded()` immediately before `showMainWindow()` work in `applicationDidFinishLaunching(_:)`, and also at the start of `showMainWindow()` as a safe fallback for any direct call path.
+  - Preserved existing main-window behavior by leaving the title, size, min size, toolbar style, and reactivation logic unchanged.
+  - Added startup-layer tests that verify:
+    - `applicationDidFinishLaunching(_:)` installs one menu and repeated `showMainWindow()` calls reuse the same main menu and same single window.
+    - Direct `showMainWindow()` calls still install the menu and create the expected `C-Paper` window.
+  - Validation:
+    - `swift build --target CPaperNativeApp`
+    - `swift test --jobs 1 --filter AppDelegateTests`
+  - Validation blocker:
+    - `swift test --jobs 1 --filter AppMenuControllerTests` is currently blocked by unrelated in-progress edits in `macos/Tests/CPaperNativeTests/AppMenuCommandCenterTests.swift`, which now references the not-yet-implemented T4 symbol `ReadyRootMenuBindings` and fails test-target compilation before `AppMenuControllerTests` can run.
+  - `reason_not_testable`: The exact “menu becomes visible before the user can interact with the window” timing cannot be asserted reliably in a unit test here. Static validation is: `applicationDidFinishLaunching(_:)` calls `installMainMenuIfNeeded()` before `showMainWindow()`, and `showMainWindow()` itself also guards menu installation before any window creation path.
 - **files edited/created**:
+  - `macos/Sources/CPaperNativeApp/AppDelegate.swift`
+  - `macos/Tests/CPaperNativeTests/AppDelegateTests.swift`
+  - `cpaper-chinese-macos-menu-plan.md`
 
 ### T4: Bind Menu Commands To Ready AppModel
 

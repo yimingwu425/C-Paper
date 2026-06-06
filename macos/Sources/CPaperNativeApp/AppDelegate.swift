@@ -4,12 +4,17 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
+    private let appMenuController = AppMenuController()
+    private var hasInstalledMainMenu = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installMainMenuIfNeeded()
         showMainWindow()
     }
 
     func showMainWindow() {
+        installMainMenuIfNeeded()
+
         if let window {
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
@@ -40,6 +45,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         self.window = window
+    }
+
+    private func installMainMenuIfNeeded() {
+        guard !hasInstalledMainMenu else { return }
+        appMenuController.install()
+        hasInstalledMainMenu = true
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
