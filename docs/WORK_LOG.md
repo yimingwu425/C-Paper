@@ -1148,3 +1148,22 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - The remaining large blur usage is the existing shared `ProductBackdrop`, not newly added panel decoration.
+
+### 2026-06-06 — Normalize shared transfer cancellation errors
+
+**Task**
+- Fix a cancellation edge case found during `T5` final verification.
+
+**Changed**
+- Updated `HTTPFileTransferClient.transfer` to map URLSession `NSURLErrorCancelled` / task cancellation into `CancellationError` while preserving cleanup of partial destination files.
+
+**Reason**
+- Full-suite verification exposed a flaky mismatch where cancellation sometimes surfaced as `NSURLErrorCancelled` instead of Swift `CancellationError`, even though the behavior was a cancelled transfer.
+
+**Tested**
+- FAIL: `swift test --jobs 1` failed in `HTTPFileTransferClientTests.testTransferRemovesPartialFileWhenCancelled` with `NSURLErrorDomain Code=-999`.
+- GREEN: `swift test --jobs 1 --filter HTTPFileTransferClientTests`
+- GREEN: `swift test --jobs 1 --filter HTTPFileTransferClientTests/testTransferRemovesPartialFileWhenCancelled`
+
+**Risks / Notes**
+- Only cancellation errors are normalized; non-cancellation transfer failures still propagate unchanged.

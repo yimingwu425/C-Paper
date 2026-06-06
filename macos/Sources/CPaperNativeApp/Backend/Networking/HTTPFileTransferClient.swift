@@ -59,41 +59,56 @@ final class HTTPFileTransferClient: @unchecked Sendable {
             }
         }
 
-        let (bytes, response) = try await session.bytes(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkClientError.invalidResponse
-        }
-        try NetworkClient.validate(httpResponse)
+        do {
+            let (bytes, response) = try await session.bytes(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkClientError.invalidResponse
+            }
+            try NetworkClient.validate(httpResponse)
 
-        let expectedLength = httpResponse.expectedContentLength
-        await progress(expectedLength > 0 ? 0 : nil)
+            let expectedLength = httpResponse.expectedContentLength
+            await progress(expectedLength > 0 ? 0 : nil)
 
-        fileManager.createFile(atPath: destinationURL.path, contents: nil)
-        handle = try FileHandle(forWritingTo: destinationURL)
+            fileManager.createFile(atPath: destinationURL.path, contents: nil)
+            handle = try FileHandle(forWritingTo: destinationURL)
 
-        var receivedLength: Int64 = 0
-        var buffer = Data()
-        buffer.reserveCapacity(chunkSize)
+            var receivedLength: Int64 = 0
+            var buffer = Data()
+            buffer.reserveCapacity(chunkSize)
 
-        for try await byte in bytes {
-            try Task.checkCancellation()
-            buffer.append(byte)
-            receivedLength += 1
+            for try await byte in bytes {
+                try Task.checkCancellation()
+                buffer.append(byte)
+                receivedLength += 1
 
-            if buffer.count >= chunkSize {
-                try handle?.write(contentsOf: buffer)
-                buffer.removeAll(keepingCapacity: true)
-                if expectedLength > 0 {
-                    await progress(min(Double(receivedLength) / Double(expectedLength), 0.99))
+                if buffer.count >= chunkSize {
+                    try handle?.write(contentsOf: buffer)
+                    buffer.removeAll(keepingCapacity: true)
+                    if expectedLength > 0 {
+                        await progress(min(Double(receivedLength) / Double(expectedLength), 0.99))
+                    }
                 }
             }
-        }
 
-        if !buffer.isEmpty {
-            try handle?.write(contentsOf: buffer)
-        }
+            if !buffer.isEmpty {
+                try handle?.write(contentsOf: buffer)
+            }
 
-        await progress(1)
-        completed = true
+            await progress(1)
+            completed = true
+        } catch {
+            if Self.isCancellationError(error) {
+                throw CancellationError()
+            }
+            throw error
+        }
+    }
+
+    private static func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError || Task.isCancelled {
+            return true
+        }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 }
