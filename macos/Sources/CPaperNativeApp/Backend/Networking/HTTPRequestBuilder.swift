@@ -1,7 +1,7 @@
 import Foundation
 
 struct HTTPRequestBuilder: Sendable {
-    static let defaultUserAgent = "C-Paper/6.0.3 (macOS; SwiftNative)"
+    static let defaultUserAgent = BackendConstants.userAgent
 
     var userAgent: String
     var timeout: TimeInterval

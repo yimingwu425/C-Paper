@@ -148,9 +148,9 @@ All implementation tasks -> T5
 - **location**: `version.json`, `BackendConstants.swift`, `HTTPRequestBuilder.swift`, `scripts/build_native_dmg.sh`, `README.md`
 - **description**: Make `version.json` the canonical version source. Other version displays, User-Agent strings, and build script metadata should be generated from it or checked against it. Add a drift check that fails when versions diverge.
 - **validation**: Drift check passes in the intended state and fails when any duplicate version string is intentionally changed.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: RED/FAIL: added `scripts/check_version_drift.sh` first and ran it against the pre-change repo; it failed with `VERSION DRIFT: BackendConstants.userAgent must derive from BackendConstants.version`. Also proved controlled drift failure without dirtying tracked files by overriding a temporary `BackendConstants.swift` copy to `9.9.9`; the same script failed with `VERSION DRIFT: BackendConstants.version expected 6.0.3 but found 9.9.9`. GREEN/PASS: added `scripts/lib/version_helpers.sh`, switched `scripts/build_native_dmg.sh` to read `VERSION` from `version.json`, derived `BackendConstants.userAgent` from `BackendConstants.version`, pointed `HTTPRequestBuilder.defaultUserAgent` at `BackendConstants.userAgent`, and reduced README hardcoded version duplication. Validation PASS: `bash scripts/check_version_drift.sh`, `bash -n scripts/build_native_dmg.sh`, `python3 -m json.tool version.json`, and `swift build --product CPaperNative`. Additional evidence: attempted `swift test --jobs 1 --filter UpdateServiceTests`, but current test compilation is blocked by pre-existing parallel-worktree errors in `StartupBootCoordinatorTests` (`cannot find 'AppBootCoordinator' in scope`), not by T2.1 changes.
+- **files edited/created**: `README.md`; `macos/Sources/CPaperNativeApp/Backend/Core/BackendConstants.swift`; `macos/Sources/CPaperNativeApp/Backend/Networking/HTTPRequestBuilder.swift`; `scripts/build_native_dmg.sh`; `scripts/check_version_drift.sh`; `scripts/lib/version_helpers.sh`
 
 ### T2.2: Split CI Into Validate, Package, Release
 

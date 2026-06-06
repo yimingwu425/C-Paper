@@ -24,7 +24,7 @@ swift run CPaperNative
 
 当前 native 主线版本：`6.0.3`
 
-6.0.3 重点：
+当前版本重点：
 
 - 修复批量下载中熔断器打开后重试轮次被立即耗尽的问题
 - 下载失败进入熔断恢复窗口时，会等待 recovery timeout 后再重新入队
@@ -111,9 +111,9 @@ CONFIGURATION=release bash scripts/build_native_dmg.sh
 常规发布步骤：
 
 ```bash
-git tag v6.0.3
+git tag v<version>
 git push origin main
-git push origin v6.0.3
+git push origin v<version>
 ```
 
 tag 触发后，workflow 会：

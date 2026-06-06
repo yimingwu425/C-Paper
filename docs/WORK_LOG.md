@@ -768,3 +768,30 @@ This file is a concise running log of meaningful code, configuration, and docume
 **Risks / Notes**
 - `reason_not_testable`: this was a baseline measurement task rather than a code-fix/TDD task, so no new RED/GREEN test was introduced.
 - The four skipped tests are the existing live-source checks gated by `RUN_LIVE_SOURCE_TESTS=1`.
+
+### 2026-06-06 — Centralize native version metadata
+
+**Task**
+- Complete `T2.1` from `cpaper-professionalization-plan.md` by making `version.json` the native version single source of truth and adding a drift check.
+
+**Changed**
+- Added `scripts/check_version_drift.sh` to validate `version.json`, Swift version constants, User-Agent reuse, DMG build-script version loading, and the README current-version display.
+- Added `scripts/lib/version_helpers.sh` so shell scripts can read `version.json` without duplicating JSON parsing.
+- Updated `scripts/build_native_dmg.sh` to load `VERSION` from `version.json` before deriving bundle and DMG artifact metadata.
+- Updated `BackendConstants.swift` so the native User-Agent derives from `BackendConstants.version`, and updated `HTTPRequestBuilder.swift` to reuse that shared User-Agent.
+- Reduced README hardcoded release-version duplication by keeping the current-version display explicit and making tag command examples version-agnostic.
+
+**Reason**
+- Native version metadata had drift-prone duplicates across Swift constants, the HTTP layer, release packaging, and documentation.
+
+**Tested**
+- RED: `bash scripts/check_version_drift.sh`
+- RED controlled mismatch: `bash scripts/check_version_drift.sh --backend-constants <temporary BackendConstants.swift copy with version changed to 9.9.9>`
+- GREEN: `bash scripts/check_version_drift.sh`
+- `bash -n scripts/build_native_dmg.sh`
+- `python3 -m json.tool version.json`
+- `swift build --product CPaperNative`
+- Attempted: `swift test --jobs 1 --filter UpdateServiceTests`
+
+**Risks / Notes**
+- `swift test --jobs 1 --filter UpdateServiceTests` is currently blocked by pre-existing compile errors in `macos/Tests/CPaperNativeTests/StartupBootCoordinatorTests.swift` from parallel T1.1 work (`cannot find 'AppBootCoordinator' in scope`), so T2.1 validation used drift/build checks plus an app-target build instead of a passing focused test run.
