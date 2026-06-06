@@ -1039,3 +1039,32 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - Python dependency locking was intentionally not added because the legacy workflow only runs manually or from `v*-legacy` tags, not from ordinary legacy file changes.
+
+### 2026-06-06 — Clean transfer-related backend facade glue
+
+**Task**
+- Complete `T1.6` from `cpaper-professionalization-plan.md` by removing temporary preview-transfer glue and duplicate downloaded-file lookup logic from `NativeBackendService`.
+
+**Changed**
+- Added `macos/Sources/CPaperNativeApp/Backend/Downloads/PreviewFileService.swift` to own preview local-file reuse, cache location, EasyPaper source URL resolution, shared-transfer preview download, and proxy forwarding.
+- Added `DownloadDestinationBuilder.existingDownloadURL(for:saveDirectory:fileManager:)` so preview and download destination rules share the same merged/split file-location helper.
+- Reduced `NativeBackendService.previewURL(for:settings:)` to a narrow facade method that delegates to `PreviewFileService`.
+- Added `DownloadDestinationBuilderTests` coverage for finding already-downloaded files in both merged and split destination layouts.
+- Updated `cpaper-professionalization-plan.md` to mark `T1.6` completed.
+
+**Reason**
+- After downloads, preview, and updates moved onto the shared transfer path, `NativeBackendService` still contained preview-specific transfer wiring and local file lookup details that belonged in smaller backend support modules.
+
+**Tested**
+- RED: `swift test --jobs 1 --filter DownloadDestinationBuilderTests/testExistingDownloadURLFindsMergedAndSplitDestinations`
+- GREEN: `swift test --jobs 1 --filter DownloadDestinationBuilderTests/testExistingDownloadURLFindsMergedAndSplitDestinations`
+- GREEN: `swift test --jobs 1 --filter NativeBackendServicePreviewTests`
+- GREEN: `swift test --jobs 1 --filter DownloadManagerTests`
+- GREEN: `swift test --jobs 1 --filter UpdateServiceTests`
+- GREEN: `swift test --jobs 1 --filter ModelTests`
+- GREEN: `swift test --jobs 1`
+- Static cleanup: `rg -n "PreviewTransferWriter|localDownloadedFileURL|defaultPreviewTransfer|URLSession\\.shared\\.download|data\\(from:" macos/Sources/CPaperNativeApp/Backend macos/Sources/CPaperNativeApp/Views`
+- `git diff --check`
+
+**Risks / Notes**
+- Preview cache filenames still intentionally match the existing filename-based behavior from T1.4; this task only moved ownership out of the facade.

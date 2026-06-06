@@ -138,9 +138,9 @@ All implementation tasks -> T5
 - **location**: `NativeBackendService.swift`, paper workflow state, related tests
 - **description**: After download and preview both use the shared transfer contract, remove any temporary adapter glue, duplicate local-file lookup logic, or obsolete transfer helpers. Keep `NativeBackendService` as a narrow facade rather than a dumping ground for transfer details.
 - **validation**: Search, preview, single download, batch download, cancel, and update tests still pass; `NativeBackendService` exposes only stable app-facing methods.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: RED: `swift test --jobs 1 --filter DownloadDestinationBuilderTests/testExistingDownloadURLFindsMergedAndSplitDestinations` failed at compile time because `DownloadDestinationBuilder.existingDownloadURL` did not exist. GREEN: added `DownloadDestinationBuilder.existingDownloadURL(for:saveDirectory:fileManager:)` for merged and split downloaded-file lookup; moved preview local-file reuse, preview cache pathing, EasyPaper URL resolution, and shared-transfer preview writes into `PreviewFileService`; and reduced `NativeBackendService.previewURL(for:settings:)` to a narrow facade call. Validation PASS: the same focused RED test passed; `swift test --jobs 1 --filter NativeBackendServicePreviewTests`, `swift test --jobs 1 --filter DownloadManagerTests`, `swift test --jobs 1 --filter UpdateServiceTests`, `swift test --jobs 1 --filter ModelTests`, and full `swift test --jobs 1` passed with 75 tests, 4 skipped, and 0 failures. Static cleanup check: `rg -n "PreviewTransferWriter|localDownloadedFileURL|defaultPreviewTransfer|URLSession\\.shared\\.download|data\\(from:" macos/Sources/CPaperNativeApp/Backend macos/Sources/CPaperNativeApp/Views` found no obsolete facade/download glue.
+- **files edited/created**: `macos/Sources/CPaperNativeApp/Backend/Core/NativeBackendService.swift`; `macos/Sources/CPaperNativeApp/Backend/Downloads/DownloadDestinationBuilder.swift`; `macos/Sources/CPaperNativeApp/Backend/Downloads/PreviewFileService.swift`; `macos/Tests/CPaperNativeTests/DownloadDestinationBuilderTests.swift`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T2.1: Create Version Single Source Of Truth
 

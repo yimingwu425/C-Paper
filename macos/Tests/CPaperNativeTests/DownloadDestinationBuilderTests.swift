@@ -160,4 +160,38 @@ final class DownloadDestinationBuilderTests: XCTestCase {
         XCTAssertEqual(plan.tasks.count, 1)
         XCTAssertEqual(plan.tasks.first?.saveURL.path, root.appendingPathComponent("2023/QP/9709_s23_qp_12.pdf").path)
     }
+
+    func testExistingDownloadURLFindsMergedAndSplitDestinations() throws {
+        let root = makeTemporaryDownloadDirectory()
+        let file = PaperFile(
+            filename: "9709_s24_qp_12.pdf",
+            url: URL(string: "https://example.test/9709_s24_qp_12.pdf")!,
+            year: 2024,
+            season: "Jun",
+            paperType: "QP",
+            subjectCode: "9709",
+            number: "12",
+            label: nil,
+            sourceID: .frankcie
+        )
+        let mergedURL = root.appendingPathComponent("9709_s24_qp_12.pdf")
+        let splitURL = root.appendingPathComponent("2024/QP/9709_s24_qp_12.pdf")
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("merged".utf8).write(to: mergedURL)
+
+        XCTAssertEqual(
+            DownloadDestinationBuilder.existingDownloadURL(for: file, saveDirectory: root),
+            mergedURL
+        )
+
+        try FileManager.default.removeItem(at: mergedURL)
+        try FileManager.default.createDirectory(at: splitURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("split".utf8).write(to: splitURL)
+
+        XCTAssertEqual(
+            DownloadDestinationBuilder.existingDownloadURL(for: file, saveDirectory: root),
+            splitURL
+        )
+    }
 }

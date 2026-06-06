@@ -114,6 +114,35 @@ enum DownloadDestinationBuilder {
         return DownloadDestinationPlan(tasks: tasks, skipped: skipped)
     }
 
+    static func existingDownloadURL(
+        for file: PaperFile,
+        saveDirectory: URL,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        let root = saveDirectory.standardizedFileURL
+        let filename = file.filename
+        guard filename == (filename as NSString).lastPathComponent else { return nil }
+
+        let mergedURL = root.appendingPathComponent(filename, isDirectory: false)
+        if fileManager.fileExists(atPath: mergedURL.path) {
+            return mergedURL
+        }
+
+        guard let year = file.year.map(String.init) else { return nil }
+        let paperType = file.paperType?.uppercased() ?? ""
+        guard paperType == "QP" || paperType == "MS" else { return nil }
+
+        let splitURL = root
+            .appendingPathComponent(year, isDirectory: true)
+            .appendingPathComponent(paperType, isDirectory: true)
+            .appendingPathComponent(filename, isDirectory: false)
+        if fileManager.fileExists(atPath: splitURL.path) {
+            return splitURL
+        }
+
+        return nil
+    }
+
     private static func safePDFFileName(_ value: String, url: URL) -> String? {
         guard !value.isEmpty else { return nil }
         let lower = value.lowercased()

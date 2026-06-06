@@ -1,8 +1,6 @@
 import AppKit
 import Foundation
 
-typealias PreviewTransferWriter = @Sendable (_ sourceURL: URL, _ destinationURL: URL, _ proxyURL: String) async throws -> Void
-
 final class NativeBackendService: @unchecked Sendable {
     private let paths: AppStoragePaths
     private let settingsStore: SettingsStore
@@ -11,25 +9,27 @@ final class NativeBackendService: @unchecked Sendable {
     private let cacheStore: SearchCacheStore
     private let downloadManager: DownloadManager
     private let updateService: UpdateService
-    private let previewTransfer: PreviewTransferWriter
-    private let fileManager: FileManager
+    private let previewService: PreviewFileService
 
     init(
         paths: AppStoragePaths? = nil,
         downloadManager: DownloadManager? = nil,
         updateService: UpdateService? = nil,
-        previewTransfer: @escaping PreviewTransferWriter = NativeBackendService.defaultPreviewTransfer,
+        previewTransfer: @escaping PreviewFileService.TransferWriter = PreviewFileService.defaultTransfer,
         fileManager: FileManager = .default
     ) throws {
         let resolvedPaths = try paths ?? AppStoragePaths()
         self.paths = resolvedPaths
-        self.fileManager = fileManager
         self.settingsStore = SettingsStore(paths: resolvedPaths)
         self.favoritesStore = FavoritesStore(paths: resolvedPaths)
         let historyStore = DownloadHistoryStore(paths: resolvedPaths)
         self.historyStore = historyStore
         self.cacheStore = SearchCacheStore(paths: resolvedPaths)
-        self.previewTransfer = previewTransfer
+        self.previewService = PreviewFileService(
+            paths: resolvedPaths,
+            transfer: previewTransfer,
+            fileManager: fileManager
+        )
         let historyRecorder = DownloadHistoryRecorder(store: historyStore)
         self.downloadManager = downloadManager ?? DownloadManager(completionRecorder: { task in
             await historyRecorder.record(task)
@@ -198,22 +198,7 @@ final class NativeBackendService: @unchecked Sendable {
     }
 
     func previewURL(for file: PaperFile, settings: DownloadSettings) async throws -> URL {
-        if let localDownloadedFileURL = localDownloadedFileURL(for: file, saveDirectory: settings.saveDirectory) {
-            return localDownloadedFileURL
-        }
-
-        let cacheURL = previewCacheURL(for: file)
-        if fileManager.fileExists(atPath: cacheURL.path) {
-            return cacheURL
-        }
-
-        let sourceURL = try DownloadSourceURLResolver.resolvedSourceURL(for: file)
-        try fileManager.createDirectory(
-            at: cacheURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try await previewTransfer(sourceURL, cacheURL, settings.proxyURL)
-        return cacheURL
+        try await previewService.previewURL(for: file, settings: settings)
     }
 
     private func registry(proxyURL: String) -> SourceRegistry {
@@ -236,38 +221,6 @@ final class NativeBackendService: @unchecked Sendable {
             .map { "\($0.sourceID.title): \($0.message)" }
     }
 
-    private func localDownloadedFileURL(for file: PaperFile, saveDirectory: String) -> URL? {
-        let expandedPath = (saveDirectory as NSString).expandingTildeInPath
-
-        let mergedURL = URL(fileURLWithPath: expandedPath).appendingPathComponent(file.filename)
-        if fileManager.fileExists(atPath: mergedURL.path) {
-            return mergedURL
-        }
-
-        if let year = file.year.map(String.init), let type = file.paperType?.uppercased() {
-            let subfolder = (type == "QP" || type == "MS") ? type : ""
-            let splitURL = URL(fileURLWithPath: expandedPath)
-                .appendingPathComponent(year)
-                .appendingPathComponent(subfolder)
-                .appendingPathComponent(file.filename)
-            if fileManager.fileExists(atPath: splitURL.path) {
-                return splitURL
-            }
-        }
-
-        return nil
-    }
-
-    private func previewCacheURL(for file: PaperFile) -> URL {
-        paths.cacheDirectory
-            .appendingPathComponent("preview", isDirectory: true)
-            .appendingPathComponent(file.filename)
-    }
-
-    private static func defaultPreviewTransfer(sourceURL: URL, destinationURL: URL, proxyURL: String) async throws {
-        let client = HTTPFileTransferClient(proxy: ProxyConfiguration(rawValue: proxyURL))
-        try await client.transfer(from: sourceURL, to: destinationURL) { _ in }
-    }
 }
 
 private actor DownloadHistoryRecorder {
