@@ -238,9 +238,9 @@ All implementation tasks -> T5
 - **location**: full repo
 - **description**: Run deterministic verification, release packaging verification, and final documentation audit. Keep live source checks manual/nightly unless explicitly requested as blocking.
 - **validation**: Required checks pass or failures are documented with exact commands and output summary: `swift test --jobs 1`, focused tests, `bash -n scripts/build_native_dmg.sh scripts/lib/native_dmg_helpers.sh`, `python3 -m json.tool version.json`, YAML parse, version drift check, hygiene scan, `CONFIGURATION=release bash scripts/build_native_dmg.sh`, DMG verify/mount checks.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: Final verification completed. Initial `swift test --jobs 1` exposed a flaky cancellation-surface mismatch in `HTTPFileTransferClientTests.testTransferRemovesPartialFileWhenCancelled` where URLSession returned `NSURLErrorCancelled`; fixed in `ecb0b65` by normalizing cancellation errors and reran full tests successfully. Initial release build also exposed local Finder/file-provider metadata causing ad hoc codesign to retry noisily; fixed in `ac33dbd` by retrying codesign after metadata cleanup while keeping the no-secret ad hoc path. Final validation PASS: `swift test --jobs 1` passed with 78 tests, 4 skipped, and 0 failures; `bash -n scripts/build_native_dmg.sh scripts/lib/native_dmg_helpers.sh`; `python3 -m json.tool version.json`; Ruby YAML parse for `.github/workflows/build.yml` and `.github/workflows/legacy-release.yml`; `bash scripts/check_version_drift.sh`; `bash scripts/check_repo_hygiene.sh`; `bash scripts/check_swift_quality.sh` (SwiftLint/SwiftFormat skipped because binaries are not installed); `git diff --check`; `CONFIGURATION=release bash scripts/build_native_dmg.sh`; `hdiutil verify dist/C-Paper-Native-6.0.3-standalone-20260606.dmg`; mounted DMG content check for `CPaperNative.app`, `Applications` symlink, `.background/background.png`, and `codesign --verify --deep --strict` on the mounted app. Live source tests remained skipped by default as intended unless `RUN_LIVE_SOURCE_TESTS=1` is set.
+- **files edited/created**: `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ## Parallel Execution Groups
 

@@ -1189,3 +1189,30 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - This keeps no-secret builds on the ad hoc path and does not require Apple signing credentials.
+
+### 2026-06-06 — Final verification and release readiness audit
+
+**Task**
+- Complete `T5` from `cpaper-professionalization-plan.md` with deterministic tests, static checks, release packaging, and DMG verification.
+
+**Changed**
+- Updated `cpaper-professionalization-plan.md` to mark `T5` completed and record final verification evidence.
+
+**Reason**
+- The full professionalization plan needed a final audit proving the repository, native app, CI/release docs, and packaging path are in a coherent release-ready state.
+
+**Tested**
+- `swift test --jobs 1`: final run passed with 78 tests, 4 skipped, and 0 failures.
+- `bash -n scripts/build_native_dmg.sh scripts/lib/native_dmg_helpers.sh`
+- `python3 -m json.tool version.json`
+- Ruby YAML parse for `.github/workflows/build.yml` and `.github/workflows/legacy-release.yml`
+- `bash scripts/check_version_drift.sh`
+- `bash scripts/check_repo_hygiene.sh`
+- `bash scripts/check_swift_quality.sh` (SwiftLint/SwiftFormat skipped because the binaries are not installed locally)
+- `git diff --check`
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+- `hdiutil verify dist/C-Paper-Native-6.0.3-standalone-20260606.dmg`
+- Mounted DMG verification for `CPaperNative.app`, `Applications` symlink, `.background/background.png`, and `codesign --verify --deep --strict` on the mounted app.
+
+**Risks / Notes**
+- Live third-party source tests remain opt-in with `RUN_LIVE_SOURCE_TESTS=1` because upstream sites are intentionally treated as unstable external dependencies.
