@@ -911,3 +911,31 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - This task intentionally did not migrate `DownloadManager` or `UpdateService` to the new client yet; those call-site integrations remain for later plan tasks.
+
+### 2026-06-06 — Split native CI into validate, package, and release jobs
+
+**Task**
+- Complete `T2.2` from `cpaper-professionalization-plan.md` by refactoring the native GitHub Actions workflow into separate validate, package, and release jobs with native-only path ownership.
+
+**Changed**
+- Updated `.github/workflows/build.yml` to add a `validate` job for pull requests and native-relevant pushes, covering shell syntax, JSON metadata parsing, workflow YAML parsing, version drift, repo hygiene, Swift quality checks, and `swift test --jobs 1`.
+- Split DMG build, mount/verify, and artifact upload into a `package` job gated by `needs: validate`.
+- Split GitHub release publication into a `release` job gated by `needs: package`, added artifact download there, and kept the existing release notes generation flow.
+- Added workflow-level `concurrency` and removed `legacy/python-backend/**` from the native workflow path triggers.
+
+**Reason**
+- The native CI path was still a single build-and-release job with legacy Python trigger overlap, so validation, packaging, and tag publishing were not separated cleanly.
+
+**Tested**
+- `reason_not_testable`: this is CI/workflow wiring, so verification used static parsing/graph checks and the concrete validate commands rather than a RED/GREEN unit test.
+- `python3 - <<'PY' ... yaml.load(..., Loader=yaml.BaseLoader) ... PY` asserting `package -> validate`, `release -> package`, tag-only release gating, no `legacy/python-backend/**` native trigger, and workflow `concurrency`
+- `python3 - <<'PY' ... for path in .github/workflows/*.yml: yaml.load(..., Loader=yaml.BaseLoader) ... PY`
+- `python3 -m json.tool version.json`
+- `bash scripts/check_version_drift.sh`
+- `bash scripts/check_repo_hygiene.sh`
+- `bash scripts/check_swift_quality.sh`
+- `swift test --jobs 1`
+- `git diff --check`
+
+**Risks / Notes**
+- `package` still runs on `workflow_dispatch` in addition to `push` because the previous native workflow already exposed manual dispatch, while `release` remains tag-only.

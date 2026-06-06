@@ -158,9 +158,9 @@ All implementation tasks -> T5
 - **location**: `.github/workflows/build.yml`, validation scripts
 - **description**: Refactor the native workflow into `validate`, `package`, and `release` jobs. `validate` runs on `pull_request` and native-relevant pushes, and includes Swift tests, shell syntax, JSON/YAML parsing, version drift, and repo hygiene. `package` builds and verifies DMG for main/tag release paths. `release` publishes only for tags. Add workflow `concurrency`, and remove legacy Python path triggers from native release unless intentionally needed.
 - **validation**: Workflow graph clearly blocks package/release on validate; tag-only release behavior is preserved; path filters match native ownership.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: `reason_not_testable`: this task refactors GitHub Actions control flow and path filters, so validation used static workflow parsing/inspection plus the concrete commands wired into `validate` rather than a RED/GREEN unit test. Split `.github/workflows/build.yml` into `validate`, `package`, and `release` jobs; added top-level workflow `concurrency`; scoped `pull_request` and branch-push path filters to native-owned files; removed `legacy/python-backend/**` from the native workflow triggers; kept DMG artifact upload in `package`; and moved tag-only release publishing behind `needs: package` with artifact download in `release`. Validation PASS: `python3` + `yaml.BaseLoader` parsed `.github/workflows/build.yml` and asserted `package -> validate`, `release -> package`, tag-only release condition, absence of `legacy/python-backend/**`, and presence of workflow concurrency; `python3` also parsed both `.github/workflows/build.yml` and `.github/workflows/legacy-release.yml`. Validation PASS: `python3 -m json.tool version.json`, `bash scripts/check_version_drift.sh`, `bash scripts/check_repo_hygiene.sh`, `bash scripts/check_swift_quality.sh`, `swift test --jobs 1`, and `git diff --check`.
+- **files edited/created**: `.github/workflows/build.yml`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T2.3: Prepare Signing And Notarization Without Requiring Secrets
 
