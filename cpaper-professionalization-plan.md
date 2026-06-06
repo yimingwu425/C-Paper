@@ -58,9 +58,9 @@ All implementation tasks -> T5
 - **location**: `macos/Sources/CPaperNativeApp/Backend/Parsing/`, `macos/Tests/CPaperNativeTests/PaperParsingTests.swift`
 - **description**: Restore or recreate `PaperFilenameParser.swift` using the current call sites, `PaperParsingTests`, and the latest git-history version of this file as the contract. Do not infer new behavior from legacy code unless current tests/callers explicitly require it. Keep behavior aligned for subject, session/year, paper type, component number, season name, paper group, and invalid-path rejection.
 - **validation**: `swift test --jobs 1 --filter PaperParsingTests` compiles and passes.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: RED: `swift test --jobs 1 --filter PaperParsingTests` failed at compile time because `PaperFilenameParser` and `ParsedPaperFilename` were missing from the active source set, producing downstream parser/source compile errors. Restored `macos/Sources/CPaperNativeApp/Backend/Parsing/PaperFilenameParser.swift` from the latest git-tracked version to reestablish the current parser contract without adding new behavior. GREEN: the same command built successfully and `PaperParsingTests` ran 6 tests with 0 failures.
+- **files edited/created**: `macos/Sources/CPaperNativeApp/Backend/Parsing/PaperFilenameParser.swift`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T0.3: Correct Active Architecture Boundaries
 

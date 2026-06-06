@@ -707,3 +707,22 @@ This file is a concise running log of meaningful code, configuration, and docume
 - `find . -name '.DS_Store' -print`
 - `git status --short`
 - Generated output existence check for `build/`, `dist/`, `.build/`, `scripts/dist/`, `.pytest_cache/`, and `.git/objects/maintenance 2.lock`
+
+### 2026-06-06 — Restore paper filename parser baseline
+
+**Task**
+- Restore the missing active Swift parser file so parsing tests compile and pass again.
+
+**Changed**
+- Restored `macos/Sources/CPaperNativeApp/Backend/Parsing/PaperFilenameParser.swift` from the latest git-tracked version.
+- Updated `cpaper-professionalization-plan.md` to mark T0.2 completed and record RED/GREEN evidence.
+
+**Reason**
+- The active source tree was missing `PaperFilenameParser.swift`, which broke parsing-related compilation across current sources and tests.
+
+**Tested**
+- RED: `swift test --jobs 1 --filter PaperParsingTests` failed to compile because `PaperFilenameParser` and `ParsedPaperFilename` were missing.
+- GREEN: `swift test --jobs 1 --filter PaperParsingTests`
+
+**Risks / Notes**
+- No parser behavior was expanded; the file was restored to the current git-tracked contract used by active call sites and tests.
