@@ -88,9 +88,9 @@ All implementation tasks -> T5
 - **location**: `macos/Sources/CPaperNativeApp/main.swift`, `RootView.swift`, `AppModel.swift`, setup state files
 - **description**: Replace eager `AppModel()` construction and `try! NativeBackendService()` with a boot container state: loading, ready, failed. On backend initialization failure, show a focused error view with retry and copyable diagnostic text. Do not swallow errors silently.
 - **validation**: Injected failing backend/path initialization shows failure UI instead of crashing; normal startup still bootstraps settings, subjects, favorites, downloads, and update checks. Repeated retry attempts are idempotent: no duplicate startup update checks, no leaked half-initialized model, and only one successful ready model is active.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: RED evidence was captured during the parallel T1.1 test phase when `StartupBootCoordinatorTests` referenced the new boot coordinator contract before `AppBootCoordinator` was available to the test target, causing SwiftPM compilation to fail with `cannot find 'AppBootCoordinator' in scope`. Implemented `AppBootCoordinator` with loading/ready/failed phases, explicit failing diagnostics, retry support, and stale-attempt protection; changed `AppModel` to require an injected backend and added `AppModel.live()` for fallible live startup; moved `RootView` to render loading, ready, and failure startup states. GREEN: `swift test --jobs 1 --filter StartupBootCoordinatorTests` passed 2 tests with 0 failures, and `swift test --jobs 1` passed 62 tests with 4 skipped and 0 failures.
+- **files edited/created**: `macos/Sources/CPaperNativeApp/State/AppBootCoordinator.swift`; `macos/Sources/CPaperNativeApp/State/AppModel.swift`; `macos/Sources/CPaperNativeApp/Views/RootView.swift`; `macos/Tests/CPaperNativeTests/StartupBootCoordinatorTests.swift`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T1.2: Add Shared File Transfer Layer
 

@@ -819,3 +819,23 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - The focused SwiftPM test run is currently blocked after the T1.5 fix by concurrent untracked `macos/Tests/CPaperNativeTests/StartupBootCoordinatorTests.swift` from parallel T1.1 work (`cannot find 'AppBootCoordinator' in scope`), so final behavior validation used the built app target plus a temporary compiled harness against the real `CPaperNativeApp` module.
+
+### 2026-06-06 — Make startup initialization recoverable
+
+**Task**
+- Complete `T1.1` from `cpaper-professionalization-plan.md` by replacing eager crashing startup with a recoverable boot state.
+
+**Changed**
+- Added `AppBootCoordinator` with loading, ready, and failed phases, retry handling, and stale-attempt protection.
+- Changed `AppModel` to require an injected backend and added `AppModel.live()` for fallible live initialization.
+- Updated `RootView` to render startup loading and failure states before showing the ready app shell.
+- Added `StartupBootCoordinatorTests` for initialization failure recovery and overlapping retry idempotency.
+- Updated `cpaper-professionalization-plan.md` to mark `T1.1` completed.
+
+**Reason**
+- `AppModel` previously used `try! NativeBackendService()`, so startup storage or migration failures could crash the app before the UI could show a recoverable error.
+
+**Tested**
+- RED: parallel T1.1 test phase produced a compile failure for `StartupBootCoordinatorTests` while `AppBootCoordinator` was missing from the target.
+- GREEN: `swift test --jobs 1 --filter StartupBootCoordinatorTests`
+- GREEN: `swift test --jobs 1`

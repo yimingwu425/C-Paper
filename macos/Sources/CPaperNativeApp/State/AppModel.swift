@@ -35,12 +35,12 @@ final class AppModel {
     @ObservationIgnored let backend: NativeBackendService
     @ObservationIgnored var pollTask: Task<Void, Never>?
 
-    init(backend: NativeBackendService? = nil) {
-        if let backend {
-            self.backend = backend
-        } else {
-            self.backend = try! NativeBackendService()
-        }
+    init(backend: NativeBackendService) {
+        self.backend = backend
+    }
+
+    static func live() throws -> AppModel {
+        AppModel(backend: try NativeBackendService())
     }
 
     var completedDownloadCount: Int {

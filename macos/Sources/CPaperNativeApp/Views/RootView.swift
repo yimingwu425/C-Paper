@@ -1,8 +1,39 @@
+import AppKit
 import SwiftUI
 
 struct RootView: View {
-    @State private var model = AppModel()
+    @State private var bootCoordinator: AppBootCoordinator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(bootCoordinator: AppBootCoordinator = AppBootCoordinator()) {
+        _bootCoordinator = State(initialValue: bootCoordinator)
+    }
+
+    var body: some View {
+        Group {
+            switch bootCoordinator.phase {
+            case .loading:
+                StartupLoadingView()
+            case let .ready(model):
+                ReadyRootView(model: model, reduceMotion: reduceMotion)
+            case let .failed(failure):
+                StartupFailureView(failure: failure) {
+                    Task {
+                        await bootCoordinator.retry()
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 1100, minHeight: 720)
+        .task {
+            await bootCoordinator.startIfNeeded()
+        }
+    }
+}
+
+private struct ReadyRootView: View {
+    @Bindable var model: AppModel
+    let reduceMotion: Bool
 
     var body: some View {
         NavigationSplitView {
@@ -34,14 +65,9 @@ struct RootView: View {
             }
             .nativeContentBackground()
         }
-        .frame(minWidth: 1100, minHeight: 720)
         .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.route)
         .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.isLoading)
         .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: model.downloadSnapshot.phase)
-        .task {
-            await model.bootstrap()
-            await model.checkForUpdates(source: .startup)
-        }
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -123,6 +149,81 @@ struct RootView: View {
                 }
             }
         )
+    }
+}
+
+private struct StartupLoadingView: View {
+    var body: some View {
+        ZStack {
+            ProductBackdrop()
+                .ignoresSafeArea()
+
+            GlassSurface(role: .floating, padding: CPDesign.Spacing.xl, strokeOpacity: 0.72) {
+                VStack(spacing: CPDesign.Spacing.md) {
+                    ProgressView()
+                        .controlSize(.regular)
+                    Text("正在启动 C-Paper")
+                        .font(.headline.weight(.semibold))
+                    Text("正在准备设置、收藏与下载状态。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 320)
+            }
+        }
+        .nativeContentBackground()
+    }
+}
+
+private struct StartupFailureView: View {
+    let failure: AppBootFailure
+    let onRetry: () -> Void
+
+    var body: some View {
+        ZStack {
+            ProductBackdrop()
+                .ignoresSafeArea()
+
+            GlassSurface(role: .floating, padding: CPDesign.Spacing.xl, strokeOpacity: 0.76) {
+                VStack(alignment: .leading, spacing: CPDesign.Spacing.lg) {
+                    VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
+                        Label("启动失败", systemImage: "exclamationmark.triangle.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.orange)
+                        Text("C-Paper 未能完成初始化。请重试；如果问题持续，请复制下方诊断信息。")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
+                        Text(failure.message)
+                            .font(.headline.weight(.semibold))
+                        ScrollView {
+                            Text(failure.diagnosticText)
+                                .font(.system(.footnote, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(minHeight: 120, maxHeight: 220)
+                        .padding(CPDesign.Spacing.md)
+                        .liquidGlassSurface(.content, strokeOpacity: 0.5)
+                    }
+
+                    HStack(spacing: CPDesign.Spacing.sm) {
+                        Button("重试", action: onRetry)
+                            .keyboardShortcut(.defaultAction)
+
+                        Button("复制诊断信息") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(failure.diagnosticText, forType: .string)
+                        }
+                    }
+                }
+                .frame(width: 520, alignment: .leading)
+            }
+        }
+        .nativeContentBackground()
     }
 }
 
