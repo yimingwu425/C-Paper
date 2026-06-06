@@ -671,3 +671,19 @@ This file is a concise running log of meaningful code, configuration, and docume
 - `swift test --jobs 1`
 - `swift build`
 - `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+
+### 2026-06-06 - Add swarm-ready professionalization plan
+
+**Task**
+- Create a dependency-aware implementation plan for the full-repository C-Paper professionalization and maintenance cleanup effort.
+
+**Changed**
+- Added `cpaper-professionalization-plan.md` with explicit task dependencies, parallel execution waves, validation criteria, risks, and execution constraints.
+- Incorporated review feedback to remove dependency/wave conflicts, clarify dirty-worktree cleanup limits, split documentation tasks, and make CI/quality gate ordering explicit.
+
+**Reason**
+- The repository needs a staged plan before implementing cleanup, stability fixes, CI hardening, release governance, and professional polish.
+
+**Tested**
+- Read-only plan structure review with `rg`.
+- Subagent plan review for dependency ordering, parallelization conflicts, and missing edge cases.
