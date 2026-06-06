@@ -1093,3 +1093,31 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - Unrelated in-progress `macos/` support/diagnostics files were present in the worktree during this task and were intentionally not edited, reverted, staged, or committed.
+
+### 2026-06-06 — Add support diagnostics and redacted failure reports
+
+**Task**
+- Complete `T4.1` from `cpaper-professionalization-plan.md` by adding user-facing diagnostics for startup, source-provider, download, preview, and update failures.
+
+**Changed**
+- Added `SupportDiagnostic` and `SupportDiagnosticsStore` to redact sensitive context and write `Support/latest-diagnostic.txt` under app support.
+- Exposed the support directory path and diagnostic writer through `NativeBackendService`.
+- Updated `AppModel` to record the latest diagnostic, copy it to the pasteboard, and reveal the support directory.
+- Wired source-provider warnings/failures, download failures, preview failures, update failures, and startup initialization failures into redacted support diagnostics.
+- Added copy/reveal actions to the global error alert, startup failure view, downloads view, and settings support section.
+- Added tests for proxy credential redaction, EasyPaper token/query secret redaction, home-path redaction, support report file writing, and app error diagnostic creation.
+- Updated `cpaper-professionalization-plan.md` to mark `T4.1` completed.
+
+**Reason**
+- Failures were previously surfaced as short strings in alerts or local panels, which made support harder and risked copying raw URLs, proxy credentials, or private paths into bug reports.
+
+**Tested**
+- RED: `swift test --jobs 1 --filter SupportDiagnosticsTests`
+- GREEN: `swift test --jobs 1 --filter SupportDiagnosticsTests`
+- GREEN: `swift test --jobs 1 --filter ModelTests/testBackendErrorsCreateRedactedSupportDiagnosticReport`
+- GREEN: `swift test --jobs 1 --filter StartupBootCoordinatorTests`
+- GREEN: `swift test --jobs 1`
+- `git diff --check`
+
+**Risks / Notes**
+- The support report currently stores the latest diagnostic only. That keeps local data small and avoids creating a long-lived log history.

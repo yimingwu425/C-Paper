@@ -117,6 +117,14 @@ private struct ReadyRootView: View {
                 }
             ),
             actions: {
+                if model.lastDiagnostic != nil {
+                    Button("复制诊断") {
+                        model.copyLatestDiagnostic()
+                    }
+                    Button("显示支持文件夹") {
+                        model.revealSupportDirectory()
+                    }
+                }
                 Button("好", role: .cancel) {
                     model.clearError()
                 }
@@ -217,6 +225,13 @@ private struct StartupFailureView: View {
                         Button("复制诊断信息") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(failure.diagnosticText, forType: .string)
+                        }
+
+                        if let supportDirectoryURL = failure.supportDirectoryURL {
+                            Button("显示支持文件夹") {
+                                try? FileManager.default.createDirectory(at: supportDirectoryURL, withIntermediateDirectories: true)
+                                NSWorkspace.shared.activateFileViewerSelecting([supportDirectoryURL])
+                            }
                         }
                     }
                 }

@@ -31,6 +31,7 @@ final class AppModel {
     var isLoading = false
     var isSettingsPresented = false
     var errorMessage: String?
+    var lastDiagnostic: SupportDiagnostic?
 
     @ObservationIgnored let backend: NativeBackendService
     @ObservationIgnored var pollTask: Task<Void, Never>?
@@ -68,6 +69,10 @@ final class AppModel {
         backend.appSupportPath
     }
 
+    var supportDirectoryPath: String {
+        backend.supportDirectoryPath
+    }
+
     var activeSubject: Subject? {
         if let selectedSubject {
             return selectedSubject
@@ -86,7 +91,47 @@ final class AppModel {
         errorMessage = nil
     }
 
-    func handleBackendError(_ error: Error) {
-        errorMessage = error.localizedDescription
+    @discardableResult
+    func recordDiagnostic(
+        context: SupportDiagnosticContext,
+        message: String,
+        details: [SupportDiagnosticDetail] = []
+    ) -> SupportDiagnostic {
+        var diagnostic = SupportDiagnostic(
+            context: context,
+            message: message,
+            details: details,
+            supportDirectoryPath: backend.supportDirectoryPath
+        )
+        if let reportURL = try? backend.writeSupportDiagnostic(diagnostic) {
+            diagnostic = diagnostic.withReportURL(reportURL)
+        }
+        lastDiagnostic = diagnostic
+        return diagnostic
+    }
+
+    func copyLatestDiagnostic() {
+        guard let lastDiagnostic else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(lastDiagnostic.reportText, forType: .string)
+    }
+
+    func revealSupportDirectory() {
+        let url = URL(fileURLWithPath: backend.supportDirectoryPath, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    func handleBackendError(
+        _ error: Error,
+        context: SupportDiagnosticContext = .general,
+        details: [SupportDiagnosticDetail] = []
+    ) {
+        let diagnostic = recordDiagnostic(
+            context: context,
+            message: error.localizedDescription,
+            details: details
+        )
+        errorMessage = diagnostic.message
     }
 }

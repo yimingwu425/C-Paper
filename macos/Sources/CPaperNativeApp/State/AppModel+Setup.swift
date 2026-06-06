@@ -21,7 +21,7 @@ extension AppModel {
             try backend.addFavorite(subject)
             await loadFavorites()
         } catch {
-            handleBackendError(error)
+            handleBackendError(error, context: .general)
         }
     }
 
@@ -30,7 +30,7 @@ extension AppModel {
             try backend.removeFavorite(code: subject.code)
             await loadFavorites()
         } catch {
-            handleBackendError(error)
+            handleBackendError(error, context: .general)
         }
     }
 
@@ -53,7 +53,13 @@ extension AppModel {
                 }
             }
         } catch {
-            handleBackendError(error)
+            handleBackendError(
+                error,
+                context: .sourceProvider,
+                details: [
+                    SupportDiagnosticDetail(label: "Source Mode", value: settings.sourceMode.title)
+                ]
+            )
             if selectedSubject == nil, manualSubjectCode.isEmpty, !settings.lastSubject.isEmpty {
                 manualSubjectCode = settings.lastSubject
             }
@@ -85,7 +91,7 @@ extension AppModel {
             try backend.saveSettings(committedSettings)
             settings = committedSettings
         } catch {
-            handleBackendError(error)
+            handleBackendError(error, context: .general)
         }
     }
 

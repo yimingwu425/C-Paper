@@ -121,6 +121,36 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(model.backend.loadSettings(), expectedSettings)
     }
 
+    func testBackendErrorsCreateRedactedSupportDiagnosticReport() throws {
+        let model = try makeBasicModel()
+        let home = NSHomeDirectory()
+
+        model.handleBackendError(
+            DiagnosticTestError(
+                message: "Preview failed at \(home)/Downloads/file.pdf via http://alice:secret@127.0.0.1:7890/paperdownload/dir_v3/raw-token?token=abc123"
+            ),
+            context: .preview,
+            details: [
+                SupportDiagnosticDetail(label: "Proxy", value: "http://alice:secret@127.0.0.1:7890"),
+                SupportDiagnosticDetail(label: "Path", value: "\(home)/Downloads/file.pdf")
+            ]
+        )
+
+        let diagnostic = try XCTUnwrap(model.lastDiagnostic)
+        let reportURL = try XCTUnwrap(diagnostic.reportURL)
+        let report = try String(contentsOf: reportURL)
+
+        XCTAssertEqual(diagnostic.context, .preview)
+        XCTAssertEqual(model.errorMessage, diagnostic.message)
+        XCTAssertFalse(diagnostic.reportText.contains("alice:secret"))
+        XCTAssertFalse(diagnostic.reportText.contains("raw-token"))
+        XCTAssertFalse(diagnostic.reportText.contains("abc123"))
+        XCTAssertFalse(diagnostic.reportText.contains(home))
+        XCTAssertTrue(report.contains("Area: 预览"))
+        XCTAssertTrue(report.contains("http://<redacted>@127.0.0.1:7890"))
+        XCTAssertTrue(report.contains("~/Downloads/file.pdf"))
+    }
+
     func testStartupUpdateCheckRunsOnlyOnceAndDoesNotPromptWhenUpToDate() async throws {
         let counter = UpdateCallCounter()
         let model = try makeModel(
@@ -235,6 +265,14 @@ final class ModelTests: XCTestCase {
           ]
         }
         """.data(using: .utf8)!
+    }
+}
+
+private struct DiagnosticTestError: LocalizedError {
+    let message: String
+
+    var errorDescription: String? {
+        message
     }
 }
 

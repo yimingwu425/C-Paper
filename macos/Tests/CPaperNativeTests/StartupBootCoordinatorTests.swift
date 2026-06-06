@@ -26,6 +26,7 @@ final class StartupBootCoordinatorTests: XCTestCase {
         }
         XCTAssertEqual(failure.message, "无法启动 C-Paper")
         XCTAssertTrue(failure.diagnosticText.contains(BootFactoryError.sample.localizedDescription))
+        XCTAssertTrue(failure.diagnosticText.contains("Area: 启动"))
 
         await coordinator.retry()
 

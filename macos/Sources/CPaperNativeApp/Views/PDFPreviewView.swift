@@ -123,7 +123,15 @@ struct PDFPreviewView: View {
         do {
             self.localURL = try await model.backend.previewURL(for: file, settings: model.settings)
         } catch {
-            self.loadingError = error.localizedDescription
+            let diagnostic = model.recordDiagnostic(
+                context: .preview,
+                message: error.localizedDescription,
+                details: [
+                    SupportDiagnosticDetail(label: "Filename", value: file.filename),
+                    SupportDiagnosticDetail(label: "Source URL", value: file.url.absoluteString)
+                ]
+            )
+            self.loadingError = diagnostic.message
         }
         isDownloading = false
     }

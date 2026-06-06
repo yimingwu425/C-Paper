@@ -21,7 +21,8 @@ extension AppModel {
                 }
             }
         } catch {
-            updateStatus = .failed(error.localizedDescription)
+            let diagnostic = recordDiagnostic(context: .update, message: error.localizedDescription)
+            updateStatus = .failed(diagnostic.message)
         }
     }
 
@@ -44,7 +45,8 @@ extension AppModel {
             }
             updateStatus = .downloaded(downloadedURL)
         } catch {
-            updateStatus = .failed(error.localizedDescription)
+            let diagnostic = recordDiagnostic(context: .update, message: error.localizedDescription)
+            updateStatus = .failed(diagnostic.message)
         }
     }
 

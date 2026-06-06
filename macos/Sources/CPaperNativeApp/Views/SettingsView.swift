@@ -33,6 +33,7 @@ struct SettingsView: View {
                         DownloadSettingsSection(settings: $draftSettings)
                         AboutSettingsSection()
                         UpdateSettingsSection(model: model)
+                        SupportSettingsSection(model: model)
                     }
                     .padding(.vertical, 2)
                 }

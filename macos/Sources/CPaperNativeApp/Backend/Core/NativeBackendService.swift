@@ -10,6 +10,7 @@ final class NativeBackendService: @unchecked Sendable {
     private let downloadManager: DownloadManager
     private let updateService: UpdateService
     private let previewService: PreviewFileService
+    private let supportDiagnosticsStore: SupportDiagnosticsStore
 
     init(
         paths: AppStoragePaths? = nil,
@@ -30,6 +31,7 @@ final class NativeBackendService: @unchecked Sendable {
             transfer: previewTransfer,
             fileManager: fileManager
         )
+        self.supportDiagnosticsStore = SupportDiagnosticsStore(paths: resolvedPaths, fileManager: fileManager)
         let historyRecorder = DownloadHistoryRecorder(store: historyStore)
         self.downloadManager = downloadManager ?? DownloadManager(completionRecorder: { task in
             await historyRecorder.record(task)
@@ -40,6 +42,10 @@ final class NativeBackendService: @unchecked Sendable {
 
     var appSupportPath: String {
         paths.appSupportDirectory.path
+    }
+
+    var supportDirectoryPath: String {
+        supportDiagnosticsStore.directoryURL.path
     }
 
     func defaultSaveDirectory() -> String {
@@ -199,6 +205,10 @@ final class NativeBackendService: @unchecked Sendable {
 
     func previewURL(for file: PaperFile, settings: DownloadSettings) async throws -> URL {
         try await previewService.previewURL(for: file, settings: settings)
+    }
+
+    func writeSupportDiagnostic(_ diagnostic: SupportDiagnostic) throws -> URL {
+        try supportDiagnosticsStore.write(diagnostic)
     }
 
     private func registry(proxyURL: String) -> SourceRegistry {

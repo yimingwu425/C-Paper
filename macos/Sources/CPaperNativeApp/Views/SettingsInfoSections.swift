@@ -133,6 +133,55 @@ struct UpdateSettingsSection: View {
     }
 }
 
+struct SupportSettingsSection: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        SettingsSection(
+            title: "支持诊断",
+            subtitle: "最近一次失败的脱敏诊断与本机支持目录。",
+            systemImage: "stethoscope"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsRow(label: "目录") {
+                    Text(SupportDiagnostic.redact(model.supportDirectoryPath))
+                        .font(.caption.monospaced())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+
+                SettingsRow(label: "最近") {
+                    Text(model.lastDiagnostic?.message ?? "暂无诊断")
+                        .font(.callout)
+                        .foregroundStyle(model.lastDiagnostic == nil ? .secondary : .primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 8) {
+                    Spacer()
+                        .frame(width: 86)
+
+                    Button {
+                        model.copyLatestDiagnostic()
+                    } label: {
+                        Label("复制诊断", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(GlassButtonStyle(.subtle))
+                    .disabled(model.lastDiagnostic == nil)
+
+                    Button {
+                        model.revealSupportDirectory()
+                    } label: {
+                        Label("显示文件夹", systemImage: "folder")
+                    }
+                    .buttonStyle(GlassButtonStyle(.subtle))
+                }
+            }
+        }
+    }
+}
+
 private struct AboutRow<Content: View>: View {
     let label: String
     let content: Content

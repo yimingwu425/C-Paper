@@ -12,8 +12,18 @@ extension AppModel {
             searchGroups = payload.groups
             expandedPaperComponents = Set(payload.files.compactMap { $0.componentKey }.prefix(3))
             selectedPreview = nil
+            recordSourceWarnings(payload.warnings)
         } catch {
-            handleBackendError(error)
+            handleBackendError(
+                error,
+                context: .sourceProvider,
+                details: [
+                    SupportDiagnosticDetail(label: "Subject", value: selectedSubject.code),
+                    SupportDiagnosticDetail(label: "Year", value: "\(selectedYear)"),
+                    SupportDiagnosticDetail(label: "Season", value: selectedSeason.rawValue),
+                    SupportDiagnosticDetail(label: "Source Mode", value: settings.sourceMode.title)
+                ]
+            )
         }
     }
 
@@ -35,10 +45,19 @@ extension AppModel {
             batchPreview = payload.files
             selectedPreview = nil
             if let warning = payload.warnings.first {
-                errorMessage = warning
+                let diagnostic = recordSourceWarnings(payload.warnings)
+                errorMessage = diagnostic?.message ?? SupportDiagnostic.redact(warning)
             }
         } catch {
-            handleBackendError(error)
+            handleBackendError(
+                error,
+                context: .sourceProvider,
+                details: [
+                    SupportDiagnosticDetail(label: "Subject", value: selectedSubject.code),
+                    SupportDiagnosticDetail(label: "Year Range", value: "\(batchYearFrom)-\(batchYearTo)"),
+                    SupportDiagnosticDetail(label: "Source Mode", value: settings.sourceMode.title)
+                ]
+            )
         }
     }
 
@@ -70,7 +89,7 @@ extension AppModel {
             await refreshDownloads()
             startPollingDownloads()
         } catch {
-            handleBackendError(error)
+            handleBackendError(error, context: .download)
         }
     }
 
@@ -97,7 +116,13 @@ extension AppModel {
             await refreshDownloads()
             startPollingDownloads()
         } catch {
-            handleBackendError(error)
+            handleBackendError(
+                error,
+                context: .download,
+                details: [
+                    SupportDiagnosticDetail(label: "Filename", value: file.filename)
+                ]
+            )
         }
     }
 
@@ -129,7 +154,7 @@ extension AppModel {
             await refreshDownloads()
             startPollingDownloads()
         } catch {
-            handleBackendError(error)
+            handleBackendError(error, context: .download)
         }
     }
 
@@ -138,6 +163,7 @@ extension AppModel {
         let items = await backend.downloadItems()
         downloadSnapshot = snapshot
         downloads = items.sorted { $0.id < $1.id }
+        recordDownloadFailuresIfNeeded(snapshot: snapshot, items: items)
         if snapshot.isRunning {
             ensureDownloadPolling()
         } else {
@@ -258,5 +284,38 @@ extension AppModel {
         }
         let shortYear = String(year % 100)
         return "\(prefix)\(shortYear.count == 1 ? "0\(shortYear)" : shortYear)"
+    }
+
+    @discardableResult
+    private func recordSourceWarnings(_ warnings: [String]) -> SupportDiagnostic? {
+        guard let firstWarning = warnings.first else { return nil }
+        return recordDiagnostic(
+            context: .sourceProvider,
+            message: firstWarning,
+            details: warnings.prefix(6).enumerated().map { index, warning in
+                SupportDiagnosticDetail(label: "Warning \(index + 1)", value: warning)
+            }
+        )
+    }
+
+    private func recordDownloadFailuresIfNeeded(
+        snapshot: DownloadStatusSnapshot,
+        items: [DownloadTaskItem]
+    ) {
+        guard !snapshot.isRunning else { return }
+        let failedItems = items.filter { $0.status == .failed }
+        guard !failedItems.isEmpty else { return }
+
+        let details = failedItems.prefix(6).flatMap { item in
+            [
+                SupportDiagnosticDetail(label: "\(item.filename) Error", value: item.error),
+                SupportDiagnosticDetail(label: "\(item.filename) Save Path", value: item.savePath)
+            ]
+        }
+        recordDiagnostic(
+            context: .download,
+            message: "\(failedItems.count) 个下载任务失败",
+            details: details
+        )
     }
 }

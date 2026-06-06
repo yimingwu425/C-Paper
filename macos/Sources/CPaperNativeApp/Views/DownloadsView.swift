@@ -38,6 +38,13 @@ struct DownloadsView: View {
                 }
                 .buttonStyle(GlassButtonStyle(.destructive))
                 .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
+            } else if model.failedDownloadCount > 0 {
+                Button {
+                    model.copyLatestDiagnostic()
+                } label: {
+                    Label("复制诊断", systemImage: "doc.on.doc")
+                }
+                .buttonStyle(GlassButtonStyle(.subtle))
             }
         }
     }

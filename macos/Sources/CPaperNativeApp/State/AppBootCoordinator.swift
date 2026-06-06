@@ -4,14 +4,30 @@ import Observation
 struct AppBootFailure {
     let message: String
     let diagnosticText: String
+    let supportDirectoryURL: URL?
 
     init(error: Error) {
         message = "无法启动 C-Paper"
-        diagnosticText = """
-        \(error.localizedDescription)
-
-        \(String(reflecting: error))
-        """
+        let supportStore: SupportDiagnosticsStore?
+        if let paths = try? AppStoragePaths() {
+            supportStore = SupportDiagnosticsStore(paths: paths)
+        } else {
+            supportStore = nil
+        }
+        let diagnostic = SupportDiagnostic(
+            context: .startup,
+            message: error.localizedDescription,
+            details: [
+                SupportDiagnosticDetail(label: "Error", value: String(reflecting: error))
+            ],
+            supportDirectoryPath: supportStore?.directoryURL.path
+        )
+        supportDirectoryURL = supportStore?.directoryURL
+        if let reportURL = try? supportStore?.write(diagnostic) {
+            diagnosticText = diagnostic.withReportURL(reportURL).reportText
+        } else {
+            diagnosticText = diagnostic.reportText
+        }
     }
 }
 
