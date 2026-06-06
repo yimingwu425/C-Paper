@@ -52,9 +52,21 @@ T0 ──┬── T1 ──┬── T3 ──┐
 - **location**: `macos/Sources/CPaperNativeApp/AppMenuCommand.swift`, `macos/Sources/CPaperNativeApp/AppMenuCommandCenter.swift`, `macos/Sources/CPaperNativeApp/AppMenuController.swift`, `macos/Tests/CPaperNativeTests/AppMenuControllerTests.swift`, `macos/Tests/CPaperNativeTests/AppMenuCommandCenterTests.swift`
 - **description**: Create the menu command contract, command center, and AppKit menu builder. `AppMenuCommand` should include `showAbout`, `showSettings`, `checkForUpdates`, `refreshCurrentView`, `showSearch`, `showBatch`, `showDownloads`, `revealSaveDirectory`, `copyLatestDiagnostic`, `revealSupportDirectory`, `openWebsite`, `openGitHub`, and `reportIssue`. `showAbout` must mean the standard AppKit About panel, not a custom window. `AppMenuCommandCenter` should expose `bind(handler:canPerform:)`, `unbind()`, `dispatch(_:)`, and `canPerform(_:)`, implement `NSMenuItemValidation`, and dispatch menu items through `representedObject`. Unbound product commands must be disabled by default and dispatching an unbound command must be a no-op. `AppMenuController` should build these top-level menus exactly: `C-Paper`, `文件`, `编辑`, `显示`, `窗口`, `帮助`.
 - **validation**: Unit tests assert top-level menu titles, required Chinese item titles, `服务` submenu assignment, `NSApp.windowsMenu` / `NSApp.helpMenu` wiring after installation, and shortcuts: `设置...` = command-comma, `退出 C-Paper` = command-Q, `关闭窗口` = command-W, `搜索`/`批量`/`下载` = command-1/2/3. Command-center tests cover bound dispatch, unbound no-op behavior, `unbind()` disabling product commands, and command validation through `representedObject`.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - Added `AppMenuCommand` enum with the planned command set for the native menu layer.
+  - Added `AppMenuCommandCenter` with `bind(handler:canPerform:)`, `unbind()`, `dispatch(_:)`, `canPerform(_:)`, `NSMenuItemValidation`, and `representedObject`-based dispatch.
+  - Added `AppMenuController` to build the top-level AppKit menus `C-Paper`, `文件`, `编辑`, `显示`, `窗口`, and `帮助`, including Chinese item titles, services submenu wiring, and required shortcuts.
+  - Wrote menu-layer unit tests first, captured RED failure from missing `AppMenuCommand`, `AppMenuCommandCenter`, and `AppMenuController` symbols, then implemented the minimal source needed to satisfy the tests.
+  - Validation:
+    - `swift build --target CPaperNativeApp`
+    - `swift test --jobs 1 --filter 'AppMenu(CommandCenter|Controller)Tests'`
 - **files edited/created**:
+  - `macos/Sources/CPaperNativeApp/AppMenuCommand.swift`
+  - `macos/Sources/CPaperNativeApp/AppMenuCommandCenter.swift`
+  - `macos/Sources/CPaperNativeApp/AppMenuController.swift`
+  - `macos/Tests/CPaperNativeTests/AppMenuControllerTests.swift`
+  - `macos/Tests/CPaperNativeTests/AppMenuCommandCenterTests.swift`
 
 ### T2: Add Safe Save-Directory Reveal Helper
 
