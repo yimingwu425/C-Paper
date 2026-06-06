@@ -1,8 +1,8 @@
 {
-  "version": "6.0.3",
+  "version": "6.0.4",
   "min_version": "6.0.0",
-  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.3",
-  "release_notes": "- 修复 Swift native 批量下载中熔断器打开后重试轮次被立即耗尽的问题\n- 下载管理器现在会等待熔断器 recovery timeout 后再重新入队失败任务\n- 科目选择控件改为统一 glass 风格，不再出现割裂的系统蓝色 popup\n- 移除 Python bridge 时代的本地/原生后端连接提示\n- 设置页新增关于我们、手动检查更新和启动检查更新，支持在应用内下载最新 DMG",
+  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.4",
+  "release_notes": "- 新增完整中文 macOS 菜单栏：C-Paper、文件、编辑、显示、窗口、帮助\n- 菜单动作已接入设置、检查更新、搜索/批量/下载切换、诊断复制和支持目录打开\n- 原生启动阶段现在会在窗口出现前安装主菜单，并保证重复启动路径下只安装一次\n- 下载目录检查新增统一 helper，无法使用的路径会给出明确中文提示\n- 补齐 AppKit 菜单层、启动链和菜单绑定的测试覆盖，并完成 release build 与菜单栏截图验证",
   "force_update": false,
-  "published_at": "2026-06-05T00:00:00Z"
+  "published_at": "2026-06-06T00:00:00Z"
 }

@@ -204,8 +204,8 @@ final class ModelTests: XCTestCase {
     func testStartupUpdateCheckRunsOnlyOnceAndDoesNotPromptWhenUpToDate() async throws {
         let counter = UpdateCallCounter()
         let model = try makeModel(
-            currentVersion: "6.0.2",
-            releaseJSON: Self.releaseJSON(tag: "v6.0.2"),
+            currentVersion: "6.0.3",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.3"),
             counter: counter
         )
 
@@ -215,14 +215,14 @@ final class ModelTests: XCTestCase {
         let callCount = await counter.value()
         XCTAssertEqual(callCount, 1)
         XCTAssertNil(model.pendingUpdatePrompt)
-        XCTAssertEqual(model.updateStatus, .upToDate(current: "6.0.2", latest: "6.0.2"))
+        XCTAssertEqual(model.updateStatus, .upToDate(current: "6.0.3", latest: "6.0.3"))
     }
 
     func testStartupUpdateCheckPromptsWhenNewVersionExistsWithoutDownloading() async throws {
         let counter = UpdateCallCounter()
         let model = try makeModel(
-            currentVersion: "6.0.2",
-            releaseJSON: Self.releaseJSON(tag: "v6.0.3"),
+            currentVersion: "6.0.3",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.4"),
             counter: counter
         )
 
@@ -230,8 +230,8 @@ final class ModelTests: XCTestCase {
 
         let callCount = await counter.value()
         XCTAssertEqual(callCount, 1)
-        XCTAssertEqual(model.pendingUpdatePrompt?.version, "6.0.3")
-        XCTAssertEqual(model.updateStatus.availableRelease?.version, "6.0.3")
+        XCTAssertEqual(model.pendingUpdatePrompt?.version, "6.0.4")
+        XCTAssertEqual(model.updateStatus.availableRelease?.version, "6.0.4")
     }
 
     func testDownloadAvailableUpdateClearsPromptAndStoresDownloadedURL() async throws {
@@ -240,8 +240,8 @@ final class ModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let model = try makeModel(
-            currentVersion: "6.0.2",
-            releaseJSON: Self.releaseJSON(tag: "v6.0.3"),
+            currentVersion: "6.0.3",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.4"),
             updatesDirectory: tempDirectory
         )
         await model.checkForUpdates(source: .startup)

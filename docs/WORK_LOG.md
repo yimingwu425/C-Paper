@@ -30,6 +30,30 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-06 — Prepare native 6.0.4 release
+
+**Task**
+- Bump the native release version, sync release metadata, and prepare a new GitHub release from `main`.
+
+**Changed**
+- Updated `version.json`, `README.md`, and `macos/Sources/CPaperNativeApp/Backend/Core/BackendConstants.swift` from `6.0.3` to `6.0.4`.
+- Added `.github/release-notes/native-v6.0.4.md`.
+- Updated update-related Swift tests to use `6.0.3 -> 6.0.4` as the release progression.
+
+**Reason**
+- `main` now contains the Chinese macOS menu bar and the broader native professionalization work, so the published version needed to move forward from the already-existing GitHub `v6.0.3` release.
+
+**Tested**
+- `bash scripts/check_version_drift.sh`
+- `swift test --jobs 1 --filter 'ModelTests|UpdateServiceTests'`
+- `swift test --jobs 1`: passed with 95 executed tests, 4 skipped live-source tests, and 0 failures.
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+- `hdiutil verify dist/C-Paper-Native-6.0.4-standalone-20260606.dmg`
+- Mounted `dist/C-Paper-Native-6.0.4-standalone-20260606.dmg` and ran `codesign --verify --deep --strict` on the mounted `CPaperNative.app`.
+
+**Risks / Notes**
+- Release publication should happen from a new `v6.0.4` tag after local validation passes.
+
 ### 2026-06-06 — Complete Chinese macOS menu bar validation
 
 **Task**

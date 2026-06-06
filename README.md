@@ -23,21 +23,15 @@ swift run CPaperNative
 
 ## 当前版本
 
-当前 native 主线版本：`6.0.3`
+当前 native 主线版本：`6.0.4`
 
 当前版本重点：
 
-- 修复批量下载中熔断器打开后重试轮次被立即耗尽的问题
-- 下载失败进入熔断恢复窗口时，会等待 recovery timeout 后再重新入队
-- 科目选择控件统一为 glass 风格，移除 Python bridge 时代的后端连接提示
-- 设置页新增关于我们、手动检查更新和启动检查更新，支持应用内下载最新 DMG
-- 后端改为 Swift 原生实现，active app 不再依赖 Python bridge
-- 搜索、解析、缓存、下载、设置和数据源逻辑拆成模块化 Swift 后端
-- 自动数据源 fallback：FrankCIE 优先，EasyPaper 作为主要备用；PastPapers 为 best-effort 备用，PapaCambridge 遇到 Cloudflare challenge 时会明确报告不可用
-- 科目列表也支持备用源 fallback；若科目列表不可用，搜索和批量下载可手动输入 4 位科目代码
-- 设置页支持手动选择数据源，手动模式失败时不自动切换，也不会把不可用数据源伪装成成功
-- 下载历史已接入 Swift 下载流程，重复文件 skip/missing 行为对齐归档 Python 后端
-- 本地数据迁移到 macOS Application Support，并兼容迁移旧 `~/.cie_cache/` 设置、收藏和下载历史
+- 新增完整中文 macOS 菜单栏：`C-Paper`、`文件`、`编辑`、`显示`、`窗口`、`帮助`
+- 菜单动作已接入设置、检查更新、搜索/批量/下载切换、诊断复制和支持目录打开
+- 原生启动阶段会在窗口出现前安装主菜单，并保证重复启动路径下只安装一次
+- 下载目录检查新增统一 helper，无法使用的路径会给出明确中文提示
+- 保留 Swift 原生 backend、多源 fallback、批量下载、预览、下载历史和设置能力
 
 ## 主要能力
 

@@ -16,22 +16,22 @@ final class UpdateServiceTests: XCTestCase {
 
     func testLatestReleaseWithSameVersionReturnsUpToDate() async throws {
         let service = UpdateService(
-            currentVersion: "6.0.2",
+            currentVersion: "6.0.3",
             networkClientFactory: { _ in
-                MockUpdateNetworkClient(data: Self.releaseJSON(tag: "v6.0.2"))
+                MockUpdateNetworkClient(data: Self.releaseJSON(tag: "v6.0.3"))
             }
         )
 
         let result = try await service.checkForUpdate(proxyURL: "")
 
-        XCTAssertEqual(result, .upToDate(current: "6.0.2", latest: "6.0.2"))
+        XCTAssertEqual(result, .upToDate(current: "6.0.3", latest: "6.0.3"))
     }
 
     func testLatestReleaseWithNewerDMGReturnsAvailableRelease() async throws {
         let service = UpdateService(
-            currentVersion: "6.0.2",
+            currentVersion: "6.0.3",
             networkClientFactory: { _ in
-                MockUpdateNetworkClient(data: Self.releaseJSON(tag: "v6.0.3"))
+                MockUpdateNetworkClient(data: Self.releaseJSON(tag: "v6.0.4"))
             }
         )
 
@@ -40,18 +40,18 @@ final class UpdateServiceTests: XCTestCase {
         guard case let .available(release) = result else {
             return XCTFail("Expected available update")
         }
-        XCTAssertEqual(release.version, "6.0.3")
-        XCTAssertEqual(release.tagName, "v6.0.3")
-        XCTAssertEqual(release.assetName, "C-Paper-Native-6.0.3-standalone-20260604.dmg")
-        XCTAssertEqual(release.downloadURL.absoluteString, "https://github.com/yimingwu425/C-Paper/releases/download/v6.0.3/C-Paper-Native-6.0.3-standalone-20260604.dmg")
+        XCTAssertEqual(release.version, "6.0.4")
+        XCTAssertEqual(release.tagName, "v6.0.4")
+        XCTAssertEqual(release.assetName, "C-Paper-Native-6.0.4-standalone-20260604.dmg")
+        XCTAssertEqual(release.downloadURL.absoluteString, "https://github.com/yimingwu425/C-Paper/releases/download/v6.0.4/C-Paper-Native-6.0.4-standalone-20260604.dmg")
     }
 
     func testLatestReleaseWithoutDMGThrowsClearError() async throws {
         let json = """
         {
-          "tag_name": "v6.0.3",
-          "name": "C-Paper Native 6.0.3",
-          "html_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.3",
+          "tag_name": "v6.0.4",
+          "name": "C-Paper Native 6.0.4",
+          "html_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.4",
           "assets": [
             {
               "name": "source.zip",
@@ -62,7 +62,7 @@ final class UpdateServiceTests: XCTestCase {
         }
         """.data(using: .utf8)!
         let service = UpdateService(
-            currentVersion: "6.0.2",
+            currentVersion: "6.0.3",
             networkClientFactory: { _ in MockUpdateNetworkClient(data: json) }
         )
 
@@ -80,11 +80,11 @@ final class UpdateServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
 
         let release = AppUpdateRelease(
-            version: "6.0.3",
-            tagName: "v6.0.3",
-            name: "C-Paper Native 6.0.3",
-            htmlURL: URL(string: "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.3")!,
-            assetName: "C-Paper-Native-6.0.3-standalone-20260604.dmg",
+            version: "6.0.4",
+            tagName: "v6.0.4",
+            name: "C-Paper Native 6.0.4",
+            htmlURL: URL(string: "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.4")!,
+            assetName: "C-Paper-Native-6.0.4-standalone-20260604.dmg",
             downloadURL: URL(string: "https://example.test/update.dmg")!
         )
         let existingURL = tempDirectory.appendingPathComponent(release.assetName)
@@ -107,7 +107,7 @@ final class UpdateServiceTests: XCTestCase {
         }
 
         let service = UpdateService(
-            currentVersion: "6.0.2",
+            currentVersion: "6.0.3",
             updatesDirectory: tempDirectory,
             transferClientFactory: { proxyURL in
                 XCTAssertEqual(proxyURL, "http://127.0.0.1:7890")
@@ -150,7 +150,7 @@ final class UpdateServiceTests: XCTestCase {
         }
 
         let service = UpdateService(
-            currentVersion: "6.0.2",
+            currentVersion: "6.0.3",
             updatesDirectory: tempDirectory,
             transferClientFactory: { _ in
                 HTTPFileTransferClient(session: makeTransferSession(), chunkSize: 2)
@@ -176,7 +176,7 @@ final class UpdateServiceTests: XCTestCase {
         let release = makeRelease()
 
         let service = UpdateService(
-            currentVersion: "6.0.2",
+            currentVersion: "6.0.3",
             updatesDirectory: tempDirectory,
             downloadWriter: { _, destinationURL, _, _ in
                 try Data("partial".utf8).write(to: destinationURL)
@@ -197,11 +197,11 @@ final class UpdateServiceTests: XCTestCase {
 
     private func makeRelease() -> AppUpdateRelease {
         AppUpdateRelease(
-            version: "6.0.3",
-            tagName: "v6.0.3",
-            name: "C-Paper Native 6.0.3",
-            htmlURL: URL(string: "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.3")!,
-            assetName: "C-Paper-Native-6.0.3-standalone-20260604.dmg",
+            version: "6.0.4",
+            tagName: "v6.0.4",
+            name: "C-Paper Native 6.0.4",
+            htmlURL: URL(string: "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.4")!,
+            assetName: "C-Paper-Native-6.0.4-standalone-20260604.dmg",
             downloadURL: URL(string: "https://example.test/update.dmg")!
         )
     }

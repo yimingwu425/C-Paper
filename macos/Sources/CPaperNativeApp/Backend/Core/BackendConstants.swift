@@ -1,7 +1,7 @@
 import Foundation
 
 enum BackendConstants {
-    static let version = "6.0.3"
+    static let version = "6.0.4"
     static let userAgent = "C-Paper/\(version) (macOS; SwiftNative)"
     static let frankcieBaseURL = URL(string: "https://cie.fraft.cn")!
     static let papaCambridgePastPapersBaseURL = URL(string: "https://pastpapers.papacambridge.com")!
