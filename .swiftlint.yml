@@ -1,0 +1,25 @@
+included:
+  - Package.swift
+  - macos/Sources
+  - macos/Tests
+
+excluded:
+  - legacy
+  - .build
+  - build
+  - dist
+  - DerivedData
+  - .worktrees
+
+only_rules:
+  - colon
+  - comma
+  - control_statement
+  - opening_brace
+  - return_arrow_whitespace
+  - statement_position
+  - trailing_newline
+  - trailing_semicolon
+  - trailing_whitespace
+
+reporter: "xcode"

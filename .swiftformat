@@ -1,0 +1,2 @@
+--swiftversion 6
+--exclude .build,build,dist,DerivedData,legacy,.worktrees

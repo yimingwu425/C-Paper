@@ -178,9 +178,9 @@ All implementation tasks -> T5
 - **location**: `.swiftlint.yml`, `.swiftformat`, scripts, CI
 - **description**: Add lightweight SwiftLint/SwiftFormat or equivalent check-only configuration plus standalone validation scripts. Do not run mass formatting. Add a repo hygiene script that fails on `.DS_Store`, duplicate Finder-style `* 2.*` files, and other known pollution patterns. These scripts are created here; T2.2 wires them into GitHub Actions.
 - **validation**: Check-only commands run locally; existing code does not receive a broad formatting diff; hygiene script catches recreated duplicate files.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: RED/FAIL evidence first: added `scripts/check_repo_hygiene.sh` and ran it against a temporary fixture containing `.DS_Store` and `subdir/Notes 2.md`; the script failed as intended and listed both pollution files without touching tracked content. Added lightweight check-only configs in `.swiftlint.yml` and `.swiftformat`, plus `scripts/check_swift_quality.sh`, which runs `swiftlint lint --strict` and `swiftformat --lint` when those binaries are available and otherwise exits successfully with explicit skip messages. GREEN/PASS: `bash scripts/check_repo_hygiene.sh` passed on the real repository, `bash scripts/check_swift_quality.sh` ran locally and skipped both checks because `swiftlint` and `swiftformat` are not installed in this environment, and no existing Swift sources were reformatted or edited. Additional validation: `bash -n scripts/check_repo_hygiene.sh`, `bash -n scripts/check_swift_quality.sh`, and `git diff --check`.
+- **files edited/created**: `.swiftlint.yml`; `.swiftformat`; `scripts/check_repo_hygiene.sh`; `scripts/check_swift_quality.sh`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T3.1: Refresh Architecture Boundary Documentation
 

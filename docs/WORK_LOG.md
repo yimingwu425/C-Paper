@@ -861,3 +861,29 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - The second `rg` still matches the unchanged README workflow badge link, but the refreshed architecture sections no longer describe release flow or suggest that legacy/site paths are part of the active app tree.
+
+### 2026-06-06 — Add lightweight quality gates
+
+**Task**
+- Complete `T2.4` from `cpaper-professionalization-plan.md` by adding lightweight check-only Swift quality gates and a repo hygiene scan without mass-formatting existing code.
+
+**Changed**
+- Added `.swiftlint.yml` with a small active-tree-only rule set covering `Package.swift`, `macos/Sources`, and `macos/Tests`.
+- Added `.swiftformat` with a minimal Swift 6 lint configuration and exclusions for legacy and generated directories.
+- Added `scripts/check_swift_quality.sh` to run SwiftLint and SwiftFormat in check-only mode when those binaries are installed, and otherwise skip with explicit messages.
+- Added `scripts/check_repo_hygiene.sh` to fail on `.DS_Store`, Finder duplicate `* 2.*` files, and related metadata pollution while pruning generated/cache directories.
+- Updated `cpaper-professionalization-plan.md` to mark `T2.4` completed and record the validation evidence.
+
+**Reason**
+- The repo needed lightweight local validation entrypoints for style and hygiene before CI wiring, without introducing a mass-formatting diff or a new package dependency.
+
+**Tested**
+- RED: `bash scripts/check_repo_hygiene.sh --root <temporary fixture containing .DS_Store and subdir/Notes 2.md>`
+- GREEN: `bash scripts/check_repo_hygiene.sh`
+- `bash scripts/check_swift_quality.sh`
+- `bash -n scripts/check_repo_hygiene.sh`
+- `bash -n scripts/check_swift_quality.sh`
+- `git diff --check`
+
+**Risks / Notes**
+- `swiftlint` and `swiftformat` are not installed in the current environment, so `scripts/check_swift_quality.sh` currently prints explicit skip messages instead of running those tools; T2.2 can still wire the script into CI as-is because it already handles both installed and unavailable-tool states.
