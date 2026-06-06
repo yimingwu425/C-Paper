@@ -11,7 +11,10 @@ This file is a compact native-first map of the repository so future contributors
 - `scripts/lib/`: Shared shell helpers used by active native scripts
 - `assets/`: Shared icons and image assets
 - `docs/`: Project memory and internal documentation
-- `site/`: Static project site
+
+Project site note:
+
+- External project site: link/location pending; do not treat `site/` as an active in-repo directory
 
 ## Legacy Directories
 
@@ -51,10 +54,7 @@ These directories are preserved for reference and limited maintenance only. Do n
   - `legacy/pywebview/ui_v2.html`
   - `legacy/pywebview/ui_v2.css`
   - `legacy/pywebview/ui_v2.js`
-- Static site:
-  - `site/index.html`
-  - `site/styles.css`
-  - `site/script.js`
+- Project site: external / link pending
 
 ## Tests
 
@@ -97,4 +97,5 @@ These directories are preserved for reference and limited maintenance only. Do n
 
 - Swift/macOS is the only actively maintained product line.
 - Python bridge/backend code is archived and not part of active packaging.
+- The project site is documented as external; do not assume an in-repo `site/` app tree.
 - The repository may still contain historical Python/pywebview references in legacy-only files.

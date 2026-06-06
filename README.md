@@ -59,9 +59,10 @@ C-Paper/
 ├── scripts/                      # native DMG 构建与发布脚本
 ├── assets/                       # 应用图标和共享图片资产
 ├── docs/                         # 项目索引、工作日志和内部文档
-├── site/                         # 静态项目站点
 └── legacy/                       # archived legacy implementations
 ```
+
+项目站点为外部托管内容，仓库内链接待补充；不要把 `site/` 视为当前仓库中的 active 实现目录。
 
 运行关系：
 
@@ -128,8 +129,7 @@ tag 触发后，workflow 会：
 
 以下内容不再是主维护实现：
 
-- `legacy/python-backend/bridge/`
-- `legacy/python-backend/backend/`
+- `legacy/python-backend/`
 - `legacy/python-backend/tests/`
 - `legacy/pywebview/main.py`
 - `legacy/pywebview/ui_v2.html`

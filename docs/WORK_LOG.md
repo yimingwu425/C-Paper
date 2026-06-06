@@ -30,6 +30,27 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-06 — Correct active architecture boundaries
+
+**Task**
+- Correct misleading active/legacy/site documentation before deeper implementation tasks.
+
+**Changed**
+- Updated `MAINTENANCE_BASELINE.md`, `docs/PROJECT_INDEX.md`, `README.md`, and `native/CPaperNative/README.md`.
+- Reframed the active implementation as root `Package.swift`, `macos/`, Swift-native backend, and active `scripts/`, `assets/`, `docs/`.
+- Moved Python bridge/backend references to archived `legacy/python-backend/` and replaced in-repo `site/` claims with an external project-site note marked link pending.
+- Updated `cpaper-professionalization-plan.md` to mark T0.3 completed.
+
+**Reason**
+- Several current docs still described removed root Python backend paths and an in-repo `site/` directory as part of the active implementation.
+
+**Tested**
+- Ran static text checks on the four target docs with `rg -n` for `bridge/`, `backend/`, `site/`, `requirements.txt`, and `pytest`.
+- Confirmed no target doc now describes root `bridge/`, root `backend/`, or in-repo `site/` as active implementation.
+
+**Risks / Notes**
+- This task intentionally did not revise broader release-flow or signing/notarization documentation; later plan tasks own that work.
+
 ### 2026-05-29 — Add project memory documentation
 
 **Task**

@@ -2,6 +2,8 @@
 
 The native macOS project is now rooted at the repository top level.
 
+The active implementation is the root `Package.swift` plus `macos/`, where the SwiftUI/AppKit app and Swift-native backend now live.
+
 ## Run
 
 ```bash
@@ -12,7 +14,6 @@ swift run CPaperNative
 
 ```bash
 swift test
-pytest
 ```
 
-The active Python bridge now lives at `bridge/cpaper_bridge.py`, and the shared Python backend lives at `backend/`.
+Archived Python bridge/backend code, when needed for historical reference, lives under `legacy/python-backend/`.

@@ -1,20 +1,22 @@
 # C-Paper 维护基线
 
-本文档记录当前 native-first 维护基线。后续默认以 macOS 原生版为唯一主线，旧 pywebview 前端只保留为 legacy 参考实现。
+本文档记录当前 native-first 维护基线。后续默认以 macOS 原生版为唯一主线，旧 Python/pywebview 实现只保留为 legacy 参考实现。
 
 ## 主线边界
 
-当前主线由三部分组成：
+当前主线由以下部分组成：
 
 - `macos/`：SwiftUI / AppKit 原生客户端
-- `bridge/`：native 调用的 Python bridge
-- `backend/`：共享 Python backend
+- Swift 原生 backend：位于 `macos/` 下的 backend 模块与服务
+- `scripts/`、`assets/`、`docs/`：当前主线使用的构建脚本、共享资源与内部文档
 
 以下内容不是当前主线：
 
+- `legacy/python-backend/`：归档的 Python bridge/backend/test suite
 - `legacy/pywebview/` 前端壳
 - `legacy/pywebview/packaging/` 打包脚本
 - 任何以 pywebview 为中心的发布流程
+- 外部项目站点：仓库内链接待补充，不要把 `site/` 视为当前仓库主线目录
 
 ## 发布与构建基线
 
@@ -26,21 +28,10 @@
 
 发布前重点检查：
 
-- `version.json`、`backend/const.py`、`scripts/build_native_dmg.sh` 中的版本号保持一致
+- `version.json` 与 native 构建脚本中的版本号保持一致
 - native 构建和 DMG 发布只走一条 GitHub Actions 主线
-- bridge 路径解析优先指向 `bridge/cpaper_bridge.py`
-- 根目录 `requirements.txt` 只保留 active backend/test 依赖
-- `legacy/pywebview/requirements.txt` 单独承载 pywebview 依赖
-
-## 共享 Python Backend 基线
-
-虽然 pywebview 前端已归档，但 Python backend 仍是当前主线的一部分，因为 native app 仍通过 bridge 依赖它。
-
-维护要求：
-
-- 保持 `backend/` 可被 `bridge/cpaper_bridge.py` 直接导入
-- 不要把 `backend/` 误归档到 legacy
-- Python tests 继续作为 active regression suite 保留
+- active 验证以 Swift 构建与 Swift tests 为主
+- legacy Python 依赖与脚本仅保留在 `legacy/` 下
 
 ## Legacy 处理规则
 
@@ -57,8 +48,6 @@
 
 ```bash
 swift test
-pytest
-python -m py_compile bridge/cpaper_bridge.py backend/*.py legacy/pywebview/main.py
 bash -n scripts/build_native_dmg.sh
 bash -n legacy/pywebview/packaging/build_mac.sh
 git diff --check
@@ -77,4 +66,4 @@ PY
 
 ## 当前判断
 
-C-Paper 的当前任务不是同时维护两套桌面实现，而是稳定 native macOS 主线，并把 bridge + shared backend 作为明确、可理解的支撑层。
+C-Paper 的当前任务不是同时维护两套桌面实现，而是稳定 native macOS 主线，并把归档的 Python/pywebview 代码明确隔离在 `legacy/` 下。

@@ -68,9 +68,9 @@ All implementation tasks -> T5
 - **location**: `MAINTENANCE_BASELINE.md`, `docs/PROJECT_INDEX.md`, `README.md`, `native/CPaperNative/README.md`
 - **description**: Fix misleading active/legacy documentation before deeper work begins. Native Swift backend is active; Python bridge/backend are archived under `legacy/python-backend/`; `site/` is external and should be documented as link pending rather than an in-repo active directory.
 - **validation**: No current docs describe root `bridge/`, root `backend/`, or in-repo `site/` as active implementation.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: reason_not_testable: this task only corrects documentation boundaries, so validation used static text checks instead of RED/GREEN tests. Updated the active/legacy architecture descriptions to keep the active implementation native-first (`Package.swift`, `macos/`, Swift-native backend, `scripts/`, `assets/`, `docs/`), moved Python bridge/backend references to archived `legacy/python-backend/`, and replaced in-repo `site/` claims with an external project-site note marked link pending. Validation evidence: `rg -n -e 'bridge/' -e 'backend/' -e 'site/' -e 'requirements\\.txt' -e 'pytest' MAINTENANCE_BASELINE.md docs/PROJECT_INDEX.md README.md native/CPaperNative/README.md` shows only legacy or non-active references after the edit; no target doc now describes root `bridge/`, root `backend/`, or in-repo `site/` as active implementation.
+- **files edited/created**: `MAINTENANCE_BASELINE.md`; `docs/PROJECT_INDEX.md`; `README.md`; `native/CPaperNative/README.md`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T0.4: Establish Deterministic Baseline
 
