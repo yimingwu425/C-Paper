@@ -29,6 +29,7 @@ INFO_PLIST="$APP_CONTENTS/Info.plist"
 DMG_OUT="$DIST_DIR/C-Paper-Native-$VERSION-standalone-$(date +%Y%m%d).dmg"
 
 source "$ROOT_DIR/scripts/lib/native_dmg_helpers.sh"
+SIGNING_MODE="$(current_signing_mode)"
 
 stop_running_app
 rm -rf "$BUILD_ROOT" "$APP_BUNDLE" "$DMG_OUT"
@@ -89,7 +90,7 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
-echo "[3/5] Signing app bundle ad hoc..."
+echo "[3/5] Signing app bundle ($SIGNING_MODE)..."
 clear_bundle_metadata "$APP_BUNDLE"
 rm -rf "$CLEAN_APP_DIR"
 mkdir -p "$CLEAN_APP_DIR"
@@ -97,7 +98,7 @@ ditto --noextattr --norsrc "$APP_BUNDLE" "$CLEAN_APP_BUNDLE"
 rm -rf "$APP_BUNDLE"
 ditto --noextattr --norsrc "$CLEAN_APP_BUNDLE" "$APP_BUNDLE"
 clear_bundle_metadata "$APP_BUNDLE"
-codesign_best_effort "$APP_BUNDLE"
+sign_app_bundle "$APP_BUNDLE"
 
 echo "[4/5] Creating DMG..."
 rm -rf "$STAGING_DIR" "$DMG_RW"
@@ -174,7 +175,8 @@ if [ -f "$ROOT_DIR/assets/icon.icns" ]; then
   set_custom_file_icon "$DMG_OUT" "$ROOT_DIR/assets/icon.icns"
 fi
 
-echo "[5/5] Verifying artifact..."
+echo "[5/5] Finalizing artifact..."
+notarize_dmg_if_configured "$DMG_OUT"
 clear_bundle_metadata "$APP_BUNDLE"
 VERIFY_APP="$BUILD_ROOT/verify/$APP_NAME.app"
 rm -rf "$BUILD_ROOT/verify"

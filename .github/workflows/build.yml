@@ -110,6 +110,57 @@ jobs:
           xcodebuild -version
           swift --version
 
+      # Optional release secrets for Developer ID signing + notarization:
+      # `CPAPER_DEVELOPER_ID_CERT_P12_BASE64`, `CPAPER_DEVELOPER_ID_CERT_PASSWORD`,
+      # `CPAPER_CODESIGN_IDENTITY`, `CPAPER_NOTARY_KEYCHAIN_PROFILE`,
+      # `CPAPER_NOTARY_APPLE_ID`, `CPAPER_NOTARY_TEAM_ID`, and `CPAPER_NOTARY_APP_PASSWORD`.
+      # If any secret is missing, the build script stays on its default ad hoc signing path.
+      - name: Configure optional Developer ID signing and notarization
+        if: ${{ secrets.CPAPER_DEVELOPER_ID_CERT_P12_BASE64 != '' && secrets.CPAPER_DEVELOPER_ID_CERT_PASSWORD != '' && secrets.CPAPER_CODESIGN_IDENTITY != '' && secrets.CPAPER_NOTARY_KEYCHAIN_PROFILE != '' && secrets.CPAPER_NOTARY_APPLE_ID != '' && secrets.CPAPER_NOTARY_TEAM_ID != '' && secrets.CPAPER_NOTARY_APP_PASSWORD != '' }}
+        env:
+          CPAPER_DEVELOPER_ID_CERT_P12_BASE64: ${{ secrets.CPAPER_DEVELOPER_ID_CERT_P12_BASE64 }}
+          CPAPER_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.CPAPER_DEVELOPER_ID_CERT_PASSWORD }}
+          CPAPER_CODESIGN_IDENTITY: ${{ secrets.CPAPER_CODESIGN_IDENTITY }}
+          CPAPER_NOTARY_KEYCHAIN_PROFILE: ${{ secrets.CPAPER_NOTARY_KEYCHAIN_PROFILE }}
+          CPAPER_NOTARY_APPLE_ID: ${{ secrets.CPAPER_NOTARY_APPLE_ID }}
+          CPAPER_NOTARY_TEAM_ID: ${{ secrets.CPAPER_NOTARY_TEAM_ID }}
+          CPAPER_NOTARY_APP_PASSWORD: ${{ secrets.CPAPER_NOTARY_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/cpaper-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERT_PATH="$RUNNER_TEMP/cpaper-developer-id.p12"
+          LOGIN_KEYCHAIN="$(security default-keychain -d user | tr -d '"')"
+          export CERT_PATH
+
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          Path(os.environ["CERT_PATH"]).write_bytes(
+              base64.b64decode(os.environ["CPAPER_DEVELOPER_ID_CERT_P12_BASE64"])
+          )
+          PY
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$CPAPER_DEVELOPER_ID_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" "$LOGIN_KEYCHAIN"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+          xcrun notarytool store-credentials "$CPAPER_NOTARY_KEYCHAIN_PROFILE" \
+            --apple-id "$CPAPER_NOTARY_APPLE_ID" \
+            --team-id "$CPAPER_NOTARY_TEAM_ID" \
+            --password "$CPAPER_NOTARY_APP_PASSWORD"
+
+          {
+            echo "CPAPER_CODESIGN_IDENTITY=$CPAPER_CODESIGN_IDENTITY"
+            echo "CPAPER_NOTARY_KEYCHAIN_PROFILE=$CPAPER_NOTARY_KEYCHAIN_PROFILE"
+          } >> "$GITHUB_ENV"
+
       - name: Build native DMG
         run: |
           chmod +x scripts/build_native_dmg.sh

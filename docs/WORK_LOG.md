@@ -961,3 +961,29 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - This task isolates download runs and default file transfer only; PDF preview and update-download migration onto the shared transfer client remain owned by later tasks.
+
+### 2026-06-06 — Prepare optional native signing and notarization path
+
+**Task**
+- Complete `T2.3` from `cpaper-professionalization-plan.md` by keeping ad hoc signing as the default native packaging path while adding an optional Developer ID signing + notarization route that activates only when the expected CI secrets are present.
+
+**Changed**
+- Updated `scripts/lib/native_dmg_helpers.sh` with signing-mode detection, Developer ID signing via `CPAPER_CODESIGN_IDENTITY`, ad hoc fallback when no identity is configured, and optional DMG notarization/stapling via `CPAPER_NOTARY_KEYCHAIN_PROFILE`.
+- Updated `scripts/build_native_dmg.sh` to report the active signing mode, sign the app bundle through the shared helper before DMG packaging, and notarize/staple the final DMG only after it has been created.
+- Updated `.github/workflows/build.yml` so the `package` job documents the exact optional secret names, conditionally imports a Developer ID certificate into a temporary keychain, stores a `notarytool` profile, and exports signing env vars only when all signing/notarization secrets are present.
+- Added a concise README note documenting the default ad hoc behavior, local env vars, and optional GitHub Actions secret names for the secret-backed release path.
+
+**Reason**
+- The native release path needed a real place for Developer ID signing and notarization without making local builds or no-secret CI runs depend on Apple credentials.
+
+**Tested**
+- `reason_not_testable`: this is release-script and workflow wiring, so verification used static and dry-path checks instead of live Apple credential execution.
+- `bash -n scripts/build_native_dmg.sh scripts/lib/native_dmg_helpers.sh`
+- `python3 - <<'PY' ... yaml.load(..., Loader=yaml.BaseLoader) ... PY` parsing `.github/workflows/build.yml`
+- `python3 - <<'PY' ... assert secret names in package configure-step gate ... PY`
+- `python3 - <<'PY' ... assert 'codesign' < 'xcrun notarytool submit' < 'xcrun stapler staple' ... PY`
+- `bash -lc 'unset CPAPER_CODESIGN_IDENTITY CPAPER_NOTARY_KEYCHAIN_PROFILE; source scripts/lib/native_dmg_helpers.sh; test "$(current_signing_mode)" = "ad hoc"; ! notarization_configured; echo no-secret-path-ok'`
+- `git diff --check`
+
+**Risks / Notes**
+- The workflow now has a documented optional path, but the actual secret values and Apple account material still need to be provisioned in GitHub before a notarized release can run end to end.

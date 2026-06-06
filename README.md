@@ -106,6 +106,12 @@ swift test --jobs 1
 bash scripts/build_native_dmg.sh
 ```
 
+可选签名与公证：
+
+- 默认本地和 CI 构建都继续使用 ad hoc 签名；没有 Apple 凭据时，`bash scripts/build_native_dmg.sh` 仍然可用。
+- 如需本地走 Developer ID 路径，可导出 `CPAPER_CODESIGN_IDENTITY`；再额外导出 `CPAPER_NOTARY_KEYCHAIN_PROFILE` 后，脚本会在生成最终 DMG 后执行 `xcrun notarytool submit --wait`，成功后再 `xcrun stapler staple`。
+- GitHub Actions 预留的可选 secrets 名称为：`CPAPER_DEVELOPER_ID_CERT_P12_BASE64`、`CPAPER_DEVELOPER_ID_CERT_PASSWORD`、`CPAPER_CODESIGN_IDENTITY`、`CPAPER_NOTARY_KEYCHAIN_PROFILE`、`CPAPER_NOTARY_APPLE_ID`、`CPAPER_NOTARY_TEAM_ID`、`CPAPER_NOTARY_APP_PASSWORD`。只有这些 secrets 全部存在时，workflow 才会导入证书、配置 `notarytool` profile，并启用 Developer ID 签名与公证；否则继续保持 ad hoc 打包。
+
 ## Legacy 说明
 
 以下内容不再是主维护实现：

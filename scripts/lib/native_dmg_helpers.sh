@@ -24,13 +24,57 @@ clear_bundle_metadata() {
   find "$target" -depth -exec xattr -d com.apple.macl {} \; 2>/dev/null || true
 }
 
-codesign_best_effort() {
+signing_identity_configured() {
+  [ -n "${CPAPER_CODESIGN_IDENTITY:-}" ]
+}
+
+notarization_configured() {
+  signing_identity_configured && [ -n "${CPAPER_NOTARY_KEYCHAIN_PROFILE:-}" ]
+}
+
+current_signing_mode() {
+  if signing_identity_configured; then
+    printf '%s\n' "Developer ID"
+  else
+    printf '%s\n' "ad hoc"
+  fi
+}
+
+sign_app_bundle() {
   local target="$1"
 
-  if ! codesign --force --deep --sign - "$target"; then
+  if signing_identity_configured; then
+    echo "Using Developer ID identity: $CPAPER_CODESIGN_IDENTITY"
+    codesign \
+      --force \
+      --deep \
+      --options runtime \
+      --timestamp \
+      --sign "$CPAPER_CODESIGN_IDENTITY" \
+      "$target"
+  elif ! codesign --force --deep --sign - "$target"; then
     echo "Warning: ad hoc codesign failed for $target; continuing with unsigned bundle." >&2
   fi
   clear_bundle_metadata "$target"
+}
+
+notarize_dmg_if_configured() {
+  local target="$1"
+
+  if notarization_configured; then
+    echo "Submitting DMG for notarization with profile: $CPAPER_NOTARY_KEYCHAIN_PROFILE"
+    xcrun notarytool submit "$target" \
+      --keychain-profile "$CPAPER_NOTARY_KEYCHAIN_PROFILE" \
+      --wait
+    echo "Stapling notarization ticket to: $target"
+    xcrun stapler staple "$target"
+    xcrun stapler validate "$target"
+    return
+  fi
+
+  if [ -n "${CPAPER_NOTARY_KEYCHAIN_PROFILE:-}" ] && ! signing_identity_configured; then
+    echo "Warning: CPAPER_NOTARY_KEYCHAIN_PROFILE is set without CPAPER_CODESIGN_IDENTITY; skipping notarization." >&2
+  fi
 }
 
 verify_codesign_best_effort() {
