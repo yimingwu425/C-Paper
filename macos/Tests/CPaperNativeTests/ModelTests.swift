@@ -125,6 +125,52 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(model.backend.loadSettings(), expectedSettings)
     }
 
+    func testUsableSaveDirectoryURLExpandsTildeForExistingDirectory() throws {
+        let model = try makeBasicModel()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperRevealDirectoryTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let homeDirectory = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .standardizedFileURL
+        let standardizedDirectory = directory.standardizedFileURL
+        let relativePath = standardizedDirectory.path.replacingOccurrences(
+            of: homeDirectory.path,
+            with: "~",
+            options: [.anchored]
+        )
+        model.settings.saveDirectory = relativePath
+
+        let usableDirectory = try XCTUnwrap(model.usableSaveDirectoryURL())
+
+        XCTAssertEqual(usableDirectory.standardizedFileURL, standardizedDirectory)
+    }
+
+    func testRevealSaveDirectorySetsChineseErrorWhenPathDoesNotExist() throws {
+        let model = try makeBasicModel()
+        model.settings.saveDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperMissingDirectory-\(UUID().uuidString)", isDirectory: true)
+            .path
+
+        model.revealSaveDirectory()
+
+        XCTAssertEqual(model.errorMessage, "下载文件夹不存在，请先在设置中选择有效的保存目录。")
+    }
+
+    func testRevealSaveDirectorySetsChineseErrorWhenPathIsAFile() throws {
+        let model = try makeBasicModel()
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperRevealDirectoryFile-\(UUID().uuidString).txt", isDirectory: false)
+        try Data("test".utf8).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        model.settings.saveDirectory = fileURL.path
+
+        model.revealSaveDirectory()
+
+        XCTAssertEqual(model.errorMessage, "下载文件夹不存在，请先在设置中选择有效的保存目录。")
+    }
+
     func testBackendErrorsCreateRedactedSupportDiagnosticReport() throws {
         let model = try makeBasicModel()
         let home = NSHomeDirectory()

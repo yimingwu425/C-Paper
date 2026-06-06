@@ -124,6 +124,31 @@ final class AppModel {
         NSPasteboard.general.setString(lastDiagnostic.reportText, forType: .string)
     }
 
+    func usableSaveDirectoryURL() -> URL? {
+        let expandedPath = (settings.saveDirectory as NSString).expandingTildeInPath
+        guard !expandedPath.isEmpty else {
+            return nil
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: expandedPath, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return nil
+        }
+
+        return URL(fileURLWithPath: expandedPath, isDirectory: true).standardizedFileURL
+    }
+
+    func revealSaveDirectory() {
+        guard let directoryURL = usableSaveDirectoryURL() else {
+            errorMessage = "下载文件夹不存在，请先在设置中选择有效的保存目录。"
+            return
+        }
+
+        errorMessage = nil
+        NSWorkspace.shared.activateFileViewerSelecting([directoryURL])
+    }
+
     func revealSupportDirectory() {
         let url = URL(fileURLWithPath: backend.supportDirectoryPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

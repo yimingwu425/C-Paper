@@ -62,9 +62,18 @@ T0 ──┬── T1 ──┬── T3 ──┐
 - **location**: `macos/Sources/CPaperNativeApp/State/AppModel.swift`, `macos/Tests/CPaperNativeTests/ModelTests.swift`
 - **description**: Add one shared usable-save-directory helper on `AppModel`, then use it for both `AppModel.revealSaveDirectory()` and menu validation. The helper should expand `settings.saveDirectory`, verify that it exists and is a directory, and return the resolved URL. `revealSaveDirectory()` should reveal that URL in Finder. If the path is empty, missing, or not a directory, set `errorMessage` to a concise Chinese message such as `下载文件夹不存在，请先在设置中选择有效的保存目录。` Do not create the directory automatically.
 - **validation**: Model tests cover `~` expansion for an existing directory, missing paths producing the Chinese error message, and ordinary-file paths producing the same Chinese error message. Existing settings and diagnostics tests still pass.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
-- **files edited/created**:
+  - Added RED tests in `macos/Tests/CPaperNativeTests/ModelTests.swift` for `~` expansion and invalid save-directory reveal behavior.
+  - RED evidence from repo root: `swift test --jobs 1 --filter ModelTests` failed before implementation because `AppModel` did not yet provide `usableSaveDirectoryURL()` or `revealSaveDirectory()`.
+  - Implemented shared helper `usableSaveDirectoryURL()` in `macos/Sources/CPaperNativeApp/State/AppModel.swift` and reused it from new `revealSaveDirectory()`.
+  - Helper expands `settings.saveDirectory`, verifies the path exists and is a directory, and returns a resolved file URL without creating directories.
+  - Invalid empty/missing/file paths now set `errorMessage` to `下载文件夹不存在，请先在设置中选择有效的保存目录。`
+  - GREEN evidence:
+    - `swift build` passed in repo root for the active app target.
+    - Isolated package harness under `/tmp/cpaper-t2-tests.iml674` ran `swift test --jobs 1 --filter ModelTests` and passed all 14 `ModelTests`, including existing settings and diagnostics coverage plus the new save-directory cases.
+  - Note: repo-root `swift test` remains blocked by pre-existing T1 menu test files that reference not-yet-implemented menu types; T2 did not modify those files.
+- **files edited/created**: `macos/Sources/CPaperNativeApp/State/AppModel.swift`, `macos/Tests/CPaperNativeTests/ModelTests.swift`, `cpaper-chinese-macos-menu-plan.md`
 
 ### T3: Install Main Menu During App Startup
 
