@@ -190,11 +190,11 @@ final class DownloadManagerTests: XCTestCase {
 
     func testDownloadManagerRefreshesEasyPaperTokenBeforeDownload() async throws {
         let root = makeTemporaryDownloadDirectory()
-        let observed = DownloadURLRecorder()
-        let manager = DownloadManager { sourceURL, partialURL in
-            await observed.set(sourceURL)
+        let observed = ControlledDownloadCoordinator()
+        let manager = DownloadManager(sharedTransfer: { sourceURL, partialURL, proxyURL in
+            await observed.recordTransfer(url: sourceURL, proxyURL: proxyURL)
             try Data("ok".utf8).write(to: partialURL)
-        }
+        })
         let filePath = "CAIE|AS and A Level|Mathematics (9709)|2023|Summer|9709_s23_qp_12.pdf"
         let staleURL = URL(string: "https://mirror.easy-paper.test/paperdownload/dir_v3/stale-token")!
             .withEasyPaperFilePath(filePath)
@@ -218,16 +218,123 @@ final class DownloadManagerTests: XCTestCase {
             extras: []
         )
 
-        try await manager.start(groups: [group], saveDirectory: root, options: makeDownloadOptions(threads: 1))
+        try await manager.start(
+            groups: [group],
+            saveDirectory: root,
+            options: makeDownloadOptions(threads: 1),
+            proxyURL: "http://127.0.0.1:7890"
+        )
         let snapshot = try await waitForDownloadCompletion(manager)
-        let recordedURL = await observed.value
-        let sourceURL = try XCTUnwrap(recordedURL)
+        let transfers = await observed.transfers()
+        let sourceURL = try XCTUnwrap(transfers.first?.url)
 
         XCTAssertEqual(snapshot.success, 1)
         XCTAssertEqual(sourceURL.host, "mirror.easy-paper.test")
         XCTAssertTrue(sourceURL.path.contains("/paperdownload/dir_v3/"))
         XCTAssertNotEqual(sourceURL.lastPathComponent, "stale-token")
         XCTAssertNil(sourceURL.fragment)
+        XCTAssertEqual(transfers.map(\.proxyURL), ["http://127.0.0.1:7890"])
+    }
+
+    func testDownloadManagerStartWhileRunningIgnoresLateCompletionFromPreviousRun() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let coordinator = ControlledDownloadCoordinator()
+        let manager = DownloadManager { sourceURL, partialURL in
+            let filename = sourceURL.lastPathComponent
+            await coordinator.markStarted(filename)
+            await coordinator.waitUntilAllowed(filename)
+            try Data("payload-\(filename)".utf8).write(to: partialURL)
+        }
+
+        try await manager.start(
+            groups: [makeSingleComponentGroup(filename: "old.pdf", sy: "s23")],
+            saveDirectory: root,
+            options: makeDownloadOptions(threads: 1)
+        )
+        await coordinator.waitUntilStarted("old.pdf")
+
+        try await manager.start(
+            groups: [makeSingleComponentGroup(filename: "new.pdf", sy: "s24")],
+            saveDirectory: root,
+            options: makeDownloadOptions(threads: 1)
+        )
+        let itemsAfterRestart = await manager.items()
+
+        XCTAssertEqual(itemsAfterRestart.map(\.filename), ["new.pdf"])
+
+        await coordinator.allow("old.pdf")
+        await coordinator.waitUntilStarted("new.pdf")
+        await coordinator.allow("new.pdf")
+
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let items = await manager.items()
+
+        XCTAssertEqual(snapshot.total, 1)
+        XCTAssertEqual(snapshot.success, 1)
+        XCTAssertEqual(snapshot.failed, 0)
+        XCTAssertEqual(snapshot.cancelled, 0)
+        XCTAssertEqual(items.map(\.filename), ["new.pdf"])
+        XCTAssertEqual(items.map(\.status), [.done])
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("2023/QP/old.pdf").path
+            )
+        )
+        XCTAssertEqual(
+            try String(contentsOf: root.appendingPathComponent("2024/QP/new.pdf")),
+            "payload-new.pdf"
+        )
+    }
+
+    func testDownloadManagerCancelThenStartIgnoresLateCompletionFromCancelledRun() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let coordinator = ControlledDownloadCoordinator()
+        let manager = DownloadManager { sourceURL, partialURL in
+            let filename = sourceURL.lastPathComponent
+            await coordinator.markStarted(filename)
+            await coordinator.waitUntilAllowed(filename)
+            try Data("payload-\(filename)".utf8).write(to: partialURL)
+        }
+
+        try await manager.start(
+            groups: [makeSingleComponentGroup(filename: "cancelled.pdf", sy: "s23")],
+            saveDirectory: root,
+            options: makeDownloadOptions(threads: 1)
+        )
+        await coordinator.waitUntilStarted("cancelled.pdf")
+
+        await manager.cancel()
+        let cancelledSnapshot = await manager.status()
+        XCTAssertEqual(cancelledSnapshot.phase, "done")
+        XCTAssertEqual(cancelledSnapshot.cancelled, 1)
+
+        try await manager.start(
+            groups: [makeSingleComponentGroup(filename: "fresh.pdf", sy: "s24")],
+            saveDirectory: root,
+            options: makeDownloadOptions(threads: 1)
+        )
+
+        await coordinator.allow("cancelled.pdf")
+        await coordinator.waitUntilStarted("fresh.pdf")
+        await coordinator.allow("fresh.pdf")
+
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let items = await manager.items()
+
+        XCTAssertEqual(snapshot.total, 1)
+        XCTAssertEqual(snapshot.success, 1)
+        XCTAssertEqual(snapshot.cancelled, 0)
+        XCTAssertEqual(items.map(\.filename), ["fresh.pdf"])
+        XCTAssertEqual(items.map(\.status), [.done])
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("2023/QP/cancelled.pdf").path
+            )
+        )
+        XCTAssertEqual(
+            try String(contentsOf: root.appendingPathComponent("2024/QP/fresh.pdf")),
+            "payload-fresh.pdf"
+        )
     }
 
     func testNativeBackendRecordsHistoryAndSkipsPreviouslyDownloadedFiles() async throws {
@@ -257,7 +364,8 @@ final class DownloadManagerTests: XCTestCase {
         let first = try await service.startDownload(
             groups: [group],
             saveDirectory: saveRoot.path,
-            options: makeDownloadOptions(threads: 1)
+            options: makeDownloadOptions(threads: 1),
+            proxyURL: ""
         )
         XCTAssertEqual(first.total, 1)
         _ = try await waitForDownloadCompletion(manager)
@@ -268,10 +376,53 @@ final class DownloadManagerTests: XCTestCase {
         let second = try await service.startDownload(
             groups: [group],
             saveDirectory: saveRoot.path,
-            options: makeDownloadOptions(threads: 1, duplicateMode: .skip)
+            options: makeDownloadOptions(threads: 1, duplicateMode: .skip),
+            proxyURL: ""
         )
 
         XCTAssertEqual(second.total, 0)
         XCTAssertEqual(second.skipped, 1)
+    }
+
+    func testNativeBackendStartDownloadPassesProxyURLToSharedTransferPath() async throws {
+        let storageRoot = makeTemporaryDownloadDirectory()
+        let saveRoot = makeTemporaryDownloadDirectory()
+        let paths = try AppStoragePaths(rootURL: storageRoot)
+        try FileManager.default.createDirectory(at: paths.appSupportDirectory, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: paths.migrationMarkerURL)
+        let observed = ControlledDownloadCoordinator()
+        let manager = DownloadManager(sharedTransfer: { sourceURL, partialURL, proxyURL in
+            await observed.recordTransfer(url: sourceURL, proxyURL: proxyURL)
+            try Data("ok".utf8).write(to: partialURL)
+        })
+        let service = try NativeBackendService(paths: paths, downloadManager: manager)
+
+        let result = try await service.startDownload(
+            groups: [makeSingleComponentGroup(filename: "proxied.pdf", sy: "s24")],
+            saveDirectory: saveRoot.path,
+            options: makeDownloadOptions(threads: 1),
+            proxyURL: "http://127.0.0.1:9090"
+        )
+        XCTAssertEqual(result.total, 1)
+
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let transfers = await observed.transfers()
+
+        XCTAssertEqual(snapshot.success, 1)
+        XCTAssertEqual(transfers.map(\.proxyURL), ["http://127.0.0.1:9090"])
+        XCTAssertEqual(transfers.map { $0.url.lastPathComponent }, ["proxied.pdf"])
+    }
+
+    private func makeSingleComponentGroup(filename: String, sy: String) -> NativePaperGroup {
+        NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: sy,
+            number: "12",
+            paperGroup: 1,
+            qp: makeDownloadComponent(filename: filename, type: "QP", sy: sy),
+            ms: nil,
+            extras: []
+        )
     }
 }

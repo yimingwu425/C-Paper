@@ -57,7 +57,12 @@ extension AppModel {
                 saveDir: settings.saveDirectory,
                 options: settings.downloadOptions
             )
-            let result = try await backend.startDownload(groups: params.groups, saveDirectory: params.saveDir, options: params.options)
+            let result = try await backend.startDownload(
+                groups: params.groups,
+                saveDirectory: params.saveDir,
+                options: params.options,
+                proxyURL: settings.proxyURL
+            )
             guard result.ok else {
                 throw BackendError.invalidResponse("下载任务启动失败")
             }
@@ -80,7 +85,12 @@ extension AppModel {
                 saveDir: saveDirectory,
                 options: settings.downloadOptions
             )
-            let result = try await backend.startDownload(groups: params.groups, saveDirectory: params.saveDir, options: params.options)
+            let result = try await backend.startDownload(
+                groups: params.groups,
+                saveDirectory: params.saveDir,
+                options: params.options,
+                proxyURL: settings.proxyURL
+            )
             guard result.ok else {
                 throw BackendError.invalidResponse("下载任务启动失败")
             }
@@ -106,7 +116,12 @@ extension AppModel {
                 saveDir: settings.saveDirectory,
                 options: settings.downloadOptions
             )
-            let result = try await backend.startDownload(groups: params.groups, saveDirectory: params.saveDir, options: params.options)
+            let result = try await backend.startDownload(
+                groups: params.groups,
+                saveDirectory: params.saveDir,
+                options: params.options,
+                proxyURL: settings.proxyURL
+            )
             guard result.ok else {
                 throw BackendError.invalidResponse("下载任务启动失败")
             }

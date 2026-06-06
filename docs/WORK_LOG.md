@@ -939,3 +939,25 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - `package` still runs on `workflow_dispatch` in addition to `push` because the previous native workflow already exposed manual dispatch, while `release` remains tag-only.
+
+### 2026-06-06 — Isolate download sessions and stream default transfers
+
+**Task**
+- Complete `T1.3` from `cpaper-professionalization-plan.md` by isolating overlapping download runs and routing default downloads through the shared transfer layer with proxy support.
+
+**Changed**
+- Updated `macos/Sources/CPaperNativeApp/Backend/Downloads/DownloadManager.swift` to invalidate stale runs with a run id, keep rate limiter/circuit breaker instances per run, block late stale completions before atomic replace/history recording, and route the default writer through `HTTPFileTransferClient`.
+- Updated `macos/Sources/CPaperNativeApp/Backend/Core/NativeBackendService.swift` and `macos/Sources/CPaperNativeApp/State/AppModel+PaperWorkflow.swift` so the app passes `settings.proxyURL` into download startup.
+- Expanded `macos/Tests/CPaperNativeTests/DownloadManagerTests.swift` and `macos/Tests/CPaperNativeTests/DownloadTestSupport.swift` with regression coverage for start-while-running, cancel-then-start, late stale completion isolation, EasyPaper token refresh on the shared-transfer path, and proxy propagation through the backend start API.
+- Updated `cpaper-professionalization-plan.md` to mark `T1.3` completed.
+
+**Reason**
+- Without run/session isolation, cancelled or superseded workers could finish late and mutate the latest in-memory download state; the remaining default download path also still bypassed the shared chunked transfer client and its proxy-aware streaming behavior.
+
+**Tested**
+- RED: `swift test --jobs 1 --filter DownloadManagerTests`
+- GREEN: `swift test --jobs 1 --filter DownloadManagerTests`
+- GREEN: `swift test --jobs 1`
+
+**Risks / Notes**
+- This task isolates download runs and default file transfer only; PDF preview and update-download migration onto the shared transfer client remain owned by later tasks.

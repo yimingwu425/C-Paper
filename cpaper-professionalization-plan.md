@@ -108,9 +108,9 @@ All implementation tasks -> T5
 - **location**: `DownloadManager.swift`, `NativeBackendService.swift`, `AppModel+PaperWorkflow.swift`, download tests
 - **description**: Introduce a run/session id so old cancelled workers cannot mutate the new queue, snapshot, work items, or download item statuses. Then update the download start path to pass `DownloadSettings` or at least `proxyURL`, and route default downloads through the shared transfer layer.
 - **validation**: Regression tests cover start-while-running, cancel-then-start, late old-worker completion, EasyPaper token refresh, and no whole-PDF memory buffering.
-- **status**: Not Completed
-- **log**:
-- **files edited/created**:
+- **status**: Completed
+- **log**: 2026-06-06: RED: `swift test --jobs 1 --filter DownloadManagerTests` failed at compile time after adding the new regression coverage because `DownloadManager` did not yet accept a shared-transfer writer and `NativeBackendService.startDownload` did not accept/pass `proxyURL` (`extra argument 'sharedTransfer' in call`, `extra argument 'proxyURL' in call`). GREEN: added run-id invalidation so stale workers cannot touch a newer run's queue/item/snapshot state, passed per-run rate limiter/circuit breaker instances through worker execution to avoid cross-run contamination, guarded atomic replace/completion recording against late stale completions, and routed the default download path through `HTTPFileTransferClient` with proxy-aware transfer. Updated the backend/app download start path to pass `settings.proxyURL`. Validation PASS: `swift test --jobs 1 --filter DownloadManagerTests` passed 10 tests with 0 failures, including start-while-running, cancel-then-start, late old-worker completion, EasyPaper token refresh, and proxy/shared-transfer routing coverage. Validation PASS: `swift test --jobs 1` passed 70 tests with 4 skipped and 0 failures.
+- **files edited/created**: `macos/Sources/CPaperNativeApp/Backend/Downloads/DownloadManager.swift`; `macos/Sources/CPaperNativeApp/Backend/Core/NativeBackendService.swift`; `macos/Sources/CPaperNativeApp/State/AppModel+PaperWorkflow.swift`; `macos/Tests/CPaperNativeTests/DownloadManagerTests.swift`; `macos/Tests/CPaperNativeTests/DownloadTestSupport.swift`; `cpaper-professionalization-plan.md`; `docs/WORK_LOG.md`
 
 ### T1.4: Move PDF Preview And Update Downloads Onto Shared Transfer
 

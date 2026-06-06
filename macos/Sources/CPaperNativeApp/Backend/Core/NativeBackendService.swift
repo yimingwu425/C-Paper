@@ -147,14 +147,20 @@ final class NativeBackendService: @unchecked Sendable {
         }
     }
 
-    func startDownload(groups: [NativePaperGroup], saveDirectory: String, options: DownloadOptions) async throws -> DownloadStartResult {
+    func startDownload(
+        groups: [NativePaperGroup],
+        saveDirectory: String,
+        options: DownloadOptions,
+        proxyURL: String
+    ) async throws -> DownloadStartResult {
         let url = URL(fileURLWithPath: (saveDirectory as NSString).expandingTildeInPath)
         let downloadedFilenames = Set(historyStore.load().map(\.filename))
         let result = try await downloadManager.start(
             groups: groups,
             saveDirectory: url,
             options: options,
-            downloadedFilenames: downloadedFilenames
+            downloadedFilenames: downloadedFilenames,
+            proxyURL: proxyURL
         )
         return result
     }

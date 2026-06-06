@@ -123,6 +123,50 @@ actor DownloadURLRecorder {
     }
 }
 
+actor ControlledDownloadCoordinator {
+    private var startedFilenames: Set<String> = []
+    private var startWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    private var allowWaiters: [String: CheckedContinuation<Void, Never>] = [:]
+    private var transferEvents: [(url: URL, proxyURL: String)] = []
+
+    func markStarted(_ filename: String) {
+        startedFilenames.insert(filename)
+        let waiters = startWaiters.removeValue(forKey: filename) ?? []
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    func waitUntilStarted(_ filename: String) async {
+        if startedFilenames.contains(filename) {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            startWaiters[filename, default: []].append(continuation)
+        }
+    }
+
+    func waitUntilAllowed(_ filename: String) async {
+        await withCheckedContinuation { continuation in
+            allowWaiters[filename] = continuation
+        }
+    }
+
+    func allow(_ filename: String) {
+        let waiter = allowWaiters.removeValue(forKey: filename)
+        waiter?.resume()
+    }
+
+    func recordTransfer(url: URL, proxyURL: String) {
+        transferEvents.append((url, proxyURL))
+    }
+
+    func transfers() -> [(url: URL, proxyURL: String)] {
+        transferEvents
+    }
+}
+
 actor NativeHistoryRecorder {
     private let store: DownloadHistoryStore
 

@@ -1,6 +1,7 @@
 import Foundation
 
 typealias DownloadWriter = @Sendable (_ sourceURL: URL, _ partialURL: URL) async throws -> Void
+typealias SharedTransferWriter = @Sendable (_ sourceURL: URL, _ partialURL: URL, _ proxyURL: String) async throws -> Void
 typealias DownloadCompletionRecorder = @Sendable (_ task: DownloadDestinationTask) async -> Void
 
 actor DownloadManager {
@@ -18,27 +19,27 @@ actor DownloadManager {
         skipped: nil
     )
     private var isCancelled = false
+    private var runID = 0
     private var runnerTask: Task<Void, Never>?
-    private var rateLimiter: RateLimiter
-    private var circuitBreaker: CircuitBreaker
-    private let download: DownloadWriter
+    private let download: DownloadWriter?
+    private let sharedTransfer: SharedTransferWriter
     private let completionRecorder: DownloadCompletionRecorder
     private let fileManager: FileManager
     private let circuitBreakerRecoveryTimeout: Duration
     private let maxRetries = 3
 
     init(
-        download: @escaping DownloadWriter = DownloadManager.defaultDownload,
+        download: DownloadWriter? = nil,
+        sharedTransfer: @escaping SharedTransferWriter = DownloadManager.defaultDownload,
         completionRecorder: @escaping DownloadCompletionRecorder = { _ in },
         fileManager: FileManager = .default,
         circuitBreakerRecoveryTimeout: Duration = .seconds(30)
     ) {
         self.download = download
+        self.sharedTransfer = sharedTransfer
         self.completionRecorder = completionRecorder
         self.fileManager = fileManager
         self.circuitBreakerRecoveryTimeout = circuitBreakerRecoveryTimeout
-        self.rateLimiter = RateLimiter(rate: 5)
-        self.circuitBreaker = CircuitBreaker(recoveryTimeout: circuitBreakerRecoveryTimeout)
     }
 
     @discardableResult
@@ -46,9 +47,12 @@ actor DownloadManager {
         groups: [NativePaperGroup],
         saveDirectory: URL,
         options: DownloadOptions,
-        downloadedFilenames: Set<String> = []
+        downloadedFilenames: Set<String> = [],
+        proxyURL: String = ""
     ) throws -> DownloadStartResult {
         runnerTask?.cancel()
+        runID += 1
+        let currentRunID = runID
         isCancelled = false
         queue.removeAll()
         workItems.removeAll()
@@ -68,8 +72,6 @@ actor DownloadManager {
             queue.enqueue(task.id)
         }
 
-        rateLimiter = RateLimiter(rate: max(1, min(options.rate, 20)))
-        circuitBreaker = CircuitBreaker(recoveryTimeout: circuitBreakerRecoveryTimeout)
         snapshot = DownloadStatusSnapshot(
             phase: plan.tasks.isEmpty ? "done" : "running",
             done: 0,
@@ -83,8 +85,16 @@ actor DownloadManager {
 
         if !plan.tasks.isEmpty {
             let workers = max(1, min(options.threads, 16))
+            let rateLimiter = RateLimiter(rate: max(1, min(options.rate, 20)))
+            let circuitBreaker = CircuitBreaker(recoveryTimeout: circuitBreakerRecoveryTimeout)
             runnerTask = Task { [weak self] in
-                await self?.run(workers: workers)
+                await self?.run(
+                    workers: workers,
+                    runID: currentRunID,
+                    proxyURL: proxyURL,
+                    rateLimiter: rateLimiter,
+                    circuitBreaker: circuitBreaker
+                )
             }
         }
 
@@ -101,8 +111,10 @@ actor DownloadManager {
 
     func cancel() {
         guard snapshot.phase == "running" else { return }
+        let cancelledRunID = runID
         isCancelled = true
         runnerTask?.cancel()
+        runnerTask = nil
         queue.removeAll()
 
         for item in downloadItems.values where item.status == .pending || item.status == .downloading {
@@ -119,22 +131,39 @@ actor DownloadManager {
             cancelled: snapshot.cancelled,
             skipped: snapshot.skipped
         )
+        if runID == cancelledRunID {
+            runID += 1
+        }
     }
 
-    private func run(workers: Int) async {
+    private func run(
+        workers: Int,
+        runID: Int,
+        proxyURL: String,
+        rateLimiter: RateLimiter,
+        circuitBreaker: CircuitBreaker
+    ) async {
         var retryRound = 0
 
-        while !isCancelled {
+        while isActive(runID) && !isCancelled {
             await withTaskGroup(of: Void.self) { group in
                 for _ in 0..<workers {
                     group.addTask { [weak self] in
-                        await self?.workerLoop()
+                        await self?.workerLoop(
+                            runID: runID,
+                            proxyURL: proxyURL,
+                            rateLimiter: rateLimiter,
+                            circuitBreaker: circuitBreaker
+                        )
                     }
                 }
             }
 
+            guard isActive(runID) else {
+                return
+            }
+
             if isCancelled || Task.isCancelled {
-                cancel()
                 return
             }
 
@@ -145,19 +174,18 @@ actor DownloadManager {
             if !failed.isEmpty && retryRound < maxRetries {
                 retryRound += 1
                 if let retryDelay = await circuitBreaker.retryDelayBeforeNextRequest() {
-                    updateProgress(message: "熔断器恢复中，等待后重试...")
+                    updateProgress(runID: runID, message: "熔断器恢复中，等待后重试...")
                     do {
                         try await Task.sleep(for: retryDelay)
                     } catch {
-                        cancel()
                         return
                     }
                 }
                 for item in failed {
-                    setStatus(id: item.id, status: .pending, error: "", errorType: "")
+                    setStatus(runID: runID, id: item.id, status: .pending, error: "", errorType: "")
                     queue.enqueue(item.id)
                 }
-                updateProgress(message: "\(failed.count) 个失败任务自动重试 (第 \(retryRound) 轮)")
+                updateProgress(runID: runID, message: "\(failed.count) 个失败任务自动重试 (第 \(retryRound) 轮)")
                 continue
             }
 
@@ -176,18 +204,35 @@ actor DownloadManager {
         }
     }
 
-    private func workerLoop() async {
+    private func workerLoop(
+        runID: Int,
+        proxyURL: String,
+        rateLimiter: RateLimiter,
+        circuitBreaker: CircuitBreaker
+    ) async {
         while !Task.isCancelled {
-            guard !isCancelled, let id = queue.dequeue(), let task = workItems[id] else {
+            guard isActive(runID), !isCancelled, let id = queue.dequeue(), let task = workItems[id] else {
                 return
             }
-            await download(task)
-            updateProgress(message: "下载中... (\(snapshot.done)/\(snapshot.total))")
+            await download(
+                task,
+                runID: runID,
+                proxyURL: proxyURL,
+                rateLimiter: rateLimiter,
+                circuitBreaker: circuitBreaker
+            )
+            updateProgress(runID: runID, message: "下载中... (\(snapshot.done)/\(snapshot.total))")
         }
     }
 
-    private func download(_ task: DownloadDestinationTask) async {
-        setStatus(id: task.id, status: .downloading, error: "", errorType: "")
+    private func download(
+        _ task: DownloadDestinationTask,
+        runID: Int,
+        proxyURL: String,
+        rateLimiter: RateLimiter,
+        circuitBreaker: CircuitBreaker
+    ) async {
+        setStatus(runID: runID, id: task.id, status: .downloading, error: "", errorType: "")
 
         do {
             try await circuitBreaker.allowRequest()
@@ -201,20 +246,41 @@ actor DownloadManager {
                 try? fileManager.removeItem(at: partialURL)
             }
 
-            try await download(DownloadSourceURLResolver.resolvedSourceURL(for: task.component), partialURL)
+            let sourceURL = try DownloadSourceURLResolver.resolvedSourceURL(for: task.component)
+            if let download {
+                try await download(sourceURL, partialURL)
+            } else {
+                try await sharedTransfer(sourceURL, partialURL, proxyURL)
+            }
             try Task.checkCancellation()
+            try ensureActive(runID)
             try atomicReplace(partialURL: partialURL, destinationURL: task.saveURL)
+            try ensureActive(runID)
             await circuitBreaker.recordSuccess()
-            setStatus(id: task.id, status: .done, error: "", errorType: "")
-            await completionRecorder(task)
+            setStatus(runID: runID, id: task.id, status: .done, error: "", errorType: "")
+            if isActive(runID) {
+                await completionRecorder(task)
+            }
         } catch is CancellationError {
-            setStatus(id: task.id, status: .cancelled, error: "用户取消", errorType: "cancelled")
+            setStatus(runID: runID, id: task.id, status: .cancelled, error: "用户取消", errorType: "cancelled")
         } catch CircuitBreakerError.open {
             await circuitBreaker.recordFailure()
-            setStatus(id: task.id, status: .failed, error: CircuitBreakerError.open.localizedDescription, errorType: "rate_limit")
+            setStatus(
+                runID: runID,
+                id: task.id,
+                status: .failed,
+                error: CircuitBreakerError.open.localizedDescription,
+                errorType: "rate_limit"
+            )
         } catch {
             await circuitBreaker.recordFailure()
-            setStatus(id: task.id, status: .failed, error: error.localizedDescription, errorType: errorType(for: error))
+            setStatus(
+                runID: runID,
+                id: task.id,
+                status: .failed,
+                error: error.localizedDescription,
+                errorType: errorType(for: error)
+            )
         }
     }
 
@@ -226,7 +292,10 @@ actor DownloadManager {
         }
     }
 
-    private func setStatus(id: Int, status: DownloadStatus, error: String, errorType: String) {
+    private func setStatus(runID: Int? = nil, id: Int, status: DownloadStatus, error: String, errorType: String) {
+        if let runID, !isActive(runID) {
+            return
+        }
         guard let current = downloadItems[id] else { return }
         downloadItems[id] = DownloadTaskItem(
             id: current.id,
@@ -241,7 +310,10 @@ actor DownloadManager {
         )
     }
 
-    private func updateProgress(message: String) {
+    private func updateProgress(runID: Int? = nil, message: String) {
+        if let runID, !isActive(runID) {
+            return
+        }
         let counts = counts()
         snapshot = DownloadStatusSnapshot(
             phase: snapshot.phase,
@@ -253,6 +325,16 @@ actor DownloadManager {
             cancelled: counts.cancelled,
             skipped: snapshot.skipped
         )
+    }
+
+    private func isActive(_ runID: Int) -> Bool {
+        self.runID == runID
+    }
+
+    private func ensureActive(_ runID: Int) throws {
+        guard isActive(runID) else {
+            throw CancellationError()
+        }
     }
 
     private func counts() -> (done: Int, failed: Int, cancelled: Int, skipped: Int, completed: Int) {
@@ -280,16 +362,8 @@ actor DownloadManager {
         return "unknown"
     }
 
-    private static func defaultDownload(sourceURL: URL, partialURL: URL) async throws {
-        let (data, response) = try await URLSession.shared.data(from: sourceURL)
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200..<300).contains(httpResponse.statusCode) {
-            throw NSError(
-                domain: "DownloadManager.HTTP",
-                code: httpResponse.statusCode,
-                userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode)"]
-            )
-        }
-        try data.write(to: partialURL, options: .atomic)
+    private static func defaultDownload(sourceURL: URL, partialURL: URL, proxyURL: String) async throws {
+        let client = HTTPFileTransferClient(proxy: ProxyConfiguration(rawValue: proxyURL))
+        try await client.transfer(from: sourceURL, to: partialURL) { _ in }
     }
 }
