@@ -59,7 +59,7 @@ struct UpdateSettingsSection: View {
                             .foregroundStyle(statusColor)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        if case let .downloading(progress) = model.updateStatus {
+                        if case let .downloading(progress, _) = model.updateStatus {
                             ProgressView(value: progress ?? 0)
                                 .progressViewStyle(.linear)
                                 .frame(maxWidth: 260)

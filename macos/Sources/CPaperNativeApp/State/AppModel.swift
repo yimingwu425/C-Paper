@@ -34,10 +34,15 @@ final class AppModel {
     var lastDiagnostic: SupportDiagnostic?
 
     @ObservationIgnored let backend: NativeBackendService
+    @ObservationIgnored private let openDownloadedFile: (URL) -> Bool
     @ObservationIgnored var pollTask: Task<Void, Never>?
 
-    init(backend: NativeBackendService) {
+    init(
+        backend: NativeBackendService,
+        openDownloadedFile: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) }
+    ) {
         self.backend = backend
+        self.openDownloadedFile = openDownloadedFile
     }
 
     static func live() throws -> AppModel {
@@ -153,6 +158,14 @@ final class AppModel {
         let url = URL(fileURLWithPath: backend.supportDirectoryPath, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    @discardableResult
+    func openDownloadedUpdateFile() -> Bool {
+        guard let url = updateStatus.downloadedURL else {
+            return false
+        }
+        return openDownloadedFile(url)
     }
 
     func handleBackendError(

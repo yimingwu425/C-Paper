@@ -102,8 +102,8 @@ final class UpdateService: @unchecked Sendable {
     ) async throws -> URL {
         try fileManager.createDirectory(at: updatesDirectory, withIntermediateDirectories: true)
 
-        let filename = release.assetName.safeUpdateFilename
-        let destinationURL = updatesDirectory.appendingPathComponent(filename)
+        let destinationURL = destinationURL(for: release)
+        let filename = destinationURL.lastPathComponent
         let partialURL = updatesDirectory.appendingPathComponent("\(filename).part")
         try? fileManager.removeItem(at: partialURL)
 
@@ -120,6 +120,10 @@ final class UpdateService: @unchecked Sendable {
         }
         await progress(1)
         return destinationURL
+    }
+
+    func destinationURL(for release: AppUpdateRelease) -> URL {
+        updatesDirectory.appendingPathComponent(release.assetName.safeUpdateFilename)
     }
 
     private static func defaultUpdatesDirectory() -> URL {

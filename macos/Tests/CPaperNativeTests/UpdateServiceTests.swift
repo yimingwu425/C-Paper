@@ -131,6 +131,28 @@ final class UpdateServiceTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(progressValues.last), 1, accuracy: 0.0001)
     }
 
+    func testDestinationURLUsesSanitizedAssetNameInsideUpdatesDirectory() throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperUpdateServiceTests-\(UUID().uuidString)", isDirectory: true)
+        let service = UpdateService(
+            currentVersion: "6.0.3",
+            updatesDirectory: tempDirectory
+        )
+        let release = AppUpdateRelease(
+            version: "6.0.4",
+            tagName: "v6.0.4",
+            name: "C-Paper Native 6.0.4",
+            htmlURL: URL(string: "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.4")!,
+            assetName: "C Paper: Native 6.0.4 Final?.dmg",
+            downloadURL: URL(string: "https://example.test/update.dmg")!
+        )
+
+        let destinationURL = service.destinationURL(for: release)
+
+        XCTAssertEqual(destinationURL.deletingLastPathComponent(), tempDirectory)
+        XCTAssertEqual(destinationURL.lastPathComponent, "C-Paper--Native-6.0.4-Final-.dmg")
+    }
+
     func testDownloadUpdateThrowsForErrorResponseAndRemovesPartialFile() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CPaperUpdateServiceTests-\(UUID().uuidString)", isDirectory: true)

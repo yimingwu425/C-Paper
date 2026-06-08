@@ -26,7 +26,7 @@ enum UpdateStatus: Equatable {
     case checking
     case upToDate(current: String, latest: String)
     case available(AppUpdateRelease)
-    case downloading(progress: Double?)
+    case downloading(progress: Double?, destinationURL: URL? = nil)
     case downloaded(URL)
     case failed(String)
 
@@ -40,7 +40,7 @@ enum UpdateStatus: Equatable {
             return "当前已是最新版 \(current)"
         case let .available(release):
             return "发现新版本 \(release.version)"
-        case let .downloading(progress):
+        case let .downloading(progress, _):
             if let progress {
                 return "正在下载更新 \(Int(progress * 100))%"
             }
@@ -57,6 +57,17 @@ enum UpdateStatus: Equatable {
             return url
         }
         return nil
+    }
+
+    var destinationURL: URL? {
+        switch self {
+        case let .downloading(_, destinationURL):
+            return destinationURL
+        case let .downloaded(url):
+            return url
+        default:
+            return nil
+        }
     }
 
     var availableRelease: AppUpdateRelease? {

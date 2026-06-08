@@ -63,6 +63,15 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(decoded, settings)
     }
 
+    func testDownloadingUpdateStatusPreservesDestinationURLBeforeCompletion() {
+        let url = URL(fileURLWithPath: "/tmp/C-Paper/Updates/C-Paper-Native.dmg")
+        let status = UpdateStatus.downloading(progress: 0.5, destinationURL: url)
+
+        XCTAssertEqual(status.destinationURL, url)
+        XCTAssertNil(status.downloadedURL)
+        XCTAssertEqual(status.message, "正在下载更新 50%")
+    }
+
     func testEditingSettingsDraftDoesNotMutateModelOrPersistenceUntilCommitted() async throws {
         let initialSettings = DownloadSettings(
             theme: "light",
@@ -256,11 +265,57 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: downloadedURL), "update")
     }
 
+    func testOpenDownloadedUpdateFileUsesInjectedOpenDownloadedFileClosure() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperModelUpdateOpenTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let recorder = URLRecorder()
+        let model = try makeModel(
+            currentVersion: "6.0.3",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.4"),
+            updatesDirectory: tempDirectory,
+            openDownloadedFile: { url in
+                recorder.record(url)
+                return true
+            }
+        )
+        await model.checkForUpdates(source: .startup)
+        await model.downloadAvailableUpdate()
+
+        let didOpen = model.openDownloadedUpdateFile()
+
+        XCTAssertTrue(didOpen)
+        let openedURL = recorder.lastValue()
+        XCTAssertEqual(openedURL, model.updateStatus.downloadedURL)
+        XCTAssertEqual(openedURL?.pathExtension, "dmg")
+    }
+
+    func testOpenDownloadedUpdateFileReturnsFalseWithoutClearingDownloadedURL() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperModelUpdateOpenFailureTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let model = try makeModel(
+            currentVersion: "6.0.3",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.4"),
+            updatesDirectory: tempDirectory,
+            openDownloadedFile: { _ in false }
+        )
+        await model.checkForUpdates(source: .startup)
+        await model.downloadAvailableUpdate()
+        let downloadedURL = try XCTUnwrap(model.updateStatus.downloadedURL)
+
+        let didOpen = model.openDownloadedUpdateFile()
+
+        XCTAssertFalse(didOpen)
+        XCTAssertEqual(model.updateStatus.downloadedURL, downloadedURL)
+    }
+
     private func makeModel(
         currentVersion: String,
         releaseJSON: Data,
         updatesDirectory: URL? = nil,
-        counter: UpdateCallCounter = UpdateCallCounter()
+        counter: UpdateCallCounter = UpdateCallCounter(),
+        openDownloadedFile: @escaping (URL) -> Bool = { _ in true }
     ) throws -> AppModel {
         let pathsRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("CPaperModelTests-\(UUID().uuidString)", isDirectory: true)
@@ -277,7 +332,7 @@ final class ModelTests: XCTestCase {
             }
         )
         let backend = try NativeBackendService(paths: paths, updateService: updateService)
-        return AppModel(backend: backend)
+        return AppModel(backend: backend, openDownloadedFile: openDownloadedFile)
     }
 
     private func makeBasicModel() throws -> AppModel {
@@ -350,5 +405,17 @@ private final class CountedUpdateNetworkClient: NetworkClientProtocol, @unchecke
     func data(for request: URLRequest) async throws -> Data {
         await counter.increment()
         return data
+    }
+}
+
+private final class URLRecorder {
+    private var lastURL: URL?
+
+    func record(_ url: URL) {
+        lastURL = url
+    }
+
+    func lastValue() -> URL? {
+        lastURL
     }
 }
