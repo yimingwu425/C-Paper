@@ -36,11 +36,12 @@ extension AppModel {
         guard let release else { return }
 
         pendingUpdatePrompt = nil
-        updateStatus = .downloading(progress: nil)
+        let destinationURL = backend.updateDestinationURL(for: release)
+        updateStatus = .downloading(progress: nil, destinationURL: destinationURL)
         do {
             let downloadedURL = try await backend.downloadUpdate(release, proxyURL: settings.proxyURL) { [weak self] progress in
                 await MainActor.run {
-                    self?.updateStatus = .downloading(progress: progress)
+                    self?.updateStatus = .downloading(progress: progress, destinationURL: destinationURL)
                 }
             }
             updateStatus = .downloaded(downloadedURL)
@@ -50,9 +51,9 @@ extension AppModel {
         }
     }
 
-    func openDownloadedUpdate() {
-        guard let url = updateStatus.downloadedURL else { return }
-        NSWorkspace.shared.open(url)
+    @discardableResult
+    func openDownloadedUpdate() -> Bool {
+        openDownloadedUpdateFile()
     }
 
     func revealDownloadedUpdate() {

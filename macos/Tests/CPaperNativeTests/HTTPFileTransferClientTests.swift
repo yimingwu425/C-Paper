@@ -143,7 +143,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
                 return XCTFail("Expected rate limited error, got \(error)")
             }
             XCTAssertEqual(statusCode, 429)
-            XCTAssertEqual(retryAfter, 12.5, accuracy: 0.0001)
+            XCTAssertEqual(try XCTUnwrap(retryAfter), 12.5, accuracy: 0.0001)
         }
     }
 
@@ -182,7 +182,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
                 return XCTFail("Expected rate limited error, got \(error)")
             }
             XCTAssertEqual(statusCode, 429)
-            XCTAssertEqual(retryAfter, 90, accuracy: 0.0001)
+            XCTAssertEqual(try XCTUnwrap(retryAfter), 90, accuracy: 0.0001)
         }
     }
 
@@ -190,7 +190,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
         let pastDate = fixedRetryAfterNow.addingTimeInterval(-30)
 
         try await assertRateLimitedRetryAfter(
-            headerValue: httpDateString(from: pastDate),
+            headerValue: Self.httpDateString(from: pastDate),
             expectedRetryAfter: nil
         )
         try await assertRateLimitedRetryAfter(
@@ -348,7 +348,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
                 return XCTFail("Expected rate limited error, got \(error)")
             }
             XCTAssertEqual(statusCode, 429)
-            XCTAssertEqual(retryAfter, 7, accuracy: 0.0001)
+            XCTAssertEqual(try XCTUnwrap(retryAfter), 7, accuracy: 0.0001)
         }
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
@@ -401,7 +401,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
             }
             XCTAssertEqual(statusCode, 429)
             if let expectedRetryAfter {
-                XCTAssertEqual(retryAfter, expectedRetryAfter, accuracy: 0.0001)
+                XCTAssertEqual(try XCTUnwrap(retryAfter), expectedRetryAfter, accuracy: 0.0001)
             } else {
                 XCTAssertNil(retryAfter)
             }

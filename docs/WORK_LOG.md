@@ -30,6 +30,25 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-08 — Plan download and update experience fixes
+
+**Task**
+- Create a swarm-ready implementation plan for fixing download 429 handling, download destination/progress visibility, update DMG feedback/auto-open behavior, and the long subject picker.
+
+**Changed**
+- Added `cpaper-download-update-experience-plan.md`.
+- Revised the plan after subagent review to specify queue-wide 429 cooldown gating, update-open failure handling, testable subject filtering helpers, deterministic QA stubs, and single-owner work-log consolidation.
+
+**Reason**
+- The reported latest build issues span networking, state, and SwiftUI surfaces, so the follow-up implementation needs explicit dependencies for parallel execution.
+
+**Tested**
+- `git diff --check -- cpaper-download-update-experience-plan.md`
+- Read-only review of relevant active macOS files and subagent plan review.
+
+**Risks / Notes**
+- This entry records planning only; no application code was changed or tested.
+
 ### 2026-06-06 — Prepare native 6.0.4 release
 
 **Task**

@@ -25,6 +25,61 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(model.activeDownloadCount, 1)
     }
 
+    func testDownloadTaskProgressUsesFractionWhenAvailable() {
+        let inFlight = DownloadTaskItem(
+            id: 1,
+            filename: "paper.pdf",
+            ftype: "QP",
+            label: "Paper 1",
+            year: "2024",
+            savePath: "/tmp/paper.pdf",
+            status: .downloading,
+            error: "",
+            errorType: "",
+            progressFraction: 0.42
+        )
+        let belowRange = DownloadTaskItem(
+            id: 2,
+            filename: "low.pdf",
+            ftype: "QP",
+            label: "Paper 2",
+            year: "2024",
+            savePath: "/tmp/low.pdf",
+            status: .downloading,
+            error: "",
+            errorType: "",
+            progressFraction: -0.5
+        )
+        let aboveRange = DownloadTaskItem(
+            id: 3,
+            filename: "high.pdf",
+            ftype: "QP",
+            label: "Paper 3",
+            year: "2024",
+            savePath: "/tmp/high.pdf",
+            status: .downloading,
+            error: "",
+            errorType: "",
+            progressFraction: 1.5
+        )
+        let legacyStyle = DownloadTaskItem(
+            id: 4,
+            filename: "legacy.pdf",
+            ftype: "QP",
+            label: "Paper 4",
+            year: "2024",
+            savePath: "/tmp/legacy.pdf",
+            status: .downloading,
+            error: "",
+            errorType: ""
+        )
+
+        XCTAssertEqual(inFlight.progress, 0.42, accuracy: 0.0001)
+        XCTAssertEqual(belowRange.progress, 0, accuracy: 0.0001)
+        XCTAssertEqual(aboveRange.progress, 1, accuracy: 0.0001)
+        XCTAssertEqual(legacyStyle.progress, 0.55, accuracy: 0.0001)
+    }
+
     func testManualSubjectCodeActsAsFallbackWhenSubjectListIsUnavailable() {
         let model = try! makeBasicModel()
         model.selectedSubject = nil

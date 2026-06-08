@@ -203,6 +203,10 @@ final class NativeBackendService: @unchecked Sendable {
         try await updateService.downloadUpdate(release, proxyURL: proxyURL, progress: progress)
     }
 
+    func updateDestinationURL(for release: AppUpdateRelease) -> URL {
+        updateService.destinationURL(for: release)
+    }
+
     func previewURL(for file: PaperFile, settings: DownloadSettings) async throws -> URL {
         try await previewService.previewURL(for: file, settings: settings)
     }

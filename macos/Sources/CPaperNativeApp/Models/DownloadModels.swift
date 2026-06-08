@@ -58,6 +58,31 @@ struct DownloadTaskItem: Identifiable, Hashable, Codable {
     let status: DownloadStatus
     let error: String
     let errorType: String
+    let progressFraction: Double?
+
+    init(
+        id: Int,
+        filename: String,
+        ftype: String,
+        label: String,
+        year: String,
+        savePath: String,
+        status: DownloadStatus,
+        error: String,
+        errorType: String,
+        progressFraction: Double? = nil
+    ) {
+        self.id = id
+        self.filename = filename
+        self.ftype = ftype
+        self.label = label
+        self.year = year
+        self.savePath = savePath
+        self.status = status
+        self.error = error
+        self.errorType = errorType
+        self.progressFraction = progressFraction
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -69,13 +94,21 @@ struct DownloadTaskItem: Identifiable, Hashable, Codable {
         case status
         case error
         case errorType = "error_type"
+        case progressFraction = "progress_fraction"
     }
 
     var progress: Double {
+        if let progressFraction {
+            return min(max(progressFraction, 0), 1)
+        }
+
         switch status {
-        case .done, .skipped: 1
-        case .downloading: 0.55
-        case .failed, .cancelled, .pending: 0
+        case .done, .skipped:
+            return 1
+        case .downloading:
+            return 0.55
+        case .failed, .cancelled, .pending:
+            return 0
         }
     }
 
