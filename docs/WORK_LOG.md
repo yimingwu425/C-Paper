@@ -30,6 +30,27 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-08 — Prepare native 6.0.5 release
+
+**Task**
+- Bump the native release version after the download/update experience fixes and prepare the next GitHub Release payload.
+
+**Changed**
+- Updated `version.json`, `README.md`, and `BackendConstants.version` from `6.0.4` to `6.0.5`.
+- Added `.github/release-notes/native-v6.0.5.md`.
+- Refreshed release metadata so the GitHub release URL, release notes summary, and published date point to `v6.0.5`.
+
+**Reason**
+- The repository now includes the download 429 recovery, clearer save-location/update feedback, and searchable subject picker improvements, so the published native version needs to move past the existing `v6.0.4` release.
+
+**Tested**
+- `bash scripts/check_version_drift.sh`
+- `swift test --jobs 1`
+- `CONFIGURATION=release bash scripts/build_native_dmg.sh`
+
+**Risks / Notes**
+- Tag push is still the actual GitHub Release trigger; metadata prep alone does not publish the release.
+
 ### 2026-06-08 — Fix download throttling, update download UX, and subject picker
 
 **Task**

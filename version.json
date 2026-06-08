@@ -1,8 +1,8 @@
 {
-  "version": "6.0.4",
+  "version": "6.0.5",
   "min_version": "6.0.0",
-  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.4",
-  "release_notes": "- 新增完整中文 macOS 菜单栏：C-Paper、文件、编辑、显示、窗口、帮助\n- 菜单动作已接入设置、检查更新、搜索/批量/下载切换、诊断复制和支持目录打开\n- 原生启动阶段现在会在窗口出现前安装主菜单，并保证重复启动路径下只安装一次\n- 下载目录检查新增统一 helper，无法使用的路径会给出明确中文提示\n- 补齐 AppKit 菜单层、启动链和菜单绑定的测试覆盖，并完成 release build 与菜单栏截图验证",
+  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.5",
+  "release_notes": "- 下载队列新增 HTTP 429 全局冷却与自动重试，避免批量下载时大面积失败\n- 下载页现在直接显示保存目录，并提供显示文件夹入口与更诚实的处理进度摘要\n- 自动更新下载现在显示保存位置与进度，下载完成后会自动打开 DMG，失败时保留手动打开提示\n- 科目选择改为可搜索弹层，不再展开成超长菜单，并默认保持“选择科目”未选状态",
   "force_update": false,
-  "published_at": "2026-06-06T00:00:00Z"
+  "published_at": "2026-06-08T00:00:00Z"
 }

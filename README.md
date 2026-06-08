@@ -23,7 +23,7 @@ swift run CPaperNative
 
 ## 当前版本
 
-当前 native 主线版本：`6.0.4`
+当前 native 主线版本：`6.0.5`
 
 当前版本重点：
 
