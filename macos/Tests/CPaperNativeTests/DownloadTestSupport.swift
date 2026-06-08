@@ -3,6 +3,10 @@ import XCTest
 @testable import CPaperNativeApp
 
 extension XCTestCase {
+    func seconds(_ duration: Duration) -> Double {
+        Double(duration.components.seconds) + (Double(duration.components.attoseconds) / 1_000_000_000_000_000_000)
+    }
+
     func makeDownloadPaperGroup(sy: String) -> NativePaperGroup {
         NativePaperGroup(
             sourceID: .frankcie,
@@ -69,6 +73,18 @@ extension XCTestCase {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
         XCTFail("Timed out waiting for download manager completion.")
+        return await manager.status()
+    }
+
+    func waitForDownloadMessage(_ message: String, in manager: DownloadManager) async throws -> DownloadStatusSnapshot {
+        for _ in 0..<200 {
+            let snapshot = await manager.status()
+            if snapshot.message == message {
+                return snapshot
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Timed out waiting for download manager message: \(message)")
         return await manager.status()
     }
 }
@@ -181,5 +197,60 @@ actor NativeHistoryRecorder {
             year: task.year,
             savePath: task.saveURL.path
         )
+    }
+}
+
+actor TimedEventRecorder {
+    private let startedAt = ContinuousClock.now
+    private var events: [(name: String, offset: Duration)] = []
+
+    func record(_ name: String) {
+        events.append((name, startedAt.duration(to: .now)))
+    }
+
+    func offset(for name: String) -> Duration? {
+        events.first(where: { $0.name == name })?.offset
+    }
+
+    func names() -> [String] {
+        events.map(\.name)
+    }
+}
+
+actor DownloadProgressCoordinator {
+    private var latest: Double?
+    private var halfWaiters: [CheckedContinuation<Void, Never>] = []
+    private var finishContinuation: CheckedContinuation<Void, Never>?
+
+    func record(_ progress: Double?) {
+        latest = progress
+        guard let progress, progress >= 0.5 else { return }
+        let waiters = halfWaiters
+        halfWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    func waitForHalfProgress() async {
+        if let latest, latest >= 0.5 {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            halfWaiters.append(continuation)
+        }
+    }
+
+    func waitForFinishPermission() async {
+        await withCheckedContinuation { continuation in
+            finishContinuation = continuation
+        }
+    }
+
+    func allowFinish() {
+        let continuation = finishContinuation
+        finishContinuation = nil
+        continuation?.resume()
     }
 }

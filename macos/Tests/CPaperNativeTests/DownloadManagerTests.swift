@@ -3,6 +3,196 @@ import XCTest
 @testable import CPaperNativeApp
 
 final class DownloadManagerTests: XCTestCase {
+    func testDownloadManagerRetriesRateLimitedItemAfterServerDelay() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let attempts = AttemptCounter()
+        let manager = DownloadManager(sharedTransfer: { _, partialURL, _, _ in
+            let current = await attempts.next()
+            if current == 1 {
+                throw NetworkClientError.rateLimited(statusCode: 429, retryAfter: 0.12)
+            }
+
+            try Data("ok".utf8).write(to: partialURL)
+        })
+
+        let startedAt = ContinuousClock.now
+        try await manager.start(
+            groups: [makeSingleComponentGroup(filename: "retry-429.pdf", sy: "s24")],
+            saveDirectory: root,
+            options: makeDownloadOptions(threads: 1)
+        )
+
+        let waitingSnapshot = try await waitForDownloadMessage("服务器限流，等待后自动重试...", in: manager)
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let elapsed = startedAt.duration(to: .now)
+        let attemptCount = await attempts.value
+
+        XCTAssertEqual(waitingSnapshot.message, "服务器限流，等待后自动重试...")
+        XCTAssertEqual(snapshot.success, 1)
+        XCTAssertEqual(snapshot.failed, 0)
+        XCTAssertEqual(attemptCount, 2)
+        XCTAssertGreaterThanOrEqual(seconds(elapsed), 0.1)
+    }
+
+    func testDownloadManagerUsesInjectedDefaultCooldownWhenRetryAfterMissing() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let attempts = AttemptCounter()
+        let manager = DownloadManager(
+            sharedTransfer: { _, partialURL, _, _ in
+                let current = await attempts.next()
+                if current == 1 {
+                    throw NetworkClientError.rateLimited(statusCode: 429, retryAfter: nil)
+                }
+
+                try Data("ok".utf8).write(to: partialURL)
+            },
+            defaultRateLimitCooldown: .milliseconds(40),
+            minimumRateLimitCooldown: .milliseconds(10),
+            maximumRateLimitCooldown: .milliseconds(40)
+        )
+
+        let startedAt = ContinuousClock.now
+        try await manager.start(
+            groups: [makeSingleComponentGroup(filename: "retry-default-429.pdf", sy: "s24")],
+            saveDirectory: root,
+            options: makeDownloadOptions(threads: 1)
+        )
+
+        _ = try await waitForDownloadMessage("服务器限流，等待后自动重试...", in: manager)
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let elapsed = startedAt.duration(to: .now)
+        let attemptCount = await attempts.value
+
+        XCTAssertEqual(snapshot.success, 1)
+        XCTAssertEqual(snapshot.failed, 0)
+        XCTAssertEqual(attemptCount, 2)
+        XCTAssertGreaterThanOrEqual(seconds(elapsed), 0.035)
+    }
+
+    func testDownloadManagerStopsConcurrentWorkersFromStartingNewRequestsDuringCooldown() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let attempts = AttemptCounter()
+        let starts = TimedEventRecorder()
+        let manager = DownloadManager(
+            sharedTransfer: { sourceURL, partialURL, _, _ in
+                let filename = sourceURL.lastPathComponent
+                await starts.record(filename)
+                let current = await attempts.next()
+                if current == 1 {
+                    throw NetworkClientError.rateLimited(statusCode: 429, retryAfter: 0.2)
+                }
+
+                try Data(filename.utf8).write(to: partialURL)
+            },
+            minimumRateLimitCooldown: .milliseconds(200),
+            maximumRateLimitCooldown: .milliseconds(200)
+        )
+        let group = NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: "s24",
+            number: "12",
+            paperGroup: 1,
+            qp: makeDownloadComponent(filename: "cooldown-1.pdf", type: "QP", sy: "s24"),
+            ms: nil,
+            extras: [
+                makeDownloadComponent(filename: "cooldown-2.pdf", type: "QP", sy: "s24"),
+                makeDownloadComponent(filename: "cooldown-3.pdf", type: "QP", sy: "s24")
+            ]
+        )
+
+        try await manager.start(groups: [group], saveDirectory: root, options: makeDownloadOptions(rate: 20, threads: 3))
+        _ = try await waitForDownloadMessage("服务器限流，等待后自动重试...", in: manager)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        let startedNames = await starts.names()
+
+        XCTAssertEqual(startedNames, ["cooldown-1.pdf"])
+
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let recordedSecondOffset = await starts.offset(for: "cooldown-2.pdf")
+        let secondOffset = try XCTUnwrap(recordedSecondOffset)
+
+        XCTAssertEqual(snapshot.success, 3)
+        XCTAssertEqual(snapshot.failed, 0)
+        XCTAssertGreaterThanOrEqual(seconds(secondOffset), 0.18)
+    }
+
+    func testDownloadManagerDoesNotMassFailAfterRecoverableRateLimit() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let attempts = AttemptCounter()
+        let manager = DownloadManager(
+            sharedTransfer: { sourceURL, partialURL, _, _ in
+                let filename = sourceURL.lastPathComponent
+                let current = await attempts.next()
+                if filename == "recoverable-1.pdf", current == 1 {
+                    throw NetworkClientError.rateLimited(statusCode: 429, retryAfter: 0.05)
+                }
+
+                try Data(filename.utf8).write(to: partialURL)
+            },
+            minimumRateLimitCooldown: .milliseconds(50),
+            maximumRateLimitCooldown: .milliseconds(50)
+        )
+        let group = NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: "s24",
+            number: "12",
+            paperGroup: 1,
+            qp: makeDownloadComponent(filename: "recoverable-1.pdf", type: "QP", sy: "s24"),
+            ms: nil,
+            extras: [
+                makeDownloadComponent(filename: "recoverable-2.pdf", type: "QP", sy: "s24"),
+                makeDownloadComponent(filename: "recoverable-3.pdf", type: "QP", sy: "s24"),
+                makeDownloadComponent(filename: "recoverable-4.pdf", type: "QP", sy: "s24")
+            ]
+        )
+
+        try await manager.start(groups: [group], saveDirectory: root, options: makeDownloadOptions(threads: 4))
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let items = await manager.items()
+
+        XCTAssertEqual(snapshot.total, 4)
+        XCTAssertEqual(snapshot.success, 4)
+        XCTAssertEqual(snapshot.failed, 0)
+        XCTAssertTrue(items.allSatisfy { $0.status == .done })
+    }
+
+    func testDownloadManagerTracksSharedTransferProgress() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let progress = DownloadProgressCoordinator()
+        let manager = DownloadManager(sharedTransfer: { _, partialURL, _, reportProgress in
+            await reportProgress(0)
+            await reportProgress(0.5)
+            await progress.record(0.5)
+            await progress.waitForFinishPermission()
+            try Data("ok".utf8).write(to: partialURL)
+            await reportProgress(1)
+        })
+
+        try await manager.start(
+            groups: [makeSingleComponentGroup(filename: "progress.pdf", sy: "s24")],
+            saveDirectory: root,
+            options: makeDownloadOptions(threads: 1)
+        )
+        await progress.waitForHalfProgress()
+
+        let midItems = await manager.items()
+        let midItem = try XCTUnwrap(midItems.first)
+        XCTAssertEqual(midItem.status, .downloading)
+        XCTAssertEqual(try XCTUnwrap(midItem.progressFraction), 0.5, accuracy: 0.0001)
+
+        await progress.allowFinish()
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let doneItems = await manager.items()
+        let doneItem = try XCTUnwrap(doneItems.first)
+        let doneProgress = try XCTUnwrap(doneItem.progressFraction)
+
+        XCTAssertEqual(snapshot.success, 1)
+        XCTAssertEqual(doneItem.status, .done)
+        XCTAssertEqual(doneProgress, 1, accuracy: 0.0001)
+    }
+
     func testDownloadManagerCancelsPendingAndActiveItems() async throws {
         let root = makeTemporaryDownloadDirectory()
         let manager = DownloadManager { _, partialURL in
@@ -191,7 +381,7 @@ final class DownloadManagerTests: XCTestCase {
     func testDownloadManagerRefreshesEasyPaperTokenBeforeDownload() async throws {
         let root = makeTemporaryDownloadDirectory()
         let observed = ControlledDownloadCoordinator()
-        let manager = DownloadManager(sharedTransfer: { sourceURL, partialURL, proxyURL in
+        let manager = DownloadManager(sharedTransfer: { sourceURL, partialURL, proxyURL, _ in
             await observed.recordTransfer(url: sourceURL, proxyURL: proxyURL)
             try Data("ok".utf8).write(to: partialURL)
         })
@@ -391,7 +581,7 @@ final class DownloadManagerTests: XCTestCase {
         try FileManager.default.createDirectory(at: paths.appSupportDirectory, withIntermediateDirectories: true)
         try Data("{}".utf8).write(to: paths.migrationMarkerURL)
         let observed = ControlledDownloadCoordinator()
-        let manager = DownloadManager(sharedTransfer: { sourceURL, partialURL, proxyURL in
+        let manager = DownloadManager(sharedTransfer: { sourceURL, partialURL, proxyURL, _ in
             await observed.recordTransfer(url: sourceURL, proxyURL: proxyURL)
             try Data("ok".utf8).write(to: partialURL)
         })
