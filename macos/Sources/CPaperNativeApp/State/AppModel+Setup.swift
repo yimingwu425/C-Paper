@@ -45,10 +45,7 @@ extension AppModel {
                 selectedSubject = preferred
                 manualSubjectCode = ""
             } else if selectedSubject == nil {
-                selectedSubject = subjects.first
-                if selectedSubject != nil {
-                    manualSubjectCode = ""
-                } else if !settings.lastSubject.isEmpty {
+                if !settings.lastSubject.isEmpty {
                     manualSubjectCode = settings.lastSubject
                 }
             }

@@ -40,6 +40,7 @@ This file is a concise running log of meaningful code, configuration, and docume
 - Updated the downloads page to show the active save directory, expose a `显示文件夹` action, and distinguish processed progress from successful downloads.
 - Updated native update downloads to expose their destination path, preserve progress/location state, automatically open the downloaded DMG, and keep a manual-open hint if auto-open fails.
 - Replaced the long subject menu with a searchable fixed-size popover backed by `SubjectPickerLogic`.
+- Kept the initial subject picker state unselected when there is no saved subject, so the default remains `选择科目` instead of auto-selecting the first loaded subject.
 
 **Reason**
 - User screenshots and diagnostics showed 148 download failures after HTTP 429, unclear download/update destinations, weak update download feedback, no automatic DMG opening, and an oversized subject picker menu.
@@ -49,9 +50,12 @@ This file is a concise running log of meaningful code, configuration, and docume
 - GREEN: `swift build --jobs 1`
 - GREEN: `swift test --jobs 1 --filter 'ModelTests|AppMenuCommandCenterTests|UpdateServiceTests'`
 - GREEN: `swift test --jobs 1 --filter 'DownloadManagerTests|DownloadDestinationBuilderTests|HTTPFileTransferClientTests|UpdateServiceTests|ModelTests|AppMenuCommandCenterTests|SubjectPickerLogicTests'`
-- GREEN: `swift test --jobs 1`: 120 executed tests, 4 intentionally skipped live-source tests, 0 failures.
+- GREEN: `swift test --jobs 1`: 122 executed tests, 4 intentionally skipped live-source tests, 0 failures.
 - GREEN: `git diff --check`
 - `swift run CPaperNative` built and launched the native app; user-confirmed visual QA passed.
+- Follow-up GREEN: `swift test --jobs 1 --filter ModelTests`
+- Follow-up GREEN: `swift build --jobs 1`
+- Follow-up GREEN: `swift test --jobs 1`
 
 **Risks / Notes**
 - Live third-party source availability is still external and intentionally not used as deterministic validation; 429 recovery is covered with injected deterministic test transfers.

@@ -124,6 +124,36 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(model.activeSubject?.code, "9701")
     }
 
+    func testLoadSubjectsDoesNotSelectFirstSubjectWhenNoSavedSubjectExists() async throws {
+        let subjects = [
+            Subject(code: "9231", name: "Further Mathematics"),
+            Subject(code: "9709", name: "Mathematics")
+        ]
+        let model = try makeModelWithCachedSubjects(subjects)
+
+        await model.loadSubjects()
+
+        XCTAssertEqual(model.subjects.map(\.code), ["9231", "9709"])
+        XCTAssertNil(model.selectedSubject)
+        XCTAssertEqual(model.manualSubjectCode, "")
+        XCTAssertFalse(model.hasSearchSubject)
+    }
+
+    func testLoadSubjectsRestoresSavedSubjectWhenAvailable() async throws {
+        let subjects = [
+            Subject(code: "9231", name: "Further Mathematics"),
+            Subject(code: "9709", name: "Mathematics")
+        ]
+        let model = try makeModelWithCachedSubjects(subjects)
+        model.settings.lastSubject = "9709"
+
+        await model.loadSubjects()
+
+        XCTAssertEqual(model.selectedSubject, Subject(code: "9709", name: "Mathematics"))
+        XCTAssertEqual(model.manualSubjectCode, "")
+        XCTAssertTrue(model.hasSearchSubject)
+    }
+
     func testSettingsCodingKeysRoundTrip() throws {
         let settings = DownloadSettings(
             theme: "light",
@@ -481,6 +511,15 @@ final class ModelTests: XCTestCase {
         let pathsRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("CPaperBasicModelTests-\(UUID().uuidString)", isDirectory: true)
         let backend = try NativeBackendService(paths: AppStoragePaths(rootURL: pathsRoot))
+        return AppModel(backend: backend)
+    }
+
+    private func makeModelWithCachedSubjects(_ subjects: [Subject]) throws -> AppModel {
+        let pathsRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperSubjectLoadModelTests-\(UUID().uuidString)", isDirectory: true)
+        let paths = try AppStoragePaths(rootURL: pathsRoot)
+        try SearchCacheStore(paths: paths).save(subjects, source: .automatic, key: "subjects")
+        let backend = try NativeBackendService(paths: paths)
         return AppModel(backend: backend)
     }
 

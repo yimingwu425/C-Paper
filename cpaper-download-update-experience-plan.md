@@ -174,10 +174,13 @@ T6 ───────────┘
 - **log**:
   - 2026-06-08: Replaced the subject `Menu + Picker` with a glass button and fixed-size searchable popover in `SearchControls.swift`.
   - Popover uses `SubjectPickerLogic` for code/name filtering, keeps selection/manual-code fallback behavior, and avoids the old app-covering tall menu.
+  - Follow-up: subject loading no longer auto-selects the first available subject when there is no saved `lastSubject`, so the default picker state remains `选择科目`.
   - reason_not_testable: SwiftUI popover presentation and shared binding behavior do not have a stable unit-test seam in the current target.
-  - Validation: `swift build --jobs 1`.
+  - Validation: `swift build --jobs 1`; `swift test --jobs 1 --filter ModelTests`.
 - **files edited/created**:
   - `macos/Sources/CPaperNativeApp/Views/SearchControls.swift`
+  - `macos/Sources/CPaperNativeApp/State/AppModel+Setup.swift`
+  - `macos/Tests/CPaperNativeTests/ModelTests.swift`
 
 ### T9: Work Log and Focused Regression Sweep
 
@@ -201,7 +204,7 @@ T6 ───────────┘
 - **validation**: `swift test --jobs 1` passes. `swift run CPaperNative` launches. Manual QA notes confirm Downloads page location, deterministic 429 recovery behavior, update progress/location/auto-open behavior via stubbed completion, and compact searchable subject picker. `git diff --check` has no whitespace errors.
 - **status**: Completed
 - **log**:
-  - 2026-06-08: Full validation passed with `swift test --jobs 1`: 120 executed tests, 4 intentionally skipped live-source tests, 0 failures.
+  - 2026-06-08: Full validation passed with `swift test --jobs 1`: 122 executed tests, 4 intentionally skipped live-source tests, 0 failures.
   - `git diff --check` passed.
   - `swift run CPaperNative` built and launched the native app successfully; the run session was stopped after QA.
   - Manual visual QA confirmed by the user for the updated UI. Deterministic tests cover 429 recovery and update DMG auto-open; the visible app check covered the compact subject picker and main UI surfaces.
