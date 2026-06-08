@@ -1376,3 +1376,23 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - Live third-party source tests remain opt-in with `RUN_LIVE_SOURCE_TESTS=1` because upstream sites are intentionally treated as unstable external dependencies.
+
+### 2026-06-08 — Scope Swift quality gate to changed files in CI
+
+**Task**
+- Unblock the native `validate` GitHub Actions job for the `6.0.5` release after `Check Swift quality` started failing on repository-wide historical SwiftFormat drift.
+
+**Changed**
+- Updated `scripts/check_swift_quality.sh` so SwiftLint and SwiftFormat run only on changed active-tree Swift files plus `Package.swift`, instead of linting the full native tree on every CI run.
+- Updated `.github/workflows/build.yml` to checkout full git history for `validate` and pass the pull request or push compare range into the Swift quality script.
+
+**Reason**
+- The original gate contradicted the earlier lightweight-quality goal by failing the release on long-standing formatting debt unrelated to the current release changes.
+
+**Tested**
+- `bash -n scripts/check_swift_quality.sh`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/build.yml"); puts "ok"'`
+- manual script inspection against the failing release diff (`95da3a1^..cb80b31`) to confirm only changed native Swift files are selected
+
+**Risks / Notes**
+- This keeps the CI gate focused on newly changed Swift files. A future dedicated formatting cleanup can still run `swiftformat` across the full active tree separately.

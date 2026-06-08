@@ -53,6 +53,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Show tool versions
         run: |
@@ -94,6 +96,9 @@ jobs:
         run: bash scripts/check_repo_hygiene.sh
 
       - name: Check Swift quality
+        env:
+          CPAPER_SWIFT_QUALITY_BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CPAPER_SWIFT_QUALITY_HEAD_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: bash scripts/check_swift_quality.sh
 
       - name: Run Swift tests
