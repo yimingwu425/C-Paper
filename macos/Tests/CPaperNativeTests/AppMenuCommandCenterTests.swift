@@ -1,6 +1,6 @@
 import AppKit
-import XCTest
 @testable import CPaperNativeApp
+import XCTest
 
 @MainActor
 final class AppMenuCommandCenterTests: XCTestCase {
@@ -108,7 +108,7 @@ final class AppMenuCommandCenterTests: XCTestCase {
             [
                 ReadyRootMenuBindings.websiteURL,
                 ReadyRootMenuBindings.gitHubURL,
-                ReadyRootMenuBindings.issueURL
+                ReadyRootMenuBindings.issueURL,
             ]
         )
     }
