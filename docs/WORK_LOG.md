@@ -30,6 +30,33 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-08 — Fix download throttling, update download UX, and subject picker
+
+**Task**
+- Complete `cpaper-download-update-experience-plan.md` through the implementation wave for download 429 recovery, clearer download/update destinations, update auto-open behavior, and the compact searchable subject picker.
+
+**Changed**
+- Added queue-wide HTTP 429 cooldown handling in the native download manager, including `Retry-After` metadata, shared request gating, Chinese retry-wait messaging, and real byte progress for shared transfers.
+- Updated the downloads page to show the active save directory, expose a `显示文件夹` action, and distinguish processed progress from successful downloads.
+- Updated native update downloads to expose their destination path, preserve progress/location state, automatically open the downloaded DMG, and keep a manual-open hint if auto-open fails.
+- Replaced the long subject menu with a searchable fixed-size popover backed by `SubjectPickerLogic`.
+
+**Reason**
+- User screenshots and diagnostics showed 148 download failures after HTTP 429, unclear download/update destinations, weak update download feedback, no automatic DMG opening, and an oversized subject picker menu.
+
+**Tested**
+- GREEN: `swift test --jobs 1 --filter DownloadManagerTests`
+- GREEN: `swift build --jobs 1`
+- GREEN: `swift test --jobs 1 --filter 'ModelTests|AppMenuCommandCenterTests|UpdateServiceTests'`
+- GREEN: `swift test --jobs 1 --filter 'DownloadManagerTests|DownloadDestinationBuilderTests|HTTPFileTransferClientTests|UpdateServiceTests|ModelTests|AppMenuCommandCenterTests|SubjectPickerLogicTests'`
+- GREEN: `swift test --jobs 1`: 120 executed tests, 4 intentionally skipped live-source tests, 0 failures.
+- GREEN: `git diff --check`
+- `swift run CPaperNative` built and launched the native app; user-confirmed visual QA passed.
+
+**Risks / Notes**
+- Live third-party source availability is still external and intentionally not used as deterministic validation; 429 recovery is covered with injected deterministic test transfers.
+- SwiftUI popover behavior was checked manually in the launched app and confirmed by the user.
+
 ### 2026-06-08 — Plan download and update experience fixes
 
 **Task**

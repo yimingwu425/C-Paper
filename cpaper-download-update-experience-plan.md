@@ -119,9 +119,16 @@ T6 ───────────┘
 - **location**: `macos/Sources/CPaperNativeApp/Backend/Downloads/DownloadManager.swift`, `macos/Sources/CPaperNativeApp/Backend/Downloads/RateLimiter.swift`, `macos/Tests/CPaperNativeTests/DownloadManagerTests.swift`, `macos/Tests/CPaperNativeTests/DownloadTestSupport.swift`
 - **description**: Add a shared cooldown gate for `NetworkClientError.rateLimited`. Store `nextAllowedRequestAt`/equivalent inside the actor, have every worker check the gate before dequeueing or starting a request, and have any 429 update the gate immediately. Cooldown pauses new requests during the current worker round, not only between retry rounds. When both 429 cooldown and circuit-breaker recovery exist, wait for the later safe instant once and show “服务器限流，等待后自动重试…”. Update `SharedTransferWriter` to accept a progress callback and write progress into the matching `DownloadTaskItem`.
 - **validation**: Tests cover 429 with retry delay, 429 without retry delay using injected short default, concurrent workers stop issuing new requests while the gate is active, no mass final failures after recoverable 429, progress updates during shared transfer, and existing cancellation/retry tests still pass.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - 2026-06-08: Added a shared 429 cooldown gate inside `DownloadManager`, including current-round worker blocking, later-of cooldown/circuit-breaker waiting, and the Chinese retry-wait message.
+  - Extended `SharedTransferWriter` with a progress callback and wrote byte progress into `DownloadTaskItem.progressFraction` for shared transfers.
+  - RED: `swift test --jobs 1 --filter DownloadManagerTests`.
+  - GREEN: `swift test --jobs 1 --filter DownloadManagerTests`.
 - **files edited/created**:
+  - `macos/Sources/CPaperNativeApp/Backend/Downloads/DownloadManager.swift`
+  - `macos/Tests/CPaperNativeTests/DownloadManagerTests.swift`
+  - `macos/Tests/CPaperNativeTests/DownloadTestSupport.swift`
 
 ### T6: Download Page Destination and Honest Summary
 
@@ -129,9 +136,15 @@ T6 ───────────┘
 - **location**: `macos/Sources/CPaperNativeApp/Views/DownloadsView.swift`, `macos/Sources/CPaperNativeApp/State/AppModel.swift`, `macos/Tests/CPaperNativeTests/ModelTests.swift`
 - **description**: Show the active save directory on the download page and add a “显示文件夹” action using existing `model.revealSaveDirectory()`. Rename/adjust summary copy so 100% means processed, while success/failure counts remain explicit.
 - **validation**: Existing model directory tests pass; add a focused test/helper assertion for all-skipped or all-failed summary wording if a testable summary helper is introduced. Manual UI check confirms destination text is visible in Downloads and the Finder action uses the configured save directory.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - 2026-06-08: Downloads page now shows the configured save directory and adds a `显示文件夹` action wired to `model.revealSaveDirectory()`.
+  - Rewrote the queue summary so 100% means processed while success/failure/cancelled/skipped counts stay explicit.
+  - Added focused `DownloadQueueSummary` assertions for all-skipped and all-failed wording.
+  - GREEN: `swift test --jobs 1 --filter 'ModelTests|AppMenuCommandCenterTests|UpdateServiceTests'`.
 - **files edited/created**:
+  - `macos/Sources/CPaperNativeApp/Views/DownloadsView.swift`
+  - `macos/Tests/CPaperNativeTests/ModelTests.swift`
 
 ### T7: Update Download UX and Auto-Open
 
@@ -139,9 +152,17 @@ T6 ───────────┘
 - **location**: `macos/Sources/CPaperNativeApp/State/AppModel+Updates.swift`, `macos/Sources/CPaperNativeApp/Views/SettingsInfoSections.swift`, `macos/Sources/CPaperNativeApp/Views/RootView.swift`, `macos/Tests/CPaperNativeTests/ModelTests.swift`, `macos/Tests/CPaperNativeTests/AppMenuCommandCenterTests.swift`
 - **description**: Set update status to downloading with destination URL before starting transfer, preserve destination URL through progress callbacks, auto-open the final DMG through injected `openDownloadedFile`, and show save location in the settings/update UI. During downloading, show the target directory/filename only; do not expose “打开 DMG” until the final file exists. If auto-open returns false, keep `.downloaded(url)` and set a user-visible hint/error that the DMG is downloaded but must be opened manually. Update menu-command tests for the new enum shape.
 - **validation**: Tests verify progress status retains the destination URL, successful download triggers exactly one open call for the DMG, open failure preserves downloaded URL and surfaces manual-open guidance, and downloading state never offers an open action for a missing final file. Manual startup-update flow shows progress/location.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - 2026-06-08: Update downloads now clear stale errors at start, preserve the target DMG path through progress callbacks, and auto-open the downloaded DMG through the injected opener.
+  - Auto-open failure keeps `.downloaded(url)` and surfaces `更新 DMG 已下载，但自动打开失败，请在设置中手动打开。`.
+  - Settings now shows the update destination directory and DMG filename while downloading and after completion.
+  - GREEN: `swift test --jobs 1 --filter 'ModelTests|AppMenuCommandCenterTests|UpdateServiceTests'`.
 - **files edited/created**:
+  - `macos/Sources/CPaperNativeApp/State/AppModel+Updates.swift`
+  - `macos/Sources/CPaperNativeApp/Views/SettingsInfoSections.swift`
+  - `macos/Tests/CPaperNativeTests/AppMenuCommandCenterTests.swift`
+  - `macos/Tests/CPaperNativeTests/ModelTests.swift`
 
 ### T8: Searchable Subject Picker UI
 
@@ -149,9 +170,14 @@ T6 ───────────┘
 - **location**: `macos/Sources/CPaperNativeApp/Views/SearchControls.swift`, `macos/Sources/CPaperNativeApp/Views/BatchFilterPanel.swift`, `macos/Sources/CPaperNativeApp/Views/SearchView.swift`
 - **description**: Replace the subject `Menu + Picker` with a glass-styled button plus popover containing a search field and scrollable list backed by the T4 helper. Reuse existing `GlassInputShell`/`GlassTextField` styling where practical; do not change short menus in settings.
 - **validation**: Manual UI check confirms the picker no longer covers the app, search filters by code/name, selection updates Search and Batch pages, and manual code fallback still works.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - 2026-06-08: Replaced the subject `Menu + Picker` with a glass button and fixed-size searchable popover in `SearchControls.swift`.
+  - Popover uses `SubjectPickerLogic` for code/name filtering, keeps selection/manual-code fallback behavior, and avoids the old app-covering tall menu.
+  - reason_not_testable: SwiftUI popover presentation and shared binding behavior do not have a stable unit-test seam in the current target.
+  - Validation: `swift build --jobs 1`.
 - **files edited/created**:
+  - `macos/Sources/CPaperNativeApp/Views/SearchControls.swift`
 
 ### T9: Work Log and Focused Regression Sweep
 
@@ -159,9 +185,13 @@ T6 ───────────┘
 - **location**: `docs/WORK_LOG.md`, relevant changed tests
 - **description**: As the single integration owner, append one concise work-log entry summarizing the download, update, and picker fixes. Parallel implementation agents should not edit `docs/WORK_LOG.md`; they should fill their task `log` fields or report notes for T9 to consolidate. Run focused tests for changed domains before the full suite.
 - **validation**: `swift test --jobs 1 --filter 'DownloadManagerTests|DownloadDestinationBuilderTests|HTTPFileTransferClientTests|UpdateServiceTests|ModelTests|AppMenuCommandCenterTests'` passes, plus any new helper-specific test class added by T4.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - 2026-06-08: Added one consolidated work-log entry covering download 429 recovery, download/update destination visibility, update DMG auto-open behavior, and searchable subject picker UI.
+  - GREEN: `swift test --jobs 1 --filter 'DownloadManagerTests|DownloadDestinationBuilderTests|HTTPFileTransferClientTests|UpdateServiceTests|ModelTests|AppMenuCommandCenterTests|SubjectPickerLogicTests'` passed with 79 executed tests.
 - **files edited/created**:
+  - `docs/WORK_LOG.md`
+  - `cpaper-download-update-experience-plan.md`
 
 ### T10: Full Validation and Visual QA
 
@@ -169,9 +199,14 @@ T6 ───────────┘
 - **location**: entire active Swift package
 - **description**: Run full validation and perform manual app checks for the three user-visible flows: bulk download with visible location/progress, update download with auto-open, and searchable subject selection. Use deterministic test stubs/harnesses from T5/T7 for 429 and update-complete checks instead of relying on live source failures or a real GitHub release.
 - **validation**: `swift test --jobs 1` passes. `swift run CPaperNative` launches. Manual QA notes confirm Downloads page location, deterministic 429 recovery behavior, update progress/location/auto-open behavior via stubbed completion, and compact searchable subject picker. `git diff --check` has no whitespace errors.
-- **status**: Not Completed
+- **status**: Completed
 - **log**:
+  - 2026-06-08: Full validation passed with `swift test --jobs 1`: 120 executed tests, 4 intentionally skipped live-source tests, 0 failures.
+  - `git diff --check` passed.
+  - `swift run CPaperNative` built and launched the native app successfully; the run session was stopped after QA.
+  - Manual visual QA confirmed by the user for the updated UI. Deterministic tests cover 429 recovery and update DMG auto-open; the visible app check covered the compact subject picker and main UI surfaces.
 - **files edited/created**:
+  - `cpaper-download-update-experience-plan.md`
 
 ## Parallel Execution Groups
 
