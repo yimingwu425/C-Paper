@@ -30,6 +30,25 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-08 — Fix native release workflow secret gating
+
+**Task**
+- Repair the native GitHub Actions workflow after `Prepare 6.0.5 release` failed before any jobs started with a workflow-file error.
+
+**Changed**
+- Updated `.github/workflows/build.yml` so the optional Developer ID / notarization setup step no longer uses `secrets.*` directly inside the step-level `if`.
+- Moved the “are all optional signing secrets present?” check into the shell script itself, and made the step exit cleanly back to the ad hoc signing path when any optional secret is missing.
+
+**Reason**
+- GitHub Actions rejected the workflow definition itself because `secrets` is not available in that `if` expression context, so the release workflow never reached `validate`, `package`, or `release`.
+
+**Tested**
+- `/Users/yimingwu/Documents/C-Paper/.tmp-bin/actionlint .github/workflows/build.yml`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/build.yml"); puts "ok"'`
+
+**Risks / Notes**
+- The release tag needs to be pushed again after this workflow fix so GitHub Actions can rerun the `v6.0.5` release path with the corrected workflow.
+
 ### 2026-06-08 — Prepare native 6.0.5 release
 
 **Task**

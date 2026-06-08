@@ -120,7 +120,6 @@ jobs:
       # `CPAPER_NOTARY_APPLE_ID`, `CPAPER_NOTARY_TEAM_ID`, and `CPAPER_NOTARY_APP_PASSWORD`.
       # If any secret is missing, the build script stays on its default ad hoc signing path.
       - name: Configure optional Developer ID signing and notarization
-        if: ${{ secrets.CPAPER_DEVELOPER_ID_CERT_P12_BASE64 != '' && secrets.CPAPER_DEVELOPER_ID_CERT_PASSWORD != '' && secrets.CPAPER_CODESIGN_IDENTITY != '' && secrets.CPAPER_NOTARY_KEYCHAIN_PROFILE != '' && secrets.CPAPER_NOTARY_APPLE_ID != '' && secrets.CPAPER_NOTARY_TEAM_ID != '' && secrets.CPAPER_NOTARY_APP_PASSWORD != '' }}
         env:
           CPAPER_DEVELOPER_ID_CERT_P12_BASE64: ${{ secrets.CPAPER_DEVELOPER_ID_CERT_P12_BASE64 }}
           CPAPER_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.CPAPER_DEVELOPER_ID_CERT_PASSWORD }}
@@ -131,6 +130,23 @@ jobs:
           CPAPER_NOTARY_APP_PASSWORD: ${{ secrets.CPAPER_NOTARY_APP_PASSWORD }}
         run: |
           set -euo pipefail
+          required=(
+            CPAPER_DEVELOPER_ID_CERT_P12_BASE64
+            CPAPER_DEVELOPER_ID_CERT_PASSWORD
+            CPAPER_CODESIGN_IDENTITY
+            CPAPER_NOTARY_KEYCHAIN_PROFILE
+            CPAPER_NOTARY_APPLE_ID
+            CPAPER_NOTARY_TEAM_ID
+            CPAPER_NOTARY_APP_PASSWORD
+          )
+
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Optional Developer ID / notarization secrets are incomplete; using ad hoc signing path."
+              exit 0
+            fi
+          done
+
           KEYCHAIN_PATH="$RUNNER_TEMP/cpaper-signing.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
           CERT_PATH="$RUNNER_TEMP/cpaper-developer-id.p12"
