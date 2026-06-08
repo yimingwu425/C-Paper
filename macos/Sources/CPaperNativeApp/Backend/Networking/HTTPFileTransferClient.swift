@@ -9,12 +9,14 @@ final class HTTPFileTransferClient: @unchecked Sendable {
     private let requestBuilder: HTTPRequestBuilder
     private let fileManager: FileManager
     private let chunkSize: Int
+    private let nowProvider: @Sendable () -> Date
 
     init(
         requestBuilder: HTTPRequestBuilder = HTTPRequestBuilder(),
         proxy: ProxyConfiguration = ProxyConfiguration(url: nil),
         fileManager: FileManager = .default,
         chunkSize: Int = 64_000,
+        nowProvider: @escaping @Sendable () -> Date = Date.init,
         sessionFactory: @escaping SessionFactory = { URLSession(configuration: $0) }
     ) {
         let configuration = URLSessionConfiguration.default
@@ -24,18 +26,21 @@ final class HTTPFileTransferClient: @unchecked Sendable {
         self.requestBuilder = requestBuilder
         self.fileManager = fileManager
         self.chunkSize = chunkSize
+        self.nowProvider = nowProvider
     }
 
     init(
         session: URLSession,
         requestBuilder: HTTPRequestBuilder = HTTPRequestBuilder(),
         fileManager: FileManager = .default,
-        chunkSize: Int = 64_000
+        chunkSize: Int = 64_000,
+        nowProvider: @escaping @Sendable () -> Date = Date.init
     ) {
         self.session = session
         self.requestBuilder = requestBuilder
         self.fileManager = fileManager
         self.chunkSize = chunkSize
+        self.nowProvider = nowProvider
     }
 
     func transfer(
@@ -64,7 +69,7 @@ final class HTTPFileTransferClient: @unchecked Sendable {
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw NetworkClientError.invalidResponse
             }
-            try NetworkClient.validate(httpResponse)
+            try NetworkClient.validate(httpResponse, now: nowProvider)
 
             let expectedLength = httpResponse.expectedContentLength
             await progress(expectedLength > 0 ? 0 : nil)

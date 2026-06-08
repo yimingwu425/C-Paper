@@ -3,6 +3,8 @@ import XCTest
 @testable import CPaperNativeApp
 
 final class HTTPFileTransferClientTests: XCTestCase {
+    private let fixedRetryAfterNow = Date(timeIntervalSince1970: 1_700_000_000)
+
     override func tearDown() {
         MockTransferURLProtocol.reset()
         super.tearDown()
@@ -75,6 +77,130 @@ final class HTTPFileTransferClientTests: XCTestCase {
             XCTAssertEqual(error, .httpStatus(404))
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+    }
+
+    func testTransferThrowsRateLimitedWithoutRetryAfterMetadata() async throws {
+        let destinationURL = makeTransferDestinationURL()
+        let session = makeTransferSession()
+
+        MockTransferURLProtocol.setHandler { request in
+            MockTransferResponse(
+                response: HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!,
+                chunks: [Data("slow down".utf8)]
+            )
+        }
+
+        let client = HTTPFileTransferClient(session: session)
+
+        do {
+            try await client.transfer(
+                from: URL(string: "https://example.test/files/rate-limit.pdf")!,
+                to: destinationURL
+            ) { _ in }
+            XCTFail("Expected rate limited error")
+        } catch let error as NetworkClientError {
+            guard case let .rateLimited(statusCode, retryAfter) = error else {
+                return XCTFail("Expected rate limited error, got \(error)")
+            }
+            XCTAssertEqual(statusCode, 429)
+            XCTAssertNil(retryAfter)
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+    }
+
+    func testTransferThrowsRateLimitedWithNumericRetryAfterMetadata() async throws {
+        let destinationURL = makeTransferDestinationURL()
+        let session = makeTransferSession()
+
+        MockTransferURLProtocol.setHandler { request in
+            MockTransferResponse(
+                response: HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: ["Retry-After": "12.5"]
+                )!,
+                chunks: [Data()]
+            )
+        }
+
+        let client = HTTPFileTransferClient(session: session)
+
+        do {
+            try await client.transfer(
+                from: URL(string: "https://example.test/files/rate-limit.pdf")!,
+                to: destinationURL
+            ) { _ in }
+            XCTFail("Expected rate limited error")
+        } catch let error as NetworkClientError {
+            guard case let .rateLimited(statusCode, retryAfter) = error else {
+                return XCTFail("Expected rate limited error, got \(error)")
+            }
+            XCTAssertEqual(statusCode, 429)
+            XCTAssertEqual(retryAfter, 12.5, accuracy: 0.0001)
+        }
+    }
+
+    func testTransferThrowsRateLimitedWithFutureDateRetryAfterMetadata() async throws {
+        let destinationURL = makeTransferDestinationURL()
+        let session = makeTransferSession()
+        let retryAfterDate = fixedRetryAfterNow.addingTimeInterval(90)
+        let retryAfterHeader = Self.httpDateString(from: retryAfterDate)
+        let fixedNow = fixedRetryAfterNow
+
+        MockTransferURLProtocol.setHandler { request in
+            MockTransferResponse(
+                response: HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: ["Retry-After": retryAfterHeader]
+                )!,
+                chunks: [Data()]
+            )
+        }
+
+        let client = HTTPFileTransferClient(
+            session: session,
+            nowProvider: { fixedNow }
+        )
+
+        do {
+            try await client.transfer(
+                from: URL(string: "https://example.test/files/rate-limit.pdf")!,
+                to: destinationURL
+            ) { _ in }
+            XCTFail("Expected rate limited error")
+        } catch let error as NetworkClientError {
+            guard case let .rateLimited(statusCode, retryAfter) = error else {
+                return XCTFail("Expected rate limited error, got \(error)")
+            }
+            XCTAssertEqual(statusCode, 429)
+            XCTAssertEqual(retryAfter, 90, accuracy: 0.0001)
+        }
+    }
+
+    func testTransferThrowsRateLimitedWithPastOrInvalidRetryAfterMetadataAsNil() async throws {
+        let pastDate = fixedRetryAfterNow.addingTimeInterval(-30)
+
+        try await assertRateLimitedRetryAfter(
+            headerValue: httpDateString(from: pastDate),
+            expectedRetryAfter: nil
+        )
+        try await assertRateLimitedRetryAfter(
+            headerValue: "-5",
+            expectedRetryAfter: nil
+        )
+        try await assertRateLimitedRetryAfter(
+            headerValue: "not-a-date",
+            expectedRetryAfter: nil
+        )
     }
 
     func testTransferAppliesProxyConfigurationWhenBuildingSession() async throws {
@@ -193,6 +319,41 @@ final class HTTPFileTransferClientTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
     }
 
+    func testTransferRemovesPartialFileWhenRateLimited() async throws {
+        let destinationURL = makeTransferDestinationURL()
+        let session = makeTransferSession()
+
+        MockTransferURLProtocol.setHandler { request in
+            MockTransferResponse(
+                response: HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: ["Retry-After": "7"]
+                )!,
+                chunks: [Data("partial".utf8)]
+            )
+        }
+
+        let client = HTTPFileTransferClient(session: session)
+
+        do {
+            try await client.transfer(
+                from: URL(string: "https://example.test/files/rate-limit.pdf")!,
+                to: destinationURL
+            ) { _ in }
+            XCTFail("Expected rate limited error")
+        } catch let error as NetworkClientError {
+            guard case let .rateLimited(statusCode, retryAfter) = error else {
+                return XCTFail("Expected rate limited error, got \(error)")
+            }
+            XCTAssertEqual(statusCode, 429)
+            XCTAssertEqual(retryAfter, 7, accuracy: 0.0001)
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+    }
+
     private func makeTransferDestinationURL() -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("CPaperTransferTests-\(UUID().uuidString)", isDirectory: true)
@@ -201,5 +362,57 @@ final class HTTPFileTransferClientTests: XCTestCase {
             try? FileManager.default.removeItem(at: root)
         }
         return root.appendingPathComponent("download.part")
+    }
+
+    private func assertRateLimitedRetryAfter(
+        headerValue: String,
+        expectedRetryAfter: TimeInterval?
+    ) async throws {
+        let destinationURL = makeTransferDestinationURL()
+        let session = makeTransferSession()
+        let fixedNow = fixedRetryAfterNow
+
+        MockTransferURLProtocol.setHandler { request in
+            MockTransferResponse(
+                response: HTTPURLResponse(
+                    url: try XCTUnwrap(request.url),
+                    statusCode: 429,
+                    httpVersion: nil,
+                    headerFields: ["Retry-After": headerValue]
+                )!,
+                chunks: [Data()]
+            )
+        }
+
+        let client = HTTPFileTransferClient(
+            session: session,
+            nowProvider: { fixedNow }
+        )
+
+        do {
+            try await client.transfer(
+                from: URL(string: "https://example.test/files/rate-limit.pdf")!,
+                to: destinationURL
+            ) { _ in }
+            XCTFail("Expected rate limited error")
+        } catch let error as NetworkClientError {
+            guard case let .rateLimited(statusCode, retryAfter) = error else {
+                return XCTFail("Expected rate limited error, got \(error)")
+            }
+            XCTAssertEqual(statusCode, 429)
+            if let expectedRetryAfter {
+                XCTAssertEqual(retryAfter, expectedRetryAfter, accuracy: 0.0001)
+            } else {
+                XCTAssertNil(retryAfter)
+            }
+        }
+    }
+
+    private static func httpDateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss 'GMT'"
+        return formatter.string(from: date)
     }
 }
