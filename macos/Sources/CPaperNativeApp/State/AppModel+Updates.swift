@@ -37,6 +37,7 @@ extension AppModel {
 
         pendingUpdatePrompt = nil
         let destinationURL = backend.updateDestinationURL(for: release)
+        errorMessage = nil
         updateStatus = .downloading(progress: nil, destinationURL: destinationURL)
         do {
             let downloadedURL = try await backend.downloadUpdate(release, proxyURL: settings.proxyURL) { [weak self] progress in
@@ -45,6 +46,11 @@ extension AppModel {
                 }
             }
             updateStatus = .downloaded(downloadedURL)
+            if openDownloadedUpdateFile() {
+                errorMessage = nil
+            } else {
+                errorMessage = "更新 DMG 已下载，但自动打开失败，请在设置中手动打开。"
+            }
         } catch {
             let diagnostic = recordDiagnostic(context: .update, message: error.localizedDescription)
             updateStatus = .failed(diagnostic.message)

@@ -165,6 +165,9 @@ final class AppMenuCommandCenterTests: XCTestCase {
     func testReadyBindingDisablesRevealSaveDirectoryWhenDirectoryIsNotUsable() throws {
         let center = AppMenuCommandCenter()
         let model = try makeBasicModel()
+        model.settings.saveDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperMissingMenuDirectory-\(UUID().uuidString)", isDirectory: true)
+            .path
 
         ReadyRootMenuBindings.bind(model: model, commandCenter: center)
         XCTAssertFalse(center.canPerform(.revealSaveDirectory))

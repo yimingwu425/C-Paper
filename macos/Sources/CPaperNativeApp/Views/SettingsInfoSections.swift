@@ -69,6 +69,23 @@ struct UpdateSettingsSection: View {
                     }
                 }
 
+                if let destinationURL = model.updateStatus.destinationURL {
+                    SettingsRow(label: "保存到") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(updateDestinationDirectoryText(for: destinationURL))
+                                .font(.caption.monospaced())
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .textSelection(.enabled)
+                            Text(destinationURL.lastPathComponent)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                }
+
                 HStack(spacing: 8) {
                     Spacer()
                         .frame(width: 86)
@@ -136,6 +153,10 @@ struct UpdateSettingsSection: View {
         default:
             return .secondary
         }
+    }
+
+    private func updateDestinationDirectoryText(for url: URL) -> String {
+        (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
     }
 }
 

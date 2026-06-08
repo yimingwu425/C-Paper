@@ -346,9 +346,66 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: downloadedURL), "update")
     }
 
-    func testOpenDownloadedUpdateFileUsesInjectedOpenDownloadedFileClosure() async throws {
+    func testDownloadAvailableUpdateStatusPreservesDestinationURLWhileDownloading() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperModelUpdateProgressTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let coordinator = UpdateDownloadCoordinator()
+        let model = try makeModel(
+            currentVersion: "6.0.3",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.4"),
+            updatesDirectory: tempDirectory,
+            downloadWriter: { _, destinationURL, _, progress in
+                await progress(0.5)
+                await coordinator.recordProgress()
+                await coordinator.waitForFinishPermission()
+                try Data("update".utf8).write(to: destinationURL)
+            }
+        )
+        await model.checkForUpdates(source: .startup)
+
+        let downloadTask = Task {
+            await model.downloadAvailableUpdate()
+        }
+        await coordinator.waitForProgress()
+
+        guard case let .downloading(progress, destinationURL) = model.updateStatus else {
+            await coordinator.allowFinish()
+            await downloadTask.value
+            return XCTFail("Expected update status to stay downloading while transfer is in flight.")
+        }
+        XCTAssertEqual(progress, 0.5)
+        XCTAssertEqual(destinationURL, tempDirectory.appendingPathComponent("C-Paper-Native-6.0.4-standalone-20260604.dmg"))
+
+        await coordinator.allowFinish()
+        await downloadTask.value
+    }
+
+    func testDownloadAvailableUpdateAutomaticallyOpensDownloadedDMG() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CPaperModelUpdateOpenTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let recorder = URLRecorder()
+        let model = try makeModel(
+            currentVersion: "6.0.3",
+            releaseJSON: Self.releaseJSON(tag: "v6.0.4"),
+            updatesDirectory: tempDirectory,
+            openDownloadedFile: { url in
+                recorder.record(url)
+                return true
+            }
+        )
+        await model.checkForUpdates(source: .startup)
+        await model.downloadAvailableUpdate()
+
+        let downloadedURL = try XCTUnwrap(model.updateStatus.downloadedURL)
+        XCTAssertEqual(recorder.values(), [downloadedURL])
+        XCTAssertNil(model.errorMessage)
+    }
+
+    func testOpenDownloadedUpdateFileUsesInjectedOpenDownloadedFileClosure() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperModelManualUpdateOpenTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
         let recorder = URLRecorder()
         let model = try makeModel(
@@ -369,9 +426,10 @@ final class ModelTests: XCTestCase {
         let openedURL = recorder.lastValue()
         XCTAssertEqual(openedURL, model.updateStatus.downloadedURL)
         XCTAssertEqual(openedURL?.pathExtension, "dmg")
+        XCTAssertEqual(recorder.values().count, 2)
     }
 
-    func testOpenDownloadedUpdateFileReturnsFalseWithoutClearingDownloadedURL() async throws {
+    func testDownloadAvailableUpdateOpenFailureKeepsDownloadedURLAndShowsGuidance() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CPaperModelUpdateOpenFailureTests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: tempDirectory) }
@@ -385,6 +443,8 @@ final class ModelTests: XCTestCase {
         await model.downloadAvailableUpdate()
         let downloadedURL = try XCTUnwrap(model.updateStatus.downloadedURL)
 
+        XCTAssertEqual(model.errorMessage, "更新 DMG 已下载，但自动打开失败，请在设置中手动打开。")
+
         let didOpen = model.openDownloadedUpdateFile()
 
         XCTAssertFalse(didOpen)
@@ -396,7 +456,8 @@ final class ModelTests: XCTestCase {
         releaseJSON: Data,
         updatesDirectory: URL? = nil,
         counter: UpdateCallCounter = UpdateCallCounter(),
-        openDownloadedFile: @escaping (URL) -> Bool = { _ in true }
+        openDownloadedFile: @escaping (URL) -> Bool = { _ in true },
+        downloadWriter: UpdateService.DownloadWriter? = nil
     ) throws -> AppModel {
         let pathsRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("CPaperModelTests-\(UUID().uuidString)", isDirectory: true)
@@ -407,7 +468,7 @@ final class ModelTests: XCTestCase {
             networkClientFactory: { _ in
                 CountedUpdateNetworkClient(data: releaseJSON, counter: counter)
             },
-            downloadWriter: { _, destinationURL, _, progress in
+            downloadWriter: downloadWriter ?? { _, destinationURL, _, progress in
                 await progress(0.5)
                 try Data("update".utf8).write(to: destinationURL)
             }
@@ -490,13 +551,54 @@ private final class CountedUpdateNetworkClient: NetworkClientProtocol, @unchecke
 }
 
 private final class URLRecorder {
-    private var lastURL: URL?
+    private var recordedURLs: [URL] = []
 
     func record(_ url: URL) {
-        lastURL = url
+        recordedURLs.append(url)
     }
 
     func lastValue() -> URL? {
-        lastURL
+        recordedURLs.last
+    }
+
+    func values() -> [URL] {
+        recordedURLs
+    }
+}
+
+private actor UpdateDownloadCoordinator {
+    private var didReportProgress = false
+    private var progressWaiters: [CheckedContinuation<Void, Never>] = []
+    private var finishContinuation: CheckedContinuation<Void, Never>?
+
+    func recordProgress() {
+        didReportProgress = true
+        let waiters = progressWaiters
+        progressWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    func waitForProgress() async {
+        if didReportProgress {
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            progressWaiters.append(continuation)
+        }
+    }
+
+    func waitForFinishPermission() async {
+        await withCheckedContinuation { continuation in
+            finishContinuation = continuation
+        }
+    }
+
+    func allowFinish() {
+        let continuation = finishContinuation
+        finishContinuation = nil
+        continuation?.resume()
     }
 }
