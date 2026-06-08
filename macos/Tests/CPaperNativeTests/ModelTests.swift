@@ -80,6 +80,32 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(legacyStyle.progress, 0.55, accuracy: 0.0001)
     }
 
+    func testDownloadQueueSummaryMarksAllSkippedFilesAsProcessed() {
+        let summary = DownloadQueueSummary(
+            total: 3,
+            processed: 3,
+            success: 0,
+            failed: 0,
+            cancelled: 0,
+            skipped: 3
+        )
+
+        XCTAssertEqual(summary.subtitle, "已处理 3/3 个文件，成功 0 个，失败 0 个，跳过 3 个")
+    }
+
+    func testDownloadQueueSummaryMarksAllFailedFilesAsProcessed() {
+        let summary = DownloadQueueSummary(
+            total: 4,
+            processed: 4,
+            success: 0,
+            failed: 4,
+            cancelled: 0,
+            skipped: 0
+        )
+
+        XCTAssertEqual(summary.subtitle, "已处理 4/4 个文件，成功 0 个，失败 4 个")
+    }
+
     func testManualSubjectCodeActsAsFallbackWhenSubjectListIsUnavailable() {
         let model = try! makeBasicModel()
         model.selectedSubject = nil

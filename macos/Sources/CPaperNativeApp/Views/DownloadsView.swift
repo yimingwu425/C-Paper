@@ -71,11 +71,13 @@ struct DownloadsView: View {
                         .animation(CPDesign.Motion.gentle(reduceMotion: reduceMotion), value: progressValue)
 
                     HStack(spacing: 12) {
-                        queueStage(title: "准备", value: pendingDownloadCount, tint: .orange)
-                        queueStage(title: "完成", value: model.completedDownloadCount, tint: .green)
+                        queueStage(title: "待处理", value: pendingDownloadCount, tint: .orange)
+                        queueStage(title: "成功", value: successfulDownloadCount, tint: .green)
                         queueStage(title: "失败", value: model.failedDownloadCount, tint: .red)
                         queueStage(title: "取消", value: model.cancelledDownloadCount, tint: .orange)
                     }
+
+                    saveDirectoryRow
                 }
             }
             .frame(maxWidth: .infinity)
@@ -169,25 +171,61 @@ struct DownloadsView: View {
         return Double(model.downloadSnapshot.done) / Double(model.downloadSnapshot.total)
     }
 
+    private var successfulDownloadCount: Int {
+        max(model.downloadSnapshot.success, 0)
+    }
+
     private var pendingDownloadCount: Int {
-        model.downloadSnapshot.total
-            - model.completedDownloadCount
-            - model.failedDownloadCount
-            - model.cancelledDownloadCount
+        max(model.downloadSnapshot.total - model.downloadSnapshot.done, 0)
     }
 
     private var queueSummaryText: String {
-        var parts = [
-            "\(model.completedDownloadCount) 个已完成",
-            "\(model.failedDownloadCount) 个失败"
-        ]
-        if model.cancelledDownloadCount > 0 {
-            parts.append("\(model.cancelledDownloadCount) 个已取消")
+        DownloadQueueSummary(
+            total: model.downloadSnapshot.total,
+            processed: model.downloadSnapshot.done,
+            success: model.downloadSnapshot.success,
+            failed: model.failedDownloadCount,
+            cancelled: model.cancelledDownloadCount,
+            skipped: model.skippedDownloadCount
+        ).subtitle
+    }
+
+    private var saveDirectoryRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+                .overlay(Color.accentColor.opacity(0.08))
+
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "folder")
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 18, height: 18)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("保存位置")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(saveDirectoryText)
+                        .font(.caption.monospaced())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+
+                Spacer(minLength: 12)
+
+                Button {
+                    model.revealSaveDirectory()
+                } label: {
+                    Label("显示文件夹", systemImage: "folder")
+                }
+                .buttonStyle(GlassButtonStyle(.subtle))
+            }
         }
-        if model.skippedDownloadCount > 0 {
-            parts.append("\(model.skippedDownloadCount) 个已跳过")
-        }
-        return parts.joined(separator: "，")
+    }
+
+    private var saveDirectoryText: String {
+        let expandedPath = (model.settings.saveDirectory as NSString).expandingTildeInPath
+        return expandedPath.isEmpty ? model.settings.saveDirectory : expandedPath
     }
 
     private func summaryBlock(title: String, value: String, symbol: String, tint: Color) -> some View {
@@ -224,6 +262,30 @@ struct DownloadsView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(.white.opacity(0.46), in: Capsule(style: .continuous))
+    }
+}
+
+struct DownloadQueueSummary: Equatable {
+    let subtitle: String
+
+    init(total: Int, processed: Int, success: Int, failed: Int, cancelled: Int, skipped: Int) {
+        let normalizedTotal = max(total, 0)
+        let normalizedProcessed = min(max(processed, 0), normalizedTotal)
+
+        var parts = [
+            "已处理 \(normalizedProcessed)/\(normalizedTotal) 个文件",
+            "成功 \(max(success, 0)) 个",
+            "失败 \(max(failed, 0)) 个"
+        ]
+
+        if cancelled > 0 {
+            parts.append("取消 \(cancelled) 个")
+        }
+        if skipped > 0 {
+            parts.append("跳过 \(skipped) 个")
+        }
+
+        subtitle = parts.joined(separator: "，")
     }
 }
 
