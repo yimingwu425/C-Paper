@@ -1396,3 +1396,21 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 **Risks / Notes**
 - This keeps the CI gate focused on newly changed Swift files. A future dedicated formatting cleanup can still run `swiftformat` across the full active tree separately.
+
+### 2026-06-08 — Fix XCTest teardown concurrency compatibility on CI
+
+**Task**
+- Unblock the native `validate` job after GitHub Actions started failing `swift test --jobs 1` with a Swift 6/XCTest sendability diagnostic in `AppMenuCommandCenterTests`.
+
+**Changed**
+- Changed `AppMenuCommandCenterTests.tearDown()` from async to synchronous because the cleanup is purely synchronous and does not need `await super.tearDown()`.
+
+**Reason**
+- GitHub Actions compiled the async `tearDown()` under a stricter XCTest concurrency diagnostic and rejected sending the main-actor-isolated test case into nonisolated `super.tearDown()`.
+
+**Tested**
+- `swift test --jobs 1`
+- `git diff --check`
+
+**Risks / Notes**
+- This change is test-only and keeps the same cleanup behavior while avoiding the runner-specific sendability error.

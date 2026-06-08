@@ -4,9 +4,11 @@ import XCTest
 
 @MainActor
 final class AppMenuCommandCenterTests: XCTestCase {
-    override func tearDown() async throws {
-        ReadyRootMenuBindings.unbind(commandCenter: AppMenuCommandCenter.shared)
-        try await super.tearDown()
+    override func tearDown() {
+        MainActor.assumeIsolated {
+            ReadyRootMenuBindings.unbind(commandCenter: AppMenuCommandCenter.shared)
+        }
+        super.tearDown()
     }
 
     func testDispatchInvokesBoundHandlerForCommand() {
