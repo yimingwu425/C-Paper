@@ -41,6 +41,50 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(store.load(), settings)
     }
 
+    func testSettingsLoadPreservesExistingValuesWhenLegacyJSONOmitsNewFields() throws {
+        let paths = try makeStoragePaths()
+        let store = SettingsStore(paths: paths)
+        let legacySettings = #"""
+        {
+          "theme": "dark",
+          "save_dir": "/tmp/cpaper",
+          "include_ms": false,
+          "rate": 8,
+          "threads": 6,
+          "merge": true,
+          "proxy_url": "http://127.0.0.1:7890",
+          "last_subject": "9709",
+          "last_mode": "batch",
+          "dup_mode": "missing"
+        }
+        """#
+
+        try Data(legacySettings.utf8).write(to: paths.settingsURL)
+
+        let loaded = store.load()
+
+        XCTAssertEqual(
+            loaded,
+            DownloadSettings(
+                theme: "dark",
+                saveDirectory: "/tmp/cpaper",
+                includeMarkSchemes: false,
+                rate: 8,
+                threads: 6,
+                mergeFolders: true,
+                proxyURL: "http://127.0.0.1:7890",
+                lastSubject: "9709",
+                lastMode: "batch",
+                duplicateMode: .missing,
+                sourceMode: .automatic
+            )
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: paths.settingsURL.path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: "\(paths.settingsURL.path).corrupt.1700000000")
+        )
+    }
+
     func testFavoritesAreDedupedByCode() throws {
         let paths = try makeStoragePaths()
         let store = FavoritesStore(paths: paths)

@@ -321,6 +321,46 @@ final class ModelTests: XCTestCase {
         XCTAssertTrue(report.contains("~/Downloads/file.pdf"))
     }
 
+    func testHandleSearchFailureClearsStaleResultsAndPreviewSelection() throws {
+        let model = try makeBasicModel()
+        let subject = Subject(code: "9709", name: "Mathematics")
+        model.searchResults = [makePaperFile(filename: "9709_s24_qp_12.pdf")]
+        model.searchGroups = [model.backendGroup(for: makePaperFile(filename: "9709_s24_qp_12.pdf"))]
+        model.expandedPaperComponents = ["12"]
+        model.selectedPreview = makePaperFile(filename: "9709_s24_qp_12.pdf")
+        model.selectedYear = 2024
+        model.selectedSeason = .jun
+        model.settings.sourceMode = .pastPapers
+
+        model.handleSearchFailure(DiagnosticTestError(message: "search failed"), selectedSubject: subject)
+
+        XCTAssertTrue(model.searchResults.isEmpty)
+        XCTAssertTrue(model.searchGroups.isEmpty)
+        XCTAssertTrue(model.expandedPaperComponents.isEmpty)
+        XCTAssertNil(model.selectedPreview)
+        XCTAssertEqual(model.errorMessage, "search failed")
+        XCTAssertEqual(model.lastDiagnostic?.context, .sourceProvider)
+    }
+
+    func testHandleBatchPreviewFailureClearsStaleBatchResultsAndPreviewSelection() throws {
+        let model = try makeBasicModel()
+        let subject = Subject(code: "9709", name: "Mathematics")
+        model.batchPreview = [makePaperFile(filename: "9709_s24_qp_12.pdf")]
+        model.batchGroups = [model.backendGroup(for: makePaperFile(filename: "9709_s24_qp_12.pdf"))]
+        model.selectedPreview = makePaperFile(filename: "9709_s24_qp_12.pdf")
+        model.batchYearFrom = 2021
+        model.batchYearTo = 2024
+        model.settings.sourceMode = .easyPaper
+
+        model.handleBatchPreviewFailure(DiagnosticTestError(message: "batch failed"), selectedSubject: subject)
+
+        XCTAssertTrue(model.batchPreview.isEmpty)
+        XCTAssertTrue(model.batchGroups.isEmpty)
+        XCTAssertNil(model.selectedPreview)
+        XCTAssertEqual(model.errorMessage, "batch failed")
+        XCTAssertEqual(model.lastDiagnostic?.context, .sourceProvider)
+    }
+
     func testStartupUpdateCheckRunsOnlyOnceAndDoesNotPromptWhenUpToDate() async throws {
         let counter = UpdateCallCounter()
         let model = try makeModel(
@@ -512,6 +552,20 @@ final class ModelTests: XCTestCase {
             .appendingPathComponent("CPaperBasicModelTests-\(UUID().uuidString)", isDirectory: true)
         let backend = try NativeBackendService(paths: AppStoragePaths(rootURL: pathsRoot))
         return AppModel(backend: backend)
+    }
+
+    private func makePaperFile(filename: String) -> PaperFile {
+        PaperFile(
+            filename: filename,
+            url: URL(string: "https://example.test/\(filename)")!,
+            year: 2024,
+            season: "Jun",
+            paperType: "QP",
+            subjectCode: "9709",
+            number: "12",
+            label: "Paper 1",
+            sourceID: .frankcie
+        )
     }
 
     private func makeModelWithCachedSubjects(_ subjects: [Subject]) throws -> AppModel {

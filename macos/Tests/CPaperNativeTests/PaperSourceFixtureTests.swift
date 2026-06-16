@@ -97,6 +97,29 @@ final class PaperSourceFixtureTests: XCTestCase {
         )
     }
 
+    func testPastPapersParsesEntriesWhenJSONKeyOrderChanges() async throws {
+        let html = #"""
+        <html>
+          <body>
+            <script>
+              self.__next_f.push(["{\"entries\":[{\"relPath\":\"A-Level/Mathematics-9709/2023-May-June/9709_s23_ms_12.pdf\",\"isDir\":false,\"name\":\"9709_s23_ms_12.pdf\"},{\"isDir\":false,\"name\":\"9709_s23_qp_12.pdf\",\"relPath\":\"A-Level/Mathematics-9709/2023-May-June/9709_s23_qp_12.pdf\"}]}"]);
+            </script>
+          </body>
+        </html>
+        """#.data(using: .utf8)!
+
+        let client = MockNetworkClient { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.url?.path, "/caie/a-level/mathematics-9709/2023-may-june")
+            return html
+        }
+        let source = PastPapersSource(baseURL: URL(string: "https://pastpapers.co")!, networkClient: client)
+
+        let result = try await source.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
+
+        XCTAssertEqual(result.components.map(\.filename), ["9709_s23_ms_12.pdf", "9709_s23_qp_12.pdf"])
+    }
+
     func testPastPapersFallsBackToVerifiedStaticPDFsWhenDirectoryIsChallenged() async throws {
         let client = MockNetworkClient { request in
             if request.httpMethod == "GET" {

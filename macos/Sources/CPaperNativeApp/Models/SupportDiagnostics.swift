@@ -102,7 +102,7 @@ struct SupportDiagnostic: Equatable, Sendable {
             with: "/paperdownload/dir_v3/<redacted>"
         )
         redacted = replacing(
-            pattern: #"(?i)\b(token|access_token|api_key|password)=([^&\s]+)"#,
+            pattern: #"(?i)\b(token|access_token|api_key|password|refresh_token|key|secret|sig|signature|x-amz-signature|x-goog-signature|x-ms-signature)=([^&\s]+)"#,
             in: redacted,
             with: "$1=<redacted>"
         )

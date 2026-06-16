@@ -99,34 +99,34 @@ enum PastPapersEntriesExtractor {
     }
 
     private static func parseEntries(from text: String) -> [PastPapersEntry] {
-        let pattern = #"\{[^{}]*"name"\s*:\s*"([^"]+)"[^{}]*"relPath"\s*:\s*"([^"]+)"[^{}]*"isDir"\s*:\s*(true|false)[^{}]*\}"#
+        let pattern = #"\{[^{}]*\}"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let range = NSRange(text.startIndex..., in: text)
 
         return regex.matches(in: text, range: range).compactMap { match in
-            guard match.numberOfRanges >= 4,
-                  let nameRange = Range(match.range(at: 1), in: text),
-                  let relPathRange = Range(match.range(at: 2), in: text),
-                  let isDirRange = Range(match.range(at: 3), in: text)
+            guard let objectRange = Range(match.range, in: text)
+            else {
+                return nil
+            }
+
+            let objectText = String(text[objectRange])
+            guard let data = objectText.data(using: .utf8),
+                  let candidate = try? JSONDecoder().decode(CandidateEntry.self, from: data)
             else {
                 return nil
             }
 
             return PastPapersEntry(
-                name: decodeJSONString(String(text[nameRange])),
-                relPath: decodeJSONString(String(text[relPathRange])),
-                isDir: String(text[isDirRange]) == "true"
+                name: candidate.name,
+                relPath: candidate.relPath,
+                isDir: candidate.isDir
             )
         }
     }
 
-    private static func decodeJSONString(_ value: String) -> String {
-        let json = "\"\(value)\""
-        guard let data = json.data(using: .utf8),
-              let decoded = try? JSONDecoder().decode(String.self, from: data)
-        else {
-            return value
-        }
-        return decoded
+    private struct CandidateEntry: Decodable {
+        let name: String
+        let relPath: String
+        let isDir: Bool
     }
 }

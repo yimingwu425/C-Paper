@@ -143,7 +143,7 @@ enum DownloadDestinationBuilder {
         return nil
     }
 
-    private static func safePDFFileName(_ value: String, url: URL) -> String? {
+    static func safePDFFileName(_ value: String, url: URL) -> String? {
         guard !value.isEmpty else { return nil }
         let lower = value.lowercased()
         guard lower.hasSuffix(".pdf") else { return nil }

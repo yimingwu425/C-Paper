@@ -214,3 +214,22 @@ struct DownloadSettings: Codable, Equatable {
         )
     }
 }
+
+extension DownloadSettings {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = DownloadSettings()
+
+        theme = try container.decodeIfPresent(String.self, forKey: .theme) ?? defaults.theme
+        saveDirectory = try container.decodeIfPresent(String.self, forKey: .saveDirectory) ?? defaults.saveDirectory
+        includeMarkSchemes = try container.decodeIfPresent(Bool.self, forKey: .includeMarkSchemes) ?? defaults.includeMarkSchemes
+        rate = try container.decodeIfPresent(Double.self, forKey: .rate) ?? defaults.rate
+        threads = try container.decodeIfPresent(Int.self, forKey: .threads) ?? defaults.threads
+        mergeFolders = try container.decodeIfPresent(Bool.self, forKey: .mergeFolders) ?? defaults.mergeFolders
+        proxyURL = try container.decodeIfPresent(String.self, forKey: .proxyURL) ?? defaults.proxyURL
+        lastSubject = try container.decodeIfPresent(String.self, forKey: .lastSubject) ?? defaults.lastSubject
+        lastMode = try container.decodeIfPresent(String.self, forKey: .lastMode) ?? defaults.lastMode
+        duplicateMode = try container.decodeIfPresent(DuplicateMode.self, forKey: .duplicateMode) ?? defaults.duplicateMode
+        sourceMode = try container.decodeIfPresent(PaperSourceID.self, forKey: .sourceMode) ?? defaults.sourceMode
+    }
+}

@@ -30,6 +30,31 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-09 — Fix native parsing, preview cache, update download, and stale state edges
+
+**Task**
+- Implement the minimal native-only fixes for confirmed settings compatibility, version parsing, proxy coverage, PastPapers entry parsing, preview cache safety, update partial-file handling, stale result clearing, and preview diagnostic redaction gaps.
+
+**Changed**
+- Updated `macos/Sources/CPaperNativeApp/Models/DownloadModels.swift` to make `DownloadSettings` decode legacy partial JSON with defaults for missing keys.
+- Tightened `AppVersion` parsing in `macos/Sources/CPaperNativeApp/Backend/Updates/UpdateService.swift`, switched update downloads to unique `.part.<UUID>` files, and added a cancellation gate before final replace/move.
+- Expanded `macos/Sources/CPaperNativeApp/Backend/Networking/ProxyConfiguration.swift` so `http://...` proxies also configure HTTPS requests.
+- Reworked `macos/Sources/CPaperNativeApp/Backend/Sources/PastPapersModels.swift` to decode flat entry objects without depending on JSON key order.
+- Hardened `macos/Sources/CPaperNativeApp/Backend/Downloads/PreviewFileService.swift` and `DownloadDestinationBuilder.swift` so preview caching validates filenames, uses one in-flight transfer per cache target, and writes through unique temporary files before atomically promoting the final cache file.
+- Updated `macos/Sources/CPaperNativeApp/State/AppModel+PaperWorkflow.swift` to clear stale search/batch results on failure and expanded preview diagnostic query-secret redaction in `macos/Sources/CPaperNativeApp/Models/SupportDiagnostics.swift`.
+- Added regression coverage in `PersistenceTests`, `UpdateServiceTests`, `HTTPFileTransferClientTests`, `PaperSourceFixtureTests`, `NativeBackendServicePreviewTests`, `ModelTests`, and `SupportDiagnosticsTests`.
+
+**Reason**
+- The native app had confirmed upgrade-compatibility bugs, proxy misconfiguration for HTTPS traffic, parser fragility against upstream field reordering, preview cache path/concurrency holes, update partial-file edge cases, stale UI state after failed fetches, and incomplete query-secret redaction in support diagnostics.
+
+**Tested**
+- `swift test --jobs 1 --filter 'PersistenceTests|UpdateServiceTests|HTTPFileTransferClientTests|PaperSourceFixtureTests'`
+- `swift test --jobs 1 --filter 'NativeBackendServicePreviewTests|UpdateServiceTests'`
+- `swift test --jobs 1 --filter 'ModelTests|SupportDiagnosticsTests'`
+
+**Risks / Notes**
+- This change intentionally does not expand scope into startup update timing, `relPath` trust hardening, or download-plan deduplication; those remain separate concerns unless a future task explicitly pulls them in.
+
 ### 2026-06-08 — Fix native release workflow secret gating
 
 **Task**

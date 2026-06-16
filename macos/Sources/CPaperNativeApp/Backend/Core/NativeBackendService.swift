@@ -29,7 +29,7 @@ final class NativeBackendService: @unchecked Sendable {
         self.previewService = PreviewFileService(
             paths: resolvedPaths,
             transfer: previewTransfer,
-            fileManager: fileManager
+            fileSystem: PreviewFileSystem(fileManager: fileManager)
         )
         self.supportDiagnosticsStore = SupportDiagnosticsStore(paths: resolvedPaths, fileManager: fileManager)
         let historyRecorder = DownloadHistoryRecorder(store: historyStore)

@@ -12,6 +12,14 @@ final class UpdateServiceTests: XCTestCase {
         XCTAssertLessThan(try AppVersion("6.0.2"), try AppVersion("6.0.10"))
         XCTAssertLessThan(try AppVersion("v6.0.2"), try AppVersion("6.1.0"))
         XCTAssertEqual(try AppVersion("6.0"), try AppVersion("6.0.0"))
+        XCTAssertEqual(try AppVersion("6.0.1+5"), try AppVersion("6.0.1"))
+        XCTAssertEqual(try AppVersion("6.0.1-rc1"), try AppVersion("6.0.1"))
+    }
+
+    func testAppVersionRejectsMalformedVersions() {
+        XCTAssertThrowsError(try AppVersion("6..1"))
+        XCTAssertThrowsError(try AppVersion("6.x.4"))
+        XCTAssertThrowsError(try AppVersion("6."))
     }
 
     func testLatestReleaseWithSameVersionReturnsUpToDate() async throws {
@@ -124,11 +132,48 @@ final class UpdateServiceTests: XCTestCase {
         XCTAssertEqual(request.url?.absoluteString, release.downloadURL.absoluteString)
         XCTAssertEqual(destinationURL.lastPathComponent, release.assetName)
         XCTAssertEqual(try String(contentsOf: destinationURL), "new-dmg!")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: tempDirectory.appendingPathComponent("\(release.assetName).part").path))
+        let remainingPartials = try FileManager.default.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("\(release.assetName).part.") }
+        XCTAssertTrue(remainingPartials.isEmpty)
         let progressValues = await progress.compactValues()
         XCTAssertEqual(try XCTUnwrap(progressValues.first), 0, accuracy: 0.0001)
         XCTAssertTrue(progressValues.contains(where: { $0 > 0 && $0 < 1 }))
         XCTAssertEqual(try XCTUnwrap(progressValues.last), 1, accuracy: 0.0001)
+    }
+
+    func testDownloadUpdateUsesUniquePartialFilesForConcurrentRequests() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperUpdateServiceTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let release = makeRelease()
+        let partialRecorder = PartialDestinationRecorder()
+        let gate = UpdateDownloadGate()
+
+        let service = UpdateService(
+            currentVersion: "6.0.3",
+            updatesDirectory: tempDirectory,
+            downloadWriter: { _, destinationURL, _, _ in
+                await partialRecorder.record(destinationURL)
+                await gate.recordStart()
+                await gate.waitForRelease()
+                try Data(UUID().uuidString.utf8).write(to: destinationURL)
+            }
+        )
+
+        async let firstURL = service.downloadUpdate(release, proxyURL: "") { _ in }
+        async let secondURL = service.downloadUpdate(release, proxyURL: "") { _ in }
+
+        try await gate.waitForStarts(count: 2)
+        await gate.release()
+
+        let resolvedFirstURL = try await firstURL
+        let resolvedSecondURL = try await secondURL
+        let partialURLs = await partialRecorder.urls()
+
+        XCTAssertEqual(Set(partialURLs).count, 2)
+        XCTAssertTrue(partialURLs.allSatisfy { $0.lastPathComponent.hasPrefix("\(release.assetName).part.") })
+        XCTAssertEqual(resolvedFirstURL, resolvedSecondURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: resolvedFirstURL.path))
     }
 
     func testDestinationURLUsesSanitizedAssetNameInsideUpdatesDirectory() throws {
@@ -186,8 +231,9 @@ final class UpdateServiceTests: XCTestCase {
             XCTAssertEqual(error, .httpStatus(404))
         }
 
-        let partialURL = tempDirectory.appendingPathComponent("\(release.assetName).part")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: partialURL.path))
+        let remainingPartials = try FileManager.default.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("\(release.assetName).part.") }
+        XCTAssertTrue(remainingPartials.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: tempDirectory.appendingPathComponent(release.assetName).path))
     }
 
@@ -213,8 +259,47 @@ final class UpdateServiceTests: XCTestCase {
             XCTAssertEqual(error.code, .networkConnectionLost)
         }
 
-        let partialURL = tempDirectory.appendingPathComponent("\(release.assetName).part")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: partialURL.path))
+        let remainingPartials = try FileManager.default.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("\(release.assetName).part.") }
+        XCTAssertTrue(remainingPartials.isEmpty)
+    }
+
+    func testDownloadUpdateDoesNotMoveFileIntoFinalLocationAfterCancellation() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperUpdateServiceTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let release = makeRelease()
+        let gate = UpdateDownloadGate()
+
+        let service = UpdateService(
+            currentVersion: "6.0.3",
+            updatesDirectory: tempDirectory,
+            downloadWriter: { _, destinationURL, _, _ in
+                try Data("partial".utf8).write(to: destinationURL)
+                await gate.recordStart()
+                await gate.waitForRelease()
+            }
+        )
+
+        let task = Task {
+            try await service.downloadUpdate(release, proxyURL: "") { _ in }
+        }
+
+        try await gate.waitForStarts(count: 1)
+        task.cancel()
+        await gate.release()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+        }
+
+        let destinationURL = service.destinationURL(for: release)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+        let remainingPartials = try FileManager.default.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("\(release.assetName).part.") }
+        XCTAssertTrue(remainingPartials.isEmpty)
     }
 
     private func makeRelease() -> AppUpdateRelease {
@@ -256,5 +341,50 @@ private final class MockUpdateNetworkClient: NetworkClientProtocol, @unchecked S
 
     func data(for request: URLRequest) async throws -> Data {
         data
+    }
+}
+
+private actor PartialDestinationRecorder {
+    private var recorded: [URL] = []
+
+    func record(_ url: URL) {
+        recorded.append(url)
+    }
+
+    func urls() -> [URL] {
+        recorded
+    }
+}
+
+private actor UpdateDownloadGate {
+    private var starts = 0
+    private var released = false
+    private var releaseContinuations: [CheckedContinuation<Void, Never>] = []
+
+    func recordStart() {
+        starts += 1
+    }
+
+    func waitForStarts(count: Int) async throws {
+        for _ in 0..<100 {
+            if starts >= count {
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Timed out waiting for update download starts.")
+    }
+
+    func waitForRelease() async {
+        guard !released else { return }
+        await withCheckedContinuation { continuation in
+            releaseContinuations.append(continuation)
+        }
+    }
+
+    func release() {
+        released = true
+        releaseContinuations.forEach { $0.resume() }
+        releaseContinuations.removeAll()
     }
 }

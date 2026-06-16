@@ -238,8 +238,13 @@ final class HTTPFileTransferClientTests: XCTestCase {
         XCTAssertEqual(dictionary["HTTPEnable"] as? Int, 1)
         XCTAssertEqual(dictionary["HTTPProxy"] as? String, "proxy.example.com")
         XCTAssertEqual(dictionary["HTTPPort"] as? Int, 8080)
+        XCTAssertEqual(dictionary["HTTPSEnable"] as? Int, 1)
+        XCTAssertEqual(dictionary["HTTPSProxy"] as? String, "proxy.example.com")
+        XCTAssertEqual(dictionary["HTTPSPort"] as? Int, 8080)
         XCTAssertEqual(dictionary["HTTPProxyUsername"] as? String, "user")
         XCTAssertEqual(dictionary["HTTPProxyPassword"] as? String, "pass")
+        XCTAssertEqual(dictionary["HTTPSProxyUsername"] as? String, "user")
+        XCTAssertEqual(dictionary["HTTPSProxyPassword"] as? String, "pass")
     }
 
     func testTransferReportsInitialIntermediateAndFinalProgress() async throws {

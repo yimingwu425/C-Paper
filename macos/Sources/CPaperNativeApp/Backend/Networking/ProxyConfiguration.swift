@@ -39,6 +39,9 @@ struct ProxyConfiguration: Equatable, Sendable {
             dictionary["HTTPEnable"] = 1
             dictionary["HTTPProxy"] = host
             dictionary["HTTPPort"] = port
+            dictionary["HTTPSEnable"] = 1
+            dictionary["HTTPSProxy"] = host
+            dictionary["HTTPSPort"] = port
         case "https":
             dictionary["HTTPSEnable"] = 1
             dictionary["HTTPSProxy"] = host

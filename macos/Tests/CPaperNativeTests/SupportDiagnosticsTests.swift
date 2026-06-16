@@ -7,6 +7,7 @@ final class SupportDiagnosticsTests: XCTestCase {
         let input = """
         proxy=http://alice:secret@127.0.0.1:7890
         source=https://easypaper.com/paperdownload/dir_v3/raw-token?token=abc123&password=s3cr3t
+        signed=https://example.test/file.pdf?sig=abc&signature=def&X-Amz-Signature=ghi&key=jkl
         file=\(home)/Downloads/C-Paper/private.pdf
         """
 
@@ -16,11 +17,19 @@ final class SupportDiagnosticsTests: XCTestCase {
         XCTAssertFalse(redacted.contains("raw-token"))
         XCTAssertFalse(redacted.contains("abc123"))
         XCTAssertFalse(redacted.contains("s3cr3t"))
+        XCTAssertFalse(redacted.contains("sig=abc"))
+        XCTAssertFalse(redacted.contains("signature=def"))
+        XCTAssertFalse(redacted.contains("X-Amz-Signature=ghi"))
+        XCTAssertFalse(redacted.contains("key=jkl"))
         XCTAssertFalse(redacted.contains(home))
         XCTAssertTrue(redacted.contains("http://<redacted>@127.0.0.1:7890"))
         XCTAssertTrue(redacted.contains("/paperdownload/dir_v3/<redacted>"))
         XCTAssertTrue(redacted.contains("token=<redacted>"))
         XCTAssertTrue(redacted.contains("password=<redacted>"))
+        XCTAssertTrue(redacted.contains("sig=<redacted>"))
+        XCTAssertTrue(redacted.contains("signature=<redacted>"))
+        XCTAssertTrue(redacted.contains("X-Amz-Signature=<redacted>"))
+        XCTAssertTrue(redacted.contains("key=<redacted>"))
         XCTAssertTrue(redacted.contains("~/Downloads/C-Paper/private.pdf"))
     }
 

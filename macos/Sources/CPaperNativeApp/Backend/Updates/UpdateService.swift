@@ -26,10 +26,19 @@ struct AppVersion: Comparable, Equatable {
         let trimmed = rawValue
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: #"^v"#, with: "", options: [.regularExpression, .caseInsensitive])
-        let core = trimmed.split(separator: "-", maxSplits: 1).first.map(String.init) ?? trimmed
-        let pieces = core.split(separator: ".").compactMap { Int($0) }
-        guard pieces.count == 2 || pieces.count == 3 else {
+        let core = trimmed.split(
+            maxSplits: 1,
+            omittingEmptySubsequences: false
+        ) { $0 == "-" || $0 == "+" }.first.map(String.init) ?? trimmed
+        let segments = core.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        guard segments.count == 2 || segments.count == 3 else {
             throw UpdateServiceError.invalidVersion(rawValue)
+        }
+        let pieces = try segments.map { segment -> Int in
+            guard !segment.isEmpty, let value = Int(segment) else {
+                throw UpdateServiceError.invalidVersion(rawValue)
+            }
+            return value
         }
         major = pieces[0]
         minor = pieces[1]
@@ -103,16 +112,18 @@ final class UpdateService: @unchecked Sendable {
         try fileManager.createDirectory(at: updatesDirectory, withIntermediateDirectories: true)
 
         let destinationURL = destinationURL(for: release)
-        let filename = destinationURL.lastPathComponent
-        let partialURL = updatesDirectory.appendingPathComponent("\(filename).part")
+        let partialURL = partialURL(for: destinationURL)
         try? fileManager.removeItem(at: partialURL)
+        defer {
+            try? fileManager.removeItem(at: partialURL)
+        }
 
         do {
             try await writeDownload(from: release.downloadURL, to: partialURL, proxyURL: proxyURL, progress: progress)
         } catch {
-            try? fileManager.removeItem(at: partialURL)
             throw error
         }
+        try Task.checkCancellation()
         if fileManager.fileExists(atPath: destinationURL.path) {
             _ = try fileManager.replaceItemAt(destinationURL, withItemAt: partialURL)
         } else {
@@ -124,6 +135,11 @@ final class UpdateService: @unchecked Sendable {
 
     func destinationURL(for release: AppUpdateRelease) -> URL {
         updatesDirectory.appendingPathComponent(release.assetName.safeUpdateFilename)
+    }
+
+    private func partialURL(for destinationURL: URL) -> URL {
+        destinationURL.deletingLastPathComponent()
+            .appendingPathComponent("\(destinationURL.lastPathComponent).part.\(UUID().uuidString)")
     }
 
     private static func defaultUpdatesDirectory() -> URL {

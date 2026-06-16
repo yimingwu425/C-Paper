@@ -14,16 +14,7 @@ extension AppModel {
             selectedPreview = nil
             recordSourceWarnings(payload.warnings)
         } catch {
-            handleBackendError(
-                error,
-                context: .sourceProvider,
-                details: [
-                    SupportDiagnosticDetail(label: "Subject", value: selectedSubject.code),
-                    SupportDiagnosticDetail(label: "Year", value: "\(selectedYear)"),
-                    SupportDiagnosticDetail(label: "Season", value: selectedSeason.rawValue),
-                    SupportDiagnosticDetail(label: "Source Mode", value: settings.sourceMode.title)
-                ]
-            )
+            handleSearchFailure(error, selectedSubject: selectedSubject)
         }
     }
 
@@ -49,16 +40,40 @@ extension AppModel {
                 errorMessage = diagnostic?.message ?? SupportDiagnostic.redact(warning)
             }
         } catch {
-            handleBackendError(
-                error,
-                context: .sourceProvider,
-                details: [
-                    SupportDiagnosticDetail(label: "Subject", value: selectedSubject.code),
-                    SupportDiagnosticDetail(label: "Year Range", value: "\(batchYearFrom)-\(batchYearTo)"),
-                    SupportDiagnosticDetail(label: "Source Mode", value: settings.sourceMode.title)
-                ]
-            )
+            handleBatchPreviewFailure(error, selectedSubject: selectedSubject)
         }
+    }
+
+    func handleSearchFailure(_ error: Error, selectedSubject: Subject) {
+        searchResults = []
+        searchGroups = []
+        expandedPaperComponents = []
+        selectedPreview = nil
+        handleBackendError(
+            error,
+            context: .sourceProvider,
+            details: [
+                SupportDiagnosticDetail(label: "Subject", value: selectedSubject.code),
+                SupportDiagnosticDetail(label: "Year", value: "\(selectedYear)"),
+                SupportDiagnosticDetail(label: "Season", value: selectedSeason.rawValue),
+                SupportDiagnosticDetail(label: "Source Mode", value: settings.sourceMode.title)
+            ]
+        )
+    }
+
+    func handleBatchPreviewFailure(_ error: Error, selectedSubject: Subject) {
+        batchPreview = []
+        batchGroups = []
+        selectedPreview = nil
+        handleBackendError(
+            error,
+            context: .sourceProvider,
+            details: [
+                SupportDiagnosticDetail(label: "Subject", value: selectedSubject.code),
+                SupportDiagnosticDetail(label: "Year Range", value: "\(batchYearFrom)-\(batchYearTo)"),
+                SupportDiagnosticDetail(label: "Source Mode", value: settings.sourceMode.title)
+            ]
+        )
     }
 
     func startSearchDownload() async {
