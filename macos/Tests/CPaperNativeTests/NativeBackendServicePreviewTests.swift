@@ -218,6 +218,56 @@ final class NativeBackendServicePreviewTests: XCTestCase {
             .appendingPathComponent("9709_s24_qp_12.pdf")
         XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path))
     }
+
+    func testPreviewURLCancelsInFlightTransferBeforeFinalCacheCommit() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperPreviewTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let paths = try AppStoragePaths(rootURL: root)
+        let gate = PreviewTransferGate()
+        let backend = try NativeBackendService(
+            paths: paths,
+            previewTransfer: { _, destinationURL, _ in
+                try Data("preview".utf8).write(to: destinationURL)
+                await gate.recordStart()
+                await gate.waitForRelease()
+            }
+        )
+        let file = PaperFile(
+            filename: "9709_s24_qp_12.pdf",
+            url: URL(string: "https://example.test/original.pdf")!,
+            year: 2024,
+            season: "Jun",
+            paperType: "QP",
+            subjectCode: "9709",
+            number: "12",
+            label: "Paper 1",
+            sourceID: .frankcie
+        )
+
+        let task = Task {
+            try await backend.previewURL(
+                for: file,
+                settings: DownloadSettings(saveDirectory: root.appendingPathComponent("Downloads", isDirectory: true).path)
+            )
+        }
+
+        await gate.waitForStart()
+        task.cancel()
+        await gate.release()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+        }
+
+        let cacheURL = paths.cacheDirectory
+            .appendingPathComponent("preview", isDirectory: true)
+            .appendingPathComponent("9709_s24_qp_12.pdf")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheURL.path))
+    }
 }
 
 private actor PreviewTransferRecorder {
@@ -245,6 +295,16 @@ private actor PreviewTransferGate {
 
     func recordStart() {
         starts += 1
+    }
+
+    func waitForStart() async {
+        for _ in 0..<100 {
+            if starts > 0 {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Timed out waiting for preview transfer start.")
     }
 
     func waitForStarts(count: Int) async throws {

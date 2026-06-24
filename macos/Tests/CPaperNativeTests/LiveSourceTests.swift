@@ -20,6 +20,87 @@ final class LiveSourceTests: XCTestCase {
         XCTAssertTrue(subjects.contains { $0.code == "9709" })
     }
 
+    func testLiveAutomaticSearchFallbackReturnsDownloadablePDFWhenFrankcieIsUnavailable() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_LIVE_SOURCE_TESTS"] == "1",
+            "Set RUN_LIVE_SOURCE_TESTS=1 to verify third-party source websites."
+        )
+
+        let registry = SourceRegistry(sources: [
+            UnavailableLiveSource(id: .frankcie),
+            EasyPaperSource(),
+            PastPapersSource(),
+            PapaCambridgeSource()
+        ])
+        let result = try await registry.search(sampleQuery)
+        let questionPaper = try XCTUnwrap(result.components.first { $0.filename == "9709_s23_qp_12.pdf" })
+
+        XCTAssertFalse(result.components.isEmpty)
+        XCTAssertEqual(result.attempts.first?.sourceID, .frankcie)
+        XCTAssertEqual(result.attempts.first?.status, .failed)
+        XCTAssertEqual(result.attempts.last?.status, .success)
+        XCTAssertEqual(result.sourceID, questionPaper.sourceID)
+
+        try await assertDownloadablePDF(questionPaper.url)
+    }
+
+    func testLiveManualEasyPaperSearchStaysOnSelectedSource() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_LIVE_SOURCE_TESTS"] == "1",
+            "Set RUN_LIVE_SOURCE_TESTS=1 to verify third-party source websites."
+        )
+
+        let registry = SourceRegistry(sources: [
+            FrankcieSource(),
+            EasyPaperSource(),
+            PastPapersSource(),
+            PapaCambridgeSource()
+        ])
+        let result = try await registry.search(sampleQuery, mode: .manual(.easyPaper))
+        let questionPaper = try XCTUnwrap(result.components.first { $0.filename == "9709_s23_qp_12.pdf" })
+
+        XCTAssertFalse(result.components.isEmpty)
+        XCTAssertEqual(result.sourceID, .easyPaper)
+        XCTAssertEqual(questionPaper.sourceID, .easyPaper)
+        XCTAssertEqual(result.attempts.map(\.sourceID), [.easyPaper])
+        XCTAssertEqual(result.attempts.map(\.status), [.success])
+
+        try await assertDownloadablePDF(questionPaper.url)
+    }
+
+    func testLiveManualPapaCambridgeKeepsClearUnavailableReasonOrReturnsOwnPDF() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_LIVE_SOURCE_TESTS"] == "1",
+            "Set RUN_LIVE_SOURCE_TESTS=1 to verify third-party source websites."
+        )
+
+        let registry = SourceRegistry(sources: [
+            FrankcieSource(),
+            EasyPaperSource(),
+            PastPapersSource(),
+            PapaCambridgeSource()
+        ])
+
+        do {
+            let result = try await registry.search(sampleQuery, mode: .manual(.papaCambridge))
+            let questionPaper = try XCTUnwrap(result.components.first { $0.filename == "9709_s23_qp_12.pdf" })
+
+            XCTAssertFalse(result.components.isEmpty)
+            XCTAssertEqual(result.sourceID, .papaCambridge)
+            XCTAssertEqual(questionPaper.sourceID, .papaCambridge)
+            XCTAssertEqual(result.attempts.map(\.sourceID), [.papaCambridge])
+            XCTAssertEqual(result.attempts.map(\.status), [.success])
+
+            try await assertDownloadablePDF(questionPaper.url)
+        } catch let error as PaperSourceError {
+            guard case let .sourceUnavailable(message) = error else {
+                return XCTFail("Unexpected manual PapaCambridge error: \(error)")
+            }
+            XCTAssertTrue(message.contains("PapaCambridge"))
+            XCTAssertTrue(message.contains("暂不可用"))
+        }
+    }
+
     func testLiveEasyPaperSearchReturnsDownloadablePDF() async throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["RUN_LIVE_SOURCE_TESTS"] == "1",

@@ -81,6 +81,59 @@ final class StartupBootCoordinatorTests: XCTestCase {
         XCTAssertTrue(model === secondModel)
     }
 
+    func testRevealSupportDirectoryCreatesDirectoryBeforeOpeningFinder() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperStartupSupportReveal-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let supportDirectoryURL = rootURL.appendingPathComponent("Support", isDirectory: true)
+        let failure = AppBootFailure(
+            message: "无法启动 C-Paper",
+            diagnosticText: "diagnostic",
+            supportDirectoryURL: supportDirectoryURL
+        )
+        var revealedURL: URL?
+
+        try failure.revealSupportDirectory { url in
+            revealedURL = url
+        }
+
+        var isDirectory: ObjCBool = false
+        XCTAssertTrue(FileManager.default.fileExists(atPath: supportDirectoryURL.path, isDirectory: &isDirectory))
+        XCTAssertTrue(isDirectory.boolValue)
+        XCTAssertEqual(revealedURL, supportDirectoryURL)
+    }
+
+    func testRevealSupportDirectoryFailureKeepsFinderClosedAndProvidesContextualMessage() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperStartupSupportRevealBlocked-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let blockedURL = rootURL.appendingPathComponent("Support", isDirectory: true)
+        try Data("blocked".utf8).write(to: blockedURL)
+
+        let failure = AppBootFailure(
+            message: "无法启动 C-Paper",
+            diagnosticText: "diagnostic",
+            supportDirectoryURL: blockedURL
+        )
+        var didReveal = false
+
+        do {
+            try failure.revealSupportDirectory { _ in
+                didReveal = true
+            }
+            XCTFail("Expected revealSupportDirectory to fail when support path is occupied by a file")
+        } catch {
+            let message = failure.supportDirectoryRevealErrorMessage(for: error)
+            XCTAssertFalse(didReveal)
+            XCTAssertTrue(message.contains("无法显示支持文件夹"))
+            XCTAssertTrue(message.contains(SupportDiagnostic.redact(blockedURL.path)))
+            XCTAssertTrue(message.contains("原因："))
+        }
+    }
+
     private func makeModel() throws -> AppModel {
         let rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("CPaperStartupBootTests-\(UUID().uuidString)", isDirectory: true)

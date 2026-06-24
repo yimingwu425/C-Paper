@@ -219,7 +219,7 @@ final class DownloadManagerTests: XCTestCase {
         let snapshot = await manager.status()
         let items = await manager.items()
 
-        XCTAssertEqual(snapshot.phase, "done")
+        XCTAssertEqual(snapshot.phase, .done)
         XCTAssertEqual(snapshot.cancelled, 3)
         XCTAssertTrue(items.allSatisfy { $0.status == .cancelled })
     }
@@ -378,6 +378,91 @@ final class DownloadManagerTests: XCTestCase {
         XCTAssertEqual(items.filter { $0.status == .failed }.count, 1)
     }
 
+    func testDownloadManagerCanRetryRecoverableFailedItemsAfterCompletion() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let attempts = AttemptCounter()
+        let manager = DownloadManager { sourceURL, partialURL in
+            if sourceURL.lastPathComponent == "bad.pdf" {
+                let current = await attempts.next()
+                if current <= 4 {
+                    throw URLError(.notConnectedToInternet)
+                }
+            }
+            try Data("ok".utf8).write(to: partialURL)
+        }
+        let group = NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: "s25",
+            number: "12",
+            paperGroup: 1,
+            qp: makeDownloadComponent(filename: "good.pdf", type: "QP", sy: "s25", url: URL(string: "https://example.test/good.pdf")!),
+            ms: nil,
+            extras: [
+                makeDownloadComponent(filename: "bad.pdf", type: "QP", sy: "s25", url: URL(string: "https://example.test/bad.pdf")!)
+            ]
+        )
+
+        try await manager.start(groups: [group], saveDirectory: root, options: makeDownloadOptions(threads: 1))
+        let firstSnapshot = try await waitForDownloadCompletion(manager)
+        let firstItems = await manager.items()
+
+        XCTAssertEqual(firstSnapshot.success, 1)
+        XCTAssertEqual(firstSnapshot.failed, 1)
+        XCTAssertEqual(firstItems.first(where: { $0.filename == "bad.pdf" })?.recoveryAction, .retryNow)
+
+        let didStartRetry = await manager.retryRecoverableFailedItems()
+        XCTAssertTrue(didStartRetry)
+
+        let retrySnapshot = try await waitForDownloadCompletion(manager)
+        let retryItems = await manager.items()
+        let attemptCount = await attempts.value
+
+        XCTAssertEqual(retrySnapshot.success, 2)
+        XCTAssertEqual(retrySnapshot.failed, 0)
+        XCTAssertEqual(retryItems.map(\.status), [.done, .done])
+        XCTAssertEqual(attemptCount, 5)
+    }
+
+    func testDownloadManagerCanRetryCompletedItemsNeedingRepair() async throws {
+        let root = makeTemporaryDownloadDirectory()
+        let attempts = AttemptCounter()
+        let manager = DownloadManager { _, partialURL in
+            let current = await attempts.next()
+            try Data("attempt-\(current)".utf8).write(to: partialURL)
+        }
+        let group = NativePaperGroup(
+            sourceID: .frankcie,
+            subjectCode: "9709",
+            sy: "s25",
+            number: "12",
+            paperGroup: 1,
+            qp: makeDownloadComponent(filename: "repair.pdf", type: "QP", sy: "s25", url: URL(string: "https://example.test/repair.pdf")!),
+            ms: nil,
+            extras: []
+        )
+        let savedFileURL = root
+            .appendingPathComponent("2025", isDirectory: true)
+            .appendingPathComponent("QP", isDirectory: true)
+            .appendingPathComponent("repair.pdf", isDirectory: false)
+
+        try await manager.start(groups: [group], saveDirectory: root, options: makeDownloadOptions(threads: 1))
+        _ = try await waitForDownloadCompletion(manager)
+
+        XCTAssertEqual(try String(contentsOf: savedFileURL), "attempt-1")
+
+        let didStartRetry = await manager.retryCompletedItemsNeedingRepair(ids: [0])
+        XCTAssertTrue(didStartRetry)
+
+        let retrySnapshot = try await waitForDownloadCompletion(manager)
+        let attemptCount = await attempts.value
+
+        XCTAssertEqual(retrySnapshot.success, 1)
+        XCTAssertEqual(retrySnapshot.failed, 0)
+        XCTAssertEqual(try String(contentsOf: savedFileURL), "attempt-2")
+        XCTAssertEqual(attemptCount, 2)
+    }
+
     func testDownloadManagerRefreshesEasyPaperTokenBeforeDownload() async throws {
         let root = makeTemporaryDownloadDirectory()
         let observed = ControlledDownloadCoordinator()
@@ -495,7 +580,7 @@ final class DownloadManagerTests: XCTestCase {
 
         await manager.cancel()
         let cancelledSnapshot = await manager.status()
-        XCTAssertEqual(cancelledSnapshot.phase, "done")
+        XCTAssertEqual(cancelledSnapshot.phase, .done)
         XCTAssertEqual(cancelledSnapshot.cancelled, 1)
 
         try await manager.start(
@@ -525,6 +610,109 @@ final class DownloadManagerTests: XCTestCase {
             try String(contentsOf: root.appendingPathComponent("2024/QP/fresh.pdf")),
             "payload-fresh.pdf"
         )
+    }
+
+    func testDownloadManagerRestoresInterruptedSessionAsRetryableFailureAndRetriesIt() async throws {
+        let storageRoot = makeTemporaryDownloadDirectory()
+        let saveRoot = makeTemporaryDownloadDirectory()
+        let paths = try AppStoragePaths(rootURL: storageRoot)
+        let sessionStore = DownloadSessionStore(paths: paths)
+        let saveURL = saveRoot
+            .appendingPathComponent("2024", isDirectory: true)
+            .appendingPathComponent("QP", isDirectory: true)
+            .appendingPathComponent("interrupted.pdf", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: saveURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let partialURL = saveURL.deletingLastPathComponent()
+            .appendingPathComponent("interrupted.pdf.part.stale", isDirectory: false)
+        try Data("partial".utf8).write(to: partialURL)
+
+        let task = DownloadDestinationTask(
+            id: 0,
+            component: makeDownloadComponent(filename: "interrupted.pdf", type: "QP", sy: "s24"),
+            filename: "interrupted.pdf",
+            ftype: "QP",
+            label: "Paper 1",
+            year: "2024",
+            saveURL: saveURL
+        )
+        try sessionStore.save(
+            DownloadSessionDocument(
+                tasks: [task],
+                items: [
+                    DownloadTaskItem(
+                        id: 0,
+                        filename: "interrupted.pdf",
+                        ftype: "QP",
+                        label: "Paper 1",
+                        year: "2024",
+                        savePath: saveURL.path,
+                        status: .downloading,
+                        error: "",
+                        errorType: nil,
+                        progressFraction: 0.5
+                    )
+                ],
+                snapshot: DownloadStatusSnapshot(
+                    phase: .running,
+                    done: 0,
+                    total: 1,
+                    success: 0,
+                    message: "下载中... (0/1)",
+                    failed: 0,
+                    cancelled: 0,
+                    skipped: 0
+                ),
+                options: makeDownloadOptions(threads: 1),
+                proxyURL: "http://127.0.0.1:9090"
+            )
+        )
+
+        let observed = ControlledDownloadCoordinator()
+        let manager = DownloadManager(
+            sharedTransfer: { sourceURL, partialURL, proxyURL, _ in
+                await observed.recordTransfer(url: sourceURL, proxyURL: proxyURL)
+                try Data("restored".utf8).write(to: partialURL)
+            },
+            sessionStore: sessionStore
+        )
+
+        let restoredSnapshot = await manager.status()
+        let restoredItems = await manager.items()
+        let recoverySummary = await manager.consumeRecoverySummary()
+        let secondRecoverySummary = await manager.consumeRecoverySummary()
+
+        XCTAssertEqual(restoredSnapshot.phase, .done)
+        XCTAssertEqual(restoredSnapshot.failed, 1)
+        XCTAssertEqual(restoredSnapshot.message, "上次下载在退出时中断，可重试失败项")
+        XCTAssertEqual(restoredItems.map(\.status), [.failed])
+        XCTAssertEqual(restoredItems.first?.errorType, .interrupted)
+        XCTAssertEqual(
+            recoverySummary,
+            DownloadSessionRecoverySummary(cleanedPartialCount: 1, resumedFailureCount: 1)
+        )
+        XCTAssertNil(secondRecoverySummary)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: partialURL.path))
+
+        let didRetry = await manager.retryRecoverableFailedItems()
+        XCTAssertTrue(didRetry)
+
+        let snapshot = try await waitForDownloadCompletion(manager)
+        let items = await manager.items()
+        let transfers = await observed.transfers()
+        let persisted = sessionStore.load()
+
+        XCTAssertEqual(snapshot.success, 1)
+        XCTAssertEqual(snapshot.failed, 0)
+        XCTAssertEqual(items.map(\.status), [.done])
+        XCTAssertEqual(transfers.map(\.proxyURL), ["http://127.0.0.1:9090"])
+        XCTAssertEqual(transfers.map { $0.url.lastPathComponent }, ["interrupted.pdf"])
+        XCTAssertEqual(try String(contentsOf: saveURL), "restored")
+        XCTAssertEqual(persisted.items.map(\.status), [.done])
+        XCTAssertEqual(persisted.snapshot.success, 1)
+        XCTAssertEqual(persisted.snapshot.failed, 0)
     }
 
     func testNativeBackendRecordsHistoryAndSkipsPreviouslyDownloadedFiles() async throws {

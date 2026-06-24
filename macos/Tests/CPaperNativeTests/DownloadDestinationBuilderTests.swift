@@ -3,6 +3,19 @@ import XCTest
 @testable import CPaperNativeApp
 
 final class DownloadDestinationBuilderTests: XCTestCase {
+    func testDestinationBuilderRejectsNonFileSaveDirectoryWithLocalizedError() {
+        XCTAssertThrowsError(
+            try DownloadDestinationBuilder.build(
+                groups: [makeDownloadPaperGroup(sy: "s23")],
+                saveDirectory: URL(string: "https://example.test/downloads")!,
+                options: makeDownloadOptions()
+            )
+        ) { error in
+            XCTAssertEqual(error as? DownloadDestinationError, .invalidSaveDirectory)
+            XCTAssertEqual(error.localizedDescription, "保存目录无效。")
+        }
+    }
+
     func testDestinationBuilderSplitsQuestionPapersAndMarkSchemesByYearWhenNotMerged() throws {
         let root = makeTemporaryDownloadDirectory()
         let options = makeDownloadOptions(merge: false)

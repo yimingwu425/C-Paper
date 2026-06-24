@@ -39,6 +39,31 @@ final class PaperSourceFixtureTests: XCTestCase {
         XCTAssertNotNil(result.groups.first?.ms)
     }
 
+    func testFrankcieReportsLocalizedInvalidJSONErrors() {
+        XCTAssertThrowsError(
+            try FrankcieResponseParser.components(
+                from: Data("not-json".utf8),
+                baseURL: URL(string: "https://cie.fraft.cn")!
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? PaperSourceError,
+                .invalidResponse("FrankCIE 返回了无效的 JSON")
+            )
+            XCTAssertEqual(error.localizedDescription, "FrankCIE 返回了无效的 JSON")
+        }
+
+        XCTAssertThrowsError(
+            try FrankcieSubjectParser.subjects(from: Data("not-json".utf8))
+        ) { error in
+            XCTAssertEqual(
+                error as? PaperSourceError,
+                .invalidResponse("FrankCIE 返回了无效的科目 JSON")
+            )
+            XCTAssertEqual(error.localizedDescription, "FrankCIE 返回了无效的科目 JSON")
+        }
+    }
+
     func testHTMLPaperLinkExtractorHandlesRelativePDFLinksAndIgnoresUnparseableNames() throws {
         let html = """
         <html>

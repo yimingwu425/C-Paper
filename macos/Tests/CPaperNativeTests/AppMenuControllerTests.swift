@@ -33,6 +33,14 @@ final class AppMenuControllerTests: XCTestCase {
         XCTAssertNotNil(fileMenu.item(withTitle: "复制最近诊断"))
         XCTAssertNotNil(fileMenu.item(withTitle: "显示支持目录"))
 
+        let editMenu = try XCTUnwrap(menu.item(withTitle: "编辑")?.submenu)
+        XCTAssertNotNil(editMenu.item(withTitle: "撤销"))
+        XCTAssertNotNil(editMenu.item(withTitle: "重做"))
+        XCTAssertNotNil(editMenu.item(withTitle: "剪切"))
+        XCTAssertNotNil(editMenu.item(withTitle: "复制"))
+        XCTAssertNotNil(editMenu.item(withTitle: "粘贴"))
+        XCTAssertNotNil(editMenu.item(withTitle: "全选"))
+
         let viewMenu = try XCTUnwrap(menu.item(withTitle: "显示")?.submenu)
         XCTAssertNotNil(viewMenu.item(withTitle: "刷新当前视图"))
         XCTAssertNotNil(viewMenu.item(withTitle: "搜索"))
@@ -58,6 +66,18 @@ final class AppMenuControllerTests: XCTestCase {
         assertShortcut(for: try XCTUnwrap(appMenu.item(withTitle: "设置...")), key: ",", modifiers: [.command])
         assertShortcut(for: try XCTUnwrap(appMenu.item(withTitle: "退出 C-Paper")), key: "q", modifiers: [.command])
 
+        let editMenu = try XCTUnwrap(menu.item(withTitle: "编辑")?.submenu)
+        assertStandardResponderAction(for: try XCTUnwrap(editMenu.item(withTitle: "撤销")), expectedActionName: "undo:")
+        assertStandardResponderAction(for: try XCTUnwrap(editMenu.item(withTitle: "重做")), expectedActionName: "redo:")
+        assertStandardResponderAction(for: try XCTUnwrap(editMenu.item(withTitle: "剪切")), expectedActionName: "cut:")
+        assertStandardResponderAction(for: try XCTUnwrap(editMenu.item(withTitle: "复制")), expectedActionName: "copy:")
+        assertStandardResponderAction(for: try XCTUnwrap(editMenu.item(withTitle: "粘贴")), expectedActionName: "paste:")
+        assertStandardResponderAction(for: try XCTUnwrap(editMenu.item(withTitle: "全选")), expectedActionName: "selectAll:")
+        assertShortcut(for: try XCTUnwrap(editMenu.item(withTitle: "剪切")), key: "x", modifiers: [.command])
+        assertShortcut(for: try XCTUnwrap(editMenu.item(withTitle: "复制")), key: "c", modifiers: [.command])
+        assertShortcut(for: try XCTUnwrap(editMenu.item(withTitle: "粘贴")), key: "v", modifiers: [.command])
+        assertShortcut(for: try XCTUnwrap(editMenu.item(withTitle: "全选")), key: "a", modifiers: [.command])
+
         let windowMenu = try XCTUnwrap(menu.item(withTitle: "窗口")?.submenu)
         assertShortcut(for: try XCTUnwrap(windowMenu.item(withTitle: "关闭窗口")), key: "w", modifiers: [.command])
 
@@ -70,6 +90,11 @@ final class AppMenuControllerTests: XCTestCase {
     private func assertShortcut(for item: NSMenuItem, key: String, modifiers: NSEvent.ModifierFlags, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(item.keyEquivalent, key, file: file, line: line)
         XCTAssertEqual(item.keyEquivalentModifierMask.intersection([.command, .option, .control, .shift]), modifiers, file: file, line: line)
+    }
+
+    private func assertStandardResponderAction(for item: NSMenuItem, expectedActionName: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertNil(item.target, file: file, line: line)
+        XCTAssertEqual(NSStringFromSelector(item.action ?? #selector(NSResponder.noResponder(for:))), expectedActionName, file: file, line: line)
     }
 }
 

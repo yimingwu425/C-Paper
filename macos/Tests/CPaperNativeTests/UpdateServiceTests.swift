@@ -302,6 +302,46 @@ final class UpdateServiceTests: XCTestCase {
         XCTAssertTrue(remainingPartials.isEmpty)
     }
 
+    func testDownloadUpdateDoesNotCommitFinalFileWhenCancelledBeforeFinalize() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CPaperUpdateServiceTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+        let release = makeRelease()
+        let gate = UpdateFinalizeGate()
+
+        let service = UpdateService(
+            currentVersion: "6.0.3",
+            updatesDirectory: tempDirectory,
+            downloadWriter: { _, destinationURL, _, _ in
+                try Data("partial".utf8).write(to: destinationURL)
+            },
+            beforeFinalize: {
+                await gate.recordReachedFinalizePoint()
+                await gate.waitForRelease()
+            }
+        )
+
+        let task = Task {
+            try await service.downloadUpdate(release, proxyURL: "") { _ in }
+        }
+
+        await gate.waitForFinalizePoint()
+        task.cancel()
+        await gate.release()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+        }
+
+        let destinationURL = service.destinationURL(for: release)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
+        let remainingPartials = try FileManager.default.contentsOfDirectory(at: tempDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("\(release.assetName).part.") }
+        XCTAssertTrue(remainingPartials.isEmpty)
+    }
+
     private func makeRelease() -> AppUpdateRelease {
         AppUpdateRelease(
             version: "6.0.4",
@@ -373,6 +413,44 @@ private actor UpdateDownloadGate {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTFail("Timed out waiting for update download starts.")
+    }
+
+    func waitForRelease() async {
+        guard !released else { return }
+        await withCheckedContinuation { continuation in
+            releaseContinuations.append(continuation)
+        }
+    }
+
+    func release() {
+        released = true
+        releaseContinuations.forEach { $0.resume() }
+        releaseContinuations.removeAll()
+    }
+}
+
+private actor UpdateFinalizeGate {
+    private var reachedFinalizePoint = false
+    private var released = false
+    private var releaseContinuations: [CheckedContinuation<Void, Never>] = []
+    private var finalizeContinuations: [CheckedContinuation<Void, Never>] = []
+
+    func recordReachedFinalizePoint() {
+        reachedFinalizePoint = true
+        let waiters = finalizeContinuations
+        finalizeContinuations.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    func waitForFinalizePoint() async {
+        if reachedFinalizePoint {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            finalizeContinuations.append(continuation)
+        }
     }
 
     func waitForRelease() async {

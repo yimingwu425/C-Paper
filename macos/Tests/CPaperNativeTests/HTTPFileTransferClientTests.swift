@@ -75,6 +75,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
             XCTFail("Expected HTTP status error")
         } catch let error as NetworkClientError {
             XCTAssertEqual(error, .httpStatus(404))
+            XCTAssertEqual(error.localizedDescription, "异常的 HTTP 状态码 404")
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
     }
@@ -109,6 +110,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
             }
             XCTAssertEqual(statusCode, 429)
             XCTAssertNil(retryAfter)
+            XCTAssertEqual(error.localizedDescription, "服务器触发限流（HTTP 429），请稍后重试。")
         }
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
@@ -144,6 +146,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
             }
             XCTAssertEqual(statusCode, 429)
             XCTAssertEqual(try XCTUnwrap(retryAfter), 12.5, accuracy: 0.0001)
+            XCTAssertEqual(error.localizedDescription, "服务器触发限流（HTTP 429），请在 12.5 秒后重试。")
         }
     }
 
@@ -183,6 +186,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
             }
             XCTAssertEqual(statusCode, 429)
             XCTAssertEqual(try XCTUnwrap(retryAfter), 90, accuracy: 0.0001)
+            XCTAssertTrue(error.localizedDescription.contains("服务器触发限流（HTTP 429）"))
         }
     }
 
@@ -354,6 +358,7 @@ final class HTTPFileTransferClientTests: XCTestCase {
             }
             XCTAssertEqual(statusCode, 429)
             XCTAssertEqual(try XCTUnwrap(retryAfter), 7, accuracy: 0.0001)
+            XCTAssertEqual(error.localizedDescription, "服务器触发限流（HTTP 429），请在 7 秒后重试。")
         }
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: destinationURL.path))
