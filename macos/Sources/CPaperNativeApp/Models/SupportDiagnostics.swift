@@ -1,10 +1,15 @@
 import Foundation
 
-enum SupportDiagnosticContext: String, Codable, Equatable, Sendable {
+enum SupportDiagnosticContext: String, Codable, Equatable, Hashable, Sendable {
     case general
     case startup
+    case supportDirectory
+    case settings
+    case favorites
+    case saveDirectory
     case sourceProvider
     case download
+    case downloadIntegrity
     case preview
     case update
 
@@ -14,10 +19,20 @@ enum SupportDiagnosticContext: String, Codable, Equatable, Sendable {
             "应用"
         case .startup:
             "启动"
+        case .supportDirectory:
+            "支持文件夹"
+        case .settings:
+            "设置"
+        case .favorites:
+            "收藏"
+        case .saveDirectory:
+            "保存目录"
         case .sourceProvider:
             "资料来源"
         case .download:
             "下载"
+        case .downloadIntegrity:
+            "已下载文件"
         case .preview:
             "预览"
         case .update:

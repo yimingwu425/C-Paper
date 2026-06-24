@@ -24,7 +24,7 @@ enum AppRoute: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-struct Subject: Identifiable, Hashable, Codable {
+struct Subject: Identifiable, Hashable, Codable, Sendable {
     let code: String
     let name: String
 
@@ -78,7 +78,7 @@ enum DuplicateMode: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-enum PaperSourceID: String, CaseIterable, Identifiable, Codable, Hashable {
+enum PaperSourceID: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
     case automatic
     case frankcie
     case papaCambridge

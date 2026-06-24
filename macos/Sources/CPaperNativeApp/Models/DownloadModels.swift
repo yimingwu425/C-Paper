@@ -57,7 +57,7 @@ struct DownloadTaskItem: Identifiable, Hashable, Codable {
     let savePath: String
     let status: DownloadStatus
     let error: String
-    let errorType: String
+    let errorType: DownloadTaskErrorType?
     let progressFraction: Double?
 
     init(
@@ -69,7 +69,7 @@ struct DownloadTaskItem: Identifiable, Hashable, Codable {
         savePath: String,
         status: DownloadStatus,
         error: String,
-        errorType: String,
+        errorType: DownloadTaskErrorType?,
         progressFraction: Double? = nil
     ) {
         self.id = id
@@ -97,6 +97,41 @@ struct DownloadTaskItem: Identifiable, Hashable, Codable {
         case progressFraction = "progress_fraction"
     }
 
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        filename = try container.decode(String.self, forKey: .filename)
+        ftype = try container.decode(String.self, forKey: .ftype)
+        label = try container.decode(String.self, forKey: .label)
+        year = try container.decode(String.self, forKey: .year)
+        savePath = try container.decode(String.self, forKey: .savePath)
+        status = try container.decode(DownloadStatus.self, forKey: .status)
+        error = try container.decode(String.self, forKey: .error)
+        progressFraction = try container.decodeIfPresent(Double.self, forKey: .progressFraction)
+
+        let rawErrorType = try container.decodeIfPresent(String.self, forKey: .errorType)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let rawErrorType, !rawErrorType.isEmpty {
+            errorType = DownloadTaskErrorType(rawValue: rawErrorType) ?? .unknown
+        } else {
+            errorType = nil
+        }
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(filename, forKey: .filename)
+        try container.encode(ftype, forKey: .ftype)
+        try container.encode(label, forKey: .label)
+        try container.encode(year, forKey: .year)
+        try container.encode(savePath, forKey: .savePath)
+        try container.encode(status, forKey: .status)
+        try container.encode(error, forKey: .error)
+        try container.encode(errorType?.rawValue ?? "", forKey: .errorType)
+        try container.encodeIfPresent(progressFraction, forKey: .progressFraction)
+    }
+
     var progress: Double {
         if let progressFraction {
             return min(max(progressFraction, 0), 1)
@@ -113,15 +148,189 @@ struct DownloadTaskItem: Identifiable, Hashable, Codable {
     }
 
     var message: String {
-        if !error.isEmpty {
-            return error
+        if status == .failed || status == .cancelled, let errorType {
+            return errorType.userVisibleMessage
+        }
+        if let rawErrorMessage {
+            return rawErrorMessage
         }
         return status.title
+    }
+
+    var rawErrorMessage: String? {
+        let trimmed = error.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var recoveryAction: DownloadTaskRecoveryAction {
+        switch status {
+        case .done, .skipped, .pending, .downloading:
+            return .none
+        case .cancelled:
+            return .restartIfNeeded
+        case .failed:
+            switch errorType {
+            case .network:
+                return .retryNow
+            case .rateLimit:
+                return .retryLater
+            case .interrupted:
+                return .retryNow
+            case .cancelled:
+                return .restartIfNeeded
+            case .unknown, nil:
+                return .inspectDiagnostic
+            }
+        }
+    }
+
+    var workflowTag: DownloadTaskWorkflowTag? {
+        guard status == .failed else { return nil }
+        switch errorType {
+        case .interrupted:
+            return .recoveredInterruptedSession
+        case .network, .rateLimit, .cancelled, .unknown, nil:
+            return nil
+        }
+    }
+}
+
+enum DownloadTaskWorkflowTag: String, Codable, Hashable {
+    case recoveredInterruptedSession = "recovered_interrupted_session"
+
+    var title: String {
+        switch self {
+        case .recoveredInterruptedSession:
+            return "上次会话"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .recoveredInterruptedSession:
+            return "该任务来自上次中断后恢复的下载会话。"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .recoveredInterruptedSession:
+            return "arrow.uturn.backward.circle"
+        }
+    }
+}
+
+enum DownloadTaskIntegrityState: String, Codable, Hashable {
+    case missingFile = "missing_file"
+    case unreadableFile = "unreadable_file"
+    case emptyFile = "empty_file"
+    case directoryPath = "directory_path"
+    case nonRegularFile = "non_regular_file"
+
+    var title: String {
+        switch self {
+        case .missingFile:
+            return "文件丢失"
+        case .unreadableFile:
+            return "文件不可读"
+        case .emptyFile:
+            return "空文件"
+        case .directoryPath, .nonRegularFile:
+            return "路径异常"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .missingFile:
+            return "该下载记录仍在，但对应文件已经不存在。"
+        case .unreadableFile:
+            return "该下载文件当前不可读，通常需要重新下载修复。"
+        case .emptyFile:
+            return "该下载文件为空，通常需要重新下载修复。"
+        case .directoryPath:
+            return "该下载路径当前指向目录而不是文件，需要手动检查。"
+        case .nonRegularFile:
+            return "该下载路径当前不是常规文件，需要手动检查。"
+        }
+    }
+
+    var allowsRepairRetry: Bool {
+        switch self {
+        case .missingFile, .unreadableFile, .emptyFile:
+            return true
+        case .directoryPath, .nonRegularFile:
+            return false
+        }
+    }
+}
+
+enum DownloadTaskErrorType: String, Codable, Hashable {
+    case network
+    case rateLimit = "rate_limit"
+    case cancelled
+    case interrupted
+    case unknown
+
+    var userVisibleMessage: String {
+        switch self {
+        case .network:
+            return "网络错误，请稍后重试"
+        case .rateLimit:
+            return "服务器限流，请稍后重试"
+        case .cancelled:
+            return "用户取消"
+        case .interrupted:
+            return "上次下载在应用退出前中断，请重试"
+        case .unknown:
+            return "下载失败"
+        }
+    }
+}
+
+enum DownloadTaskRecoveryAction: String, Codable, Hashable {
+    case none
+    case retryNow = "retry_now"
+    case retryLater = "retry_later"
+    case inspectDiagnostic = "inspect_diagnostic"
+    case restartIfNeeded = "restart_if_needed"
+
+    var title: String {
+        switch self {
+        case .none:
+            return "无需处理"
+        case .retryNow:
+            return "检查网络后重试"
+        case .retryLater:
+            return "稍后再试"
+        case .inspectDiagnostic:
+            return "复制诊断后重试"
+        case .restartIfNeeded:
+            return "如需继续请重新加入"
+        }
+    }
+
+    var guidance: String? {
+        switch self {
+        case .none:
+            return nil
+        case .retryNow, .retryLater, .inspectDiagnostic, .restartIfNeeded:
+            return title
+        }
+    }
+
+    var allowsQueueRetry: Bool {
+        switch self {
+        case .retryNow, .retryLater:
+            return true
+        case .none, .inspectDiagnostic, .restartIfNeeded:
+            return false
+        }
     }
 }
 
 struct DownloadStatusSnapshot: Codable, Equatable {
-    let phase: String
+    let phase: DownloadQueuePhase
     let done: Int
     let total: Int
     let success: Int
@@ -130,7 +339,13 @@ struct DownloadStatusSnapshot: Codable, Equatable {
     let cancelled: Int?
     let skipped: Int?
 
-    var isRunning: Bool { phase == "running" }
+    var isRunning: Bool { phase == .running }
+}
+
+enum DownloadQueuePhase: String, Codable, Equatable {
+    case idle
+    case running
+    case done
 }
 
 struct DownloadStartResult: Codable, Equatable {

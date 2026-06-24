@@ -54,6 +54,7 @@ final class UpdateService: @unchecked Sendable {
     typealias NetworkClientFactory = @Sendable (_ proxyURL: String) -> any NetworkClientProtocol
     typealias DownloadWriter = @Sendable (_ sourceURL: URL, _ destinationURL: URL, _ proxyURL: String, _ progress: @escaping @Sendable (Double?) async -> Void) async throws -> Void
     typealias TransferClientFactory = @Sendable (_ proxyURL: String) -> HTTPFileTransferClient
+    typealias BeforeFinalizeHook = @Sendable () async -> Void
 
     private let currentVersion: String
     private let latestReleaseURL: URL
@@ -61,7 +62,8 @@ final class UpdateService: @unchecked Sendable {
     private let networkClientFactory: NetworkClientFactory
     private let downloadWriter: DownloadWriter?
     private let transferClientFactory: TransferClientFactory
-    private let fileManager: FileManager
+    private let fileSystem: StagedFileSystem
+    private let beforeFinalize: BeforeFinalizeHook?
 
     init(
         currentVersion: String = BackendConstants.version,
@@ -74,7 +76,8 @@ final class UpdateService: @unchecked Sendable {
         transferClientFactory: @escaping TransferClientFactory = { proxyURL in
             HTTPFileTransferClient(proxy: ProxyConfiguration(rawValue: proxyURL))
         },
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        beforeFinalize: BeforeFinalizeHook? = nil
     ) {
         self.currentVersion = currentVersion
         self.latestReleaseURL = latestReleaseURL
@@ -82,7 +85,8 @@ final class UpdateService: @unchecked Sendable {
         self.networkClientFactory = networkClientFactory
         self.downloadWriter = downloadWriter
         self.transferClientFactory = transferClientFactory
-        self.fileManager = fileManager
+        self.fileSystem = StagedFileSystem(fileManager: fileManager)
+        self.beforeFinalize = beforeFinalize
     }
 
     func checkForUpdate(proxyURL: String) async throws -> AppUpdateCheckResult {
@@ -109,25 +113,15 @@ final class UpdateService: @unchecked Sendable {
         proxyURL: String,
         progress: @escaping @Sendable (Double?) async -> Void
     ) async throws -> URL {
-        try fileManager.createDirectory(at: updatesDirectory, withIntermediateDirectories: true)
+        try fileSystem.createDirectory(at: updatesDirectory, withIntermediateDirectories: true)
 
         let destinationURL = destinationURL(for: release)
-        let partialURL = partialURL(for: destinationURL)
-        try? fileManager.removeItem(at: partialURL)
-        defer {
-            try? fileManager.removeItem(at: partialURL)
-        }
-
         do {
-            try await writeDownload(from: release.downloadURL, to: partialURL, proxyURL: proxyURL, progress: progress)
+            try await fileSystem.stagedWrite(to: destinationURL, beforeFinalize: beforeFinalize) { partialURL in
+                try await writeDownload(from: release.downloadURL, to: partialURL, proxyURL: proxyURL, progress: progress)
+            }
         } catch {
             throw error
-        }
-        try Task.checkCancellation()
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            _ = try fileManager.replaceItemAt(destinationURL, withItemAt: partialURL)
-        } else {
-            try fileManager.moveItem(at: partialURL, to: destinationURL)
         }
         await progress(1)
         return destinationURL
@@ -135,11 +129,6 @@ final class UpdateService: @unchecked Sendable {
 
     func destinationURL(for release: AppUpdateRelease) -> URL {
         updatesDirectory.appendingPathComponent(release.assetName.safeUpdateFilename)
-    }
-
-    private func partialURL(for destinationURL: URL) -> URL {
-        destinationURL.deletingLastPathComponent()
-            .appendingPathComponent("\(destinationURL.lastPathComponent).part.\(UUID().uuidString)")
     }
 
     private static func defaultUpdatesDirectory() -> URL {

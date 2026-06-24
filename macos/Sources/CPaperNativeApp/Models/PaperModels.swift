@@ -1,6 +1,6 @@
 import Foundation
 
-struct PaperComponent: Codable, Hashable {
+struct PaperComponent: Codable, Hashable, Sendable {
     let sourceID: PaperSourceID
     let filename: String
     let url: URL
@@ -33,7 +33,7 @@ struct PaperComponent: Codable, Hashable {
     }
 }
 
-struct NativePaperGroup: Codable, Hashable {
+struct NativePaperGroup: Codable, Hashable, Sendable {
     let sourceID: PaperSourceID
     let subjectCode: String?
     let sy: String?
@@ -112,12 +112,20 @@ struct SearchPayload: Codable {
     let groups: [NativePaperGroup]
     let files: [PaperFile]
     let sourceID: PaperSourceID?
+    let usedAutomaticFallback: Bool
     let warnings: [String]
 
-    init(groups: [NativePaperGroup], files: [PaperFile]? = nil, sourceID: PaperSourceID? = nil, warnings: [String] = []) {
+    init(
+        groups: [NativePaperGroup],
+        files: [PaperFile]? = nil,
+        sourceID: PaperSourceID? = nil,
+        usedAutomaticFallback: Bool = false,
+        warnings: [String] = []
+    ) {
         self.groups = groups
         self.files = files ?? groups.flatMap(\.files)
         self.sourceID = sourceID
+        self.usedAutomaticFallback = usedAutomaticFallback
         self.warnings = warnings
     }
 }
@@ -125,11 +133,24 @@ struct SearchPayload: Codable {
 struct BatchPreviewPayload: Codable {
     let groups: [NativePaperGroup]
     let files: [PaperFile]
+    let sourceIDs: [PaperSourceID]
+    let successfulQueryCount: Int
+    let automaticFallbackQueryCount: Int
     let warnings: [String]
 
-    init(groups: [NativePaperGroup], files: [PaperFile]? = nil, warnings: [String] = []) {
+    init(
+        groups: [NativePaperGroup],
+        files: [PaperFile]? = nil,
+        sourceIDs: [PaperSourceID] = [],
+        successfulQueryCount: Int = 0,
+        automaticFallbackQueryCount: Int = 0,
+        warnings: [String] = []
+    ) {
         self.groups = groups
         self.files = files ?? groups.flatMap(\.files)
+        self.sourceIDs = sourceIDs
+        self.successfulQueryCount = successfulQueryCount
+        self.automaticFallbackQueryCount = automaticFallbackQueryCount
         self.warnings = warnings
     }
 }
