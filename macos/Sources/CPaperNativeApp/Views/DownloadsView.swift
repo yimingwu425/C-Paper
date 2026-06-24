@@ -11,6 +11,48 @@ struct DownloadsView: View {
             ScrollableWorkflowPage { size in
                 VStack(alignment: .leading, spacing: 22) {
                     header
+                    if downloadsWorkflowPresentation.showsSaveDirectoryNotice,
+                       let notice = model.saveDirectoryNotice {
+                        SaveDirectoryNoticeCard(
+                            message: notice.message,
+                            primaryActionTitle: notice.action.title,
+                            copyAction: { model.copyDiagnostic(notice.diagnostic) },
+                            revealAction: model.revealSupportDirectory,
+                            dismissAction: model.dismissSaveDirectoryNotice,
+                            primaryAction: model.performSaveDirectoryNoticeAction
+                        )
+                    }
+                    if downloadsWorkflowPresentation.showsRecoveryNotice,
+                       let notice = model.downloadRecoveryNotice {
+                        DownloadRecoveryCard(
+                            message: notice.message,
+                            hasDiagnostic: true,
+                            copyAction: { model.copyDiagnostic(notice.diagnostic) },
+                            revealAction: model.revealSupportDirectory
+                        )
+                    }
+                    if downloadsWorkflowPresentation.showsRecoverySummary,
+                       let recoverySummary = model.downloadRecoverySummary {
+                        DownloadRecoverySummaryRow(
+                            interruptedTaskCount: model.interruptedFailedDownloadCount,
+                            cleanedPartialCount: model.downloadRecoveredCleanedPartialCount,
+                            summary: recoverySummary
+                        )
+                    }
+                    if downloadsWorkflowPresentation.showsIntegrityNotice,
+                       let notice = model.downloadIntegrityNotice {
+                        DownloadIntegrityNoticeCard(
+                            message: notice.message,
+                            primaryActionTitle: notice.retryActionTitle,
+                            hasDiagnostic: true,
+                            primaryAction: {
+                                Task { await model.retryDownloadsNeedingRepair() }
+                            },
+                            copyAction: { model.copyDiagnostic(notice.diagnostic) },
+                            revealAction: model.revealSaveDirectory,
+                            dismissAction: model.dismissDownloadIntegrityNotice
+                        )
+                    }
                     summary
                     table
                         .frame(minHeight: max(300, size.height - 430), alignment: .top)
@@ -30,7 +72,8 @@ struct DownloadsView: View {
             symbolName: "arrow.down.doc"
         ) {
             HeaderCount(value: model.downloadSnapshot.total, unit: "个任务")
-            if model.downloadSnapshot.isRunning {
+            switch downloadsWorkflowPresentation.headerAction {
+            case .cancelRunning:
                 Button {
                     Task { await model.cancelDownloads() }
                 } label: {
@@ -38,7 +81,17 @@ struct DownloadsView: View {
                 }
                 .buttonStyle(GlassButtonStyle(.destructive))
                 .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
-            } else if model.failedDownloadCount > 0 {
+            case .retryFailed:
+                Button {
+                    Task { await model.retryRecoverableDownloads() }
+                } label: {
+                    Label("重试失败项", systemImage: "arrow.clockwise.circle")
+                }
+                .buttonStyle(GlassButtonStyle(.primary))
+            case .none:
+                EmptyView()
+            }
+            if downloadsWorkflowPresentation.showsCopyDiagnosticButton {
                 Button {
                     model.copyLatestDiagnostic()
                 } label: {
@@ -95,16 +148,19 @@ struct DownloadsView: View {
                     subtitle: model.downloads.isEmpty ? "队列为空" : "按状态检查每个文件的下载进度",
                     symbolName: "list.bullet.rectangle.portrait"
                 ) {
-                    if model.downloadSnapshot.isRunning {
+                    switch downloadsWorkflowPresentation.queueBadge {
+                    case .running:
                         StatusBadge(text: "运行中", systemImage: "arrow.down.circle", tint: .accentColor, prominence: .tinted)
-                    } else if model.failedDownloadCount > 0 {
+                    case .attention:
                         StatusBadge(text: "需处理", systemImage: "exclamationmark.triangle", tint: .orange, prominence: .tinted)
+                    case .none:
+                        EmptyView()
                     }
                 }
                 .padding(.horizontal, 2)
 
                 Group {
-                    if model.downloads.isEmpty {
+                    if downloadsWorkflowPresentation.showsEmptyState {
                         DownloadEmptyPanel()
                             .transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.98)))
                     } else {
@@ -122,9 +178,27 @@ struct DownloadsView: View {
                             .width(min: 320)
 
                             TableColumn("状态") { item in
-                                StatusBadge(text: item.status.title, systemImage: item.status.symbolName, tint: item.status.tint, prominence: .tinted)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    StatusBadge(text: item.status.title, systemImage: item.status.symbolName, tint: item.status.tint, prominence: .tinted)
+                                    if let workflowTag = item.workflowTag {
+                                        StatusBadge(
+                                            text: workflowTag.title,
+                                            systemImage: workflowTag.symbolName,
+                                            tint: .orange,
+                                            prominence: .tinted
+                                        )
+                                    }
+                                    if let integrityState = model.downloadIntegrityState(for: item.id) {
+                                        StatusBadge(
+                                            text: integrityState.title,
+                                            systemImage: integrityState.allowsRepairRetry ? "wrench.and.screwdriver" : "exclamationmark.triangle",
+                                            tint: .orange,
+                                            prominence: .tinted
+                                        )
+                                    }
+                                }
                             }
-                            .width(110)
+                            .width(150)
 
                             TableColumn("进度") { item in
                                 ProgressView(value: item.progress)
@@ -136,9 +210,29 @@ struct DownloadsView: View {
                             .width(140)
 
                             TableColumn("信息") { item in
-                                Text(item.message)
-                                    .lineLimit(2)
-                                    .foregroundStyle(item.status == .failed ? .red : .secondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.message)
+                                        .lineLimit(2)
+                                        .foregroundStyle(item.status == .failed ? .red : .secondary)
+                                    if let workflowTag = item.workflowTag {
+                                        Text(workflowTag.summary)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    if let integrityState = model.downloadIntegrityState(for: item.id) {
+                                        Text(integrityState.summary)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    if let guidance = item.recoveryAction.guidance {
+                                        Text(guidance)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                }
                             }
                         }
                         .scrollContentBackground(.hidden)
@@ -173,6 +267,19 @@ struct DownloadsView: View {
 
     private var successfulDownloadCount: Int {
         max(model.downloadSnapshot.success, 0)
+    }
+
+    private var downloadsWorkflowPresentation: DownloadsWorkflowPresentation {
+        DownloadsWorkflowPresentation(
+            snapshot: model.downloadSnapshot,
+            failedDownloadCount: model.failedDownloadCount,
+            hasRetryableFailedDownloads: model.hasRetryableFailedDownloads,
+            hasSaveDirectoryNotice: model.saveDirectoryNotice != nil,
+            hasRecoveryNotice: model.downloadRecoveryNotice != nil,
+            hasRecoverySummary: model.downloadRecoverySummary != nil,
+            hasIntegrityNotice: model.downloadIntegrityNotice != nil,
+            downloadCount: model.downloads.count
+        )
     }
 
     private var pendingDownloadCount: Int {
@@ -262,6 +369,51 @@ struct DownloadsView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(.white.opacity(0.46), in: Capsule(style: .continuous))
+    }
+}
+
+private struct DownloadRecoverySummaryRow: View {
+    let interruptedTaskCount: Int
+    let cleanedPartialCount: Int
+    let summary: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                StatusBadge(
+                    text: "恢复任务 \(interruptedTaskCount) 个",
+                    systemImage: "arrow.clockwise",
+                    tint: .orange,
+                    prominence: .tinted
+                )
+
+                if cleanedPartialCount > 0 {
+                    StatusBadge(
+                        text: "已清理 \(cleanedPartialCount) 个临时文件",
+                        systemImage: "trash",
+                        tint: .orange,
+                        prominence: .tinted
+                    )
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            Text(summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.orange.opacity(0.08))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.orange.opacity(0.16), lineWidth: 1)
+        }
     }
 }
 

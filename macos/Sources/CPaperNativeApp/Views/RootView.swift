@@ -44,6 +44,34 @@ private struct ReadyRootView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
+                    if rootWorkflowPresentation.showsUpdateNotice,
+                       let notice = model.updateNotice {
+                        UpdateNoticeCard(
+                            message: notice.message,
+                            primaryActionTitle: notice.action.title,
+                            hasDiagnostic: true,
+                            primaryAction: {
+                                Task { await model.performUpdateNoticeAction() }
+                            },
+                            copyAction: { model.copyDiagnostic(notice.diagnostic) },
+                            revealActionTitle: updateWorkflowPresentation.revealActionTitle,
+                            revealAction: model.performUpdateNoticeRevealAction,
+                            dismissAction: model.dismissUpdateNotice
+                        )
+                        .padding(.horizontal, 34)
+                        .padding(.top, rootWorkflowPresentation.updateNoticeTopPadding)
+                    }
+                    if rootWorkflowPresentation.showsSupportDirectoryNotice,
+                       let notice = model.supportDirectoryNotice {
+                        SupportDirectoryNoticeCard(
+                            message: notice.message,
+                            retryAction: model.revealSupportDirectory,
+                            copyAction: { model.copyDiagnostic(notice.diagnostic) },
+                            dismissAction: model.dismissSupportDirectoryNotice
+                        )
+                        .padding(.horizontal, 34)
+                        .padding(.top, 24)
+                    }
                     Group {
                         switch model.route {
                         case .search:
@@ -72,19 +100,19 @@ private struct ReadyRootView: View {
             ToolbarItemGroup {
                 Button {
                     Task {
-                        switch model.route {
+                        switch rootWorkflowPresentation.refreshAction {
                         case .search:
                             await model.search()
-                        case .batch:
+                        case .batchPreview:
                             await model.previewBatch()
-                        case .downloads:
+                        case .refreshDownloads:
                             await model.refreshDownloads()
                         }
                     }
                 } label: {
                     Label("刷新", systemImage: "arrow.clockwise")
                 }
-                .disabled(model.isLoading)
+                .disabled(rootWorkflowPresentation.disablesRefreshButton)
 
                 Button {
                     withAnimation(CPDesign.Motion.standard(reduceMotion: reduceMotion)) {
@@ -102,7 +130,7 @@ private struct ReadyRootView: View {
                 }
             }
         }
-        .sheet(isPresented: $model.isSettingsPresented) {
+        .inspectableSheet(isPresented: $model.isSettingsPresented) {
             SettingsView(model: model)
                 .presentationBackground(.regularMaterial)
         }
@@ -115,7 +143,7 @@ private struct ReadyRootView: View {
         .alert(
             "C-Paper",
             isPresented: Binding(
-                get: { model.errorMessage != nil },
+                get: { rootWorkflowPresentation.showsErrorAlert },
                 set: { isPresented in
                     if !isPresented {
                         model.clearError()
@@ -123,7 +151,7 @@ private struct ReadyRootView: View {
                 }
             ),
             actions: {
-                if model.lastDiagnostic != nil {
+                if rootWorkflowPresentation.showsErrorAlertDiagnosticActions {
                     Button("复制诊断") {
                         model.copyLatestDiagnostic()
                     }
@@ -142,7 +170,7 @@ private struct ReadyRootView: View {
         .alert(
             "发现新版本",
             isPresented: Binding(
-                get: { model.pendingUpdatePrompt != nil },
+                get: { rootWorkflowPresentation.showsPendingUpdatePrompt },
                 set: { isPresented in
                     if !isPresented {
                         model.pendingUpdatePrompt = nil
@@ -153,15 +181,37 @@ private struct ReadyRootView: View {
                 Button("稍后", role: .cancel) {
                     model.pendingUpdatePrompt = nil
                 }
-                Button("下载更新") {
-                    Task { await model.downloadAvailableUpdate() }
+                Button(rootWorkflowPresentation.pendingUpdatePromptPrimaryActionTitle) {
+                    if updateWorkflowPresentation.prefersOpeningDownloadedFile {
+                        _ = model.openDownloadedUpdate()
+                    } else {
+                        Task { await model.downloadAvailableUpdate() }
+                    }
                 }
             },
             message: {
-                if let release = model.pendingUpdatePrompt {
-                    Text("当前版本 \(BackendConstants.version)，最新版本 \(release.version)。下载完成后打开 DMG 安装；如果 macOS 阻止启动，请到“系统设置 > 隐私与安全性”允许打开 C-Paper。")
+                if let promptMessage = rootWorkflowPresentation.pendingUpdatePromptMessage {
+                    Text(promptMessage)
                 }
             }
+        )
+    }
+
+    private var updateWorkflowPresentation: UpdateWorkflowPresentation {
+        UpdateWorkflowPresentation(status: model.updateStatus)
+    }
+
+    private var rootWorkflowPresentation: RootWorkflowPresentation {
+        RootWorkflowPresentation(
+            route: model.route,
+            isLoading: model.isLoading,
+            updateNotice: model.updateNotice,
+            supportDirectoryNotice: model.supportDirectoryNotice,
+            pendingUpdatePrompt: model.pendingUpdatePrompt,
+            errorMessage: model.errorMessage,
+            lastDiagnostic: model.lastDiagnostic,
+            updateStatus: model.updateStatus,
+            currentVersion: BackendConstants.version
         )
     }
 }
@@ -257,8 +307,13 @@ enum ReadyRootMenuBindings {
     private static func canPerform(_ command: AppMenuCommand, model: AppModel) -> Bool {
         switch command {
         case .refreshCurrentView:
-            return !model.isLoading
+            return !model.isLoading && !hasBlockingModalState(model)
+        case .showSettings:
+            return !hasBlockingModalState(model)
+        case .showSearch, .showBatch, .showDownloads:
+            return !hasBlockingModalState(model)
         case .checkForUpdates:
+            guard !hasBlockingModalState(model) else { return false }
             switch model.updateStatus {
             case .checking, .downloading:
                 return false
@@ -272,6 +327,10 @@ enum ReadyRootMenuBindings {
         default:
             return true
         }
+    }
+
+    private static func hasBlockingModalState(_ model: AppModel) -> Bool {
+        model.isSettingsPresented || model.errorMessage != nil || model.pendingUpdatePrompt != nil
     }
 }
 
@@ -299,9 +358,11 @@ private struct StartupLoadingView: View {
     }
 }
 
-private struct StartupFailureView: View {
+struct StartupFailureView: View {
     let failure: AppBootFailure
     let onRetry: () -> Void
+    let inspection = Inspection<Self>()
+    @State private var supportDirectoryErrorMessage: String?
 
     var body: some View {
         ZStack {
@@ -343,10 +404,15 @@ private struct StartupFailureView: View {
                             NSPasteboard.general.setString(failure.diagnosticText, forType: .string)
                         }
 
-                        if let supportDirectoryURL = failure.supportDirectoryURL {
+                        if failure.supportDirectoryURL != nil {
                             Button("显示支持文件夹") {
-                                try? FileManager.default.createDirectory(at: supportDirectoryURL, withIntermediateDirectories: true)
-                                NSWorkspace.shared.activateFileViewerSelecting([supportDirectoryURL])
+                                do {
+                                    try failure.revealSupportDirectory { url in
+                                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                                    }
+                                } catch {
+                                    supportDirectoryErrorMessage = failure.supportDirectoryRevealErrorMessage(for: error)
+                                }
                             }
                         }
                     }
@@ -355,6 +421,26 @@ private struct StartupFailureView: View {
             }
         }
         .nativeContentBackground()
+        .alert(
+            "无法显示支持文件夹",
+            isPresented: Binding(
+                get: { supportDirectoryErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        supportDirectoryErrorMessage = nil
+                    }
+                }
+            ),
+            actions: {
+                Button("好", role: .cancel) {
+                    supportDirectoryErrorMessage = nil
+                }
+            },
+            message: {
+                Text(supportDirectoryErrorMessage ?? "")
+            }
+        )
+        .onReceive(inspection.notice) { inspection.visit(self, $0) }
     }
 }
 

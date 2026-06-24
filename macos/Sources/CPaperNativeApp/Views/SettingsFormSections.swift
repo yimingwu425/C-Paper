@@ -87,7 +87,7 @@ struct SourceSettingsSection: View {
 
                 SettingsHint(settings.sourceMode == .automatic
                     ? "自动顺序：FrankCIE、EasyPaper、PastPapers、PapaCambridge。"
-                    : "手动模式只使用选定来源，失败时不会自动切换。")
+                    : "手动模式只使用选定来源，失败时不会自动切换。部分来源不提供科目列表，需要手动输入科目代码。")
             }
         }
     }

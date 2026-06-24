@@ -37,6 +37,21 @@ struct SidebarView: View {
                 }
                 .padding(.horizontal, CPDesign.Spacing.sm)
 
+                if let favoriteNotice = model.favoriteNotice {
+                    FavoriteNoticeCard(
+                        message: favoriteNotice.message,
+                        primaryActionTitle: favoriteNotice.action.title,
+                        copyAction: {
+                            model.copyDiagnostic(favoriteNotice.diagnostic)
+                        },
+                        revealAction: model.revealSupportDirectory,
+                        dismissAction: model.dismissFavoriteNotice,
+                        primaryAction: {
+                            Task { await model.performFavoriteNoticeAction() }
+                        }
+                    )
+                }
+
                 if model.favorites.isEmpty {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("暂无常用科目")

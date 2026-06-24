@@ -6,6 +6,16 @@ struct AppBootFailure {
     let diagnosticText: String
     let supportDirectoryURL: URL?
 
+    init(
+        message: String,
+        diagnosticText: String,
+        supportDirectoryURL: URL?
+    ) {
+        self.message = message
+        self.diagnosticText = diagnosticText
+        self.supportDirectoryURL = supportDirectoryURL
+    }
+
     init(error: Error) {
         message = "无法启动 C-Paper"
         let supportStore: SupportDiagnosticsStore?
@@ -28,6 +38,28 @@ struct AppBootFailure {
         } else {
             diagnosticText = diagnostic.reportText
         }
+    }
+
+    func revealSupportDirectory(
+        fileManager: FileManager = .default,
+        revealInFinder: (URL) -> Void
+    ) throws {
+        guard let supportDirectoryURL else { return }
+        try fileManager.createDirectory(at: supportDirectoryURL, withIntermediateDirectories: true)
+        revealInFinder(supportDirectoryURL)
+    }
+
+    func supportDirectoryRevealErrorMessage(for error: Error) -> String {
+        guard let supportDirectoryURL else {
+            return "无法显示支持文件夹。请复制诊断信息继续排查。"
+        }
+        let redactedPath = SupportDiagnostic.redact(supportDirectoryURL.path)
+        return """
+        无法显示支持文件夹。请复制诊断信息，并手动检查以下路径是否可用：
+        \(redactedPath)
+
+        原因：\(error.localizedDescription)
+        """
     }
 }
 

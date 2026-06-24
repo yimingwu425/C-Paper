@@ -93,6 +93,17 @@ struct BatchFilterPanel: View {
                 text: "下载前先核对清单，可以避免选错年份或 Paper 后产生大量错误文件。"
             )
         }
+        .onSubmit {
+            guard
+                model.hasSearchSubject,
+                !model.batchSeasons.isEmpty,
+                !model.batchPaperGroups.isEmpty,
+                !model.isLoading
+            else {
+                return
+            }
+            Task { await model.previewBatch() }
+        }
     }
 
     private func seasonBinding(_ season: Season) -> Binding<Bool> {

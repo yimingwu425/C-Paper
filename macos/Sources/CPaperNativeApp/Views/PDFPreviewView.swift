@@ -7,10 +7,6 @@ struct PDFPreviewView: View {
     let file: PaperFile?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var localURL: URL? = nil
-    @State private var isDownloading = false
-    @State private var loadingError: String? = nil
-
     var body: some View {
         VStack(alignment: .leading, spacing: CPDesign.Spacing.sm) {
             if let file {
@@ -19,7 +15,7 @@ struct PDFPreviewView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
 
                 ZStack {
-                    if isDownloading {
+                    if model.previewLoadState.isLoading {
                         VStack(spacing: 16) {
                             ProgressView()
                                 .accessibilityLabel("正在缓存试卷预览")
@@ -28,15 +24,11 @@ struct PDFPreviewView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if let localURL {
+                    } else if let localURL = model.previewLoadState.localURL {
                         PDFKitContainer(url: localURL)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if let loadingError {
-                        ContentUnavailableView(
-                            "无法加载预览",
-                            systemImage: "exclamationmark.triangle",
-                            description: Text(loadingError + "\n您也可以直接点击右上角「下载」或「浏览器打开」。")
-                        )
+                    } else if let failure = model.previewLoadState.failureState {
+                        previewFailureView(failure: failure)
                     }
                 }
                 .frame(minHeight: 300, maxHeight: .infinity)
@@ -60,12 +52,50 @@ struct PDFPreviewView: View {
         .nativeContentBackground()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: file)
-        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: isDownloading)
-        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: localURL)
-        .task(id: file) {
-            guard let file else { return }
-            await loadPDF(for: file)
+        .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.previewLoadState)
+        .task(id: model.previewLoadRequest) {
+            await model.loadSelectedPreviewIfNeeded()
         }
+    }
+
+    @ViewBuilder
+    private func previewFailureView(failure: PreviewFailureState) -> some View {
+        VStack(spacing: 14) {
+            ContentUnavailableView(
+                "无法加载预览",
+                systemImage: "exclamationmark.triangle",
+                description: Text(failure.diagnostic.message + "\n您也可以直接点击右上角「下载」或「浏览器打开」。")
+            )
+
+            HStack(spacing: 10) {
+                Button("重试预览") {
+                    model.retryPreview()
+                }
+                .buttonStyle(GlassButtonStyle(.primary))
+                .controlSize(.small)
+
+                if failure.suggestsRedownload {
+                    Button("重新下载文件") {
+                        Task { await model.redownloadSelectedPreviewFile() }
+                    }
+                    .buttonStyle(GlassButtonStyle(.subtle))
+                    .controlSize(.small)
+                }
+
+                Button("复制诊断") {
+                    model.copyDiagnostic(failure.diagnostic)
+                }
+                .buttonStyle(GlassButtonStyle(.subtle))
+                .controlSize(.small)
+
+                Button("显示支持文件夹") {
+                    model.revealSupportDirectory()
+                }
+                .buttonStyle(GlassButtonStyle(.subtle))
+                .controlSize(.small)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func previewHeader(for file: PaperFile) -> some View {
@@ -91,12 +121,12 @@ struct PDFPreviewView: View {
 
             HStack(spacing: 6) {
                 PreviewToolbarButton(title: "关闭预览", systemImage: "xmark") {
-                    model.selectedPreview = nil
+                    model.closePreview()
                 }
 
-                if let localURL {
+                if model.previewLoadState.localURL != nil {
                     PreviewToolbarButton(title: "在访达中显示", systemImage: "folder") {
-                        NSWorkspace.shared.activateFileViewerSelecting([localURL])
+                        model.revealPreviewFile()
                     }
                 }
 
@@ -114,27 +144,6 @@ struct PDFPreviewView: View {
         }
         .padding(10)
         .liquidGlassSurface(.floating, strokeOpacity: 0.50)
-    }
-
-    private func loadPDF(for file: PaperFile) async {
-        isDownloading = true
-        loadingError = nil
-        localURL = nil
-
-        do {
-            self.localURL = try await model.backend.previewURL(for: file, settings: model.settings)
-        } catch {
-            let diagnostic = model.recordDiagnostic(
-                context: .preview,
-                message: error.localizedDescription,
-                details: [
-                    SupportDiagnosticDetail(label: "Filename", value: file.filename),
-                    SupportDiagnosticDetail(label: "Source URL", value: file.url.absoluteString)
-                ]
-            )
-            self.loadingError = diagnostic.message
-        }
-        isDownloading = false
     }
 }
 

@@ -48,7 +48,7 @@ private struct SearchHeader: View {
     }
 }
 
-private struct SearchFilterPanel: View {
+struct SearchFilterPanel: View {
     @Bindable var model: AppModel
 
     var body: some View {
@@ -120,6 +120,10 @@ private struct SearchFilterPanel: View {
                 text: "同一套 Paper 的 Question Paper 和 Mark Scheme 会靠在一起，方便成套下载。"
             )
         }
+        .onSubmit {
+            guard model.hasSearchSubject, !model.isLoading else { return }
+            Task { await model.search() }
+        }
     }
 }
 
@@ -155,6 +159,53 @@ private struct SearchResultsPanel: View {
                     }
                 }
                 .padding(.horizontal, 2)
+
+                if searchWorkflowPresentation.showsSourceSummary,
+                   let sourceSummary = model.searchResultSourceSummary,
+                   let sourceID = model.searchResultSourceID {
+                    SearchResultSourceSummaryRow(
+                        sourceID: sourceID,
+                        usedAutomaticFallback: model.searchUsedAutomaticFallback,
+                        summary: sourceSummary
+                    )
+                }
+
+                if searchWorkflowPresentation.showsSourceNotice,
+                   let sourceNotice = model.sourceNotice {
+                    SourceNoticeCard(
+                        level: sourceNotice.level,
+                        title: sourceNotice.level.title,
+                        message: sourceNotice.message,
+                        hasDiagnostic: true,
+                        primaryActionTitle: sourceNotice.action?.title,
+                        showsDismissButton: true,
+                        primaryAction: {
+                            Task { await model.performSourceNoticeAction() }
+                        },
+                        copyAction: {
+                            model.copyDiagnostic(sourceNotice.diagnostic)
+                        },
+                        revealAction: {
+                            model.revealSupportDirectory()
+                        },
+                        dismissAction: model.dismissSourceNotice
+                    )
+                }
+
+                if searchWorkflowPresentation.showsDownloadNotice,
+                   let downloadNotice = model.downloadNotice {
+                    DownloadNoticeCard(
+                        message: downloadNotice.message,
+                        primaryActionTitle: downloadNotice.action.title,
+                        hasDiagnostic: true,
+                        primaryAction: {
+                            Task { await model.performDownloadNoticeAction() }
+                        },
+                        copyAction: { model.copyDiagnostic(downloadNotice.diagnostic) },
+                        revealAction: model.revealSupportDirectory,
+                        dismissAction: model.dismissDownloadNotice
+                    )
+                }
 
                 AdaptivePDFPreviewPane(hasPreview: model.selectedPreview != nil) {
                     resultsList
@@ -261,5 +312,58 @@ private struct SearchResultsPanel: View {
                 }
             }
         )
+    }
+
+    private var searchWorkflowPresentation: SearchWorkflowPresentation {
+        SearchWorkflowPresentation(
+            resultCount: model.searchResults.count,
+            sourceSummary: model.searchResultSourceSummary,
+            sourceID: model.searchResultSourceID,
+            sourceNotice: model.sourceNotice,
+            downloadNotice: model.downloadNotice
+        )
+    }
+}
+
+private struct SearchResultSourceSummaryRow: View {
+    let sourceID: PaperSourceID
+    let usedAutomaticFallback: Bool
+    let summary: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            StatusBadge(
+                text: sourceID.title,
+                systemImage: "tray.full",
+                tint: .accentColor,
+                prominence: .tinted
+            )
+
+            if usedAutomaticFallback {
+                StatusBadge(
+                    text: "自动回退",
+                    systemImage: "arrow.trianglehead.branch",
+                    tint: .accentColor,
+                    prominence: .tinted
+                )
+            }
+
+            Text(summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.accentColor.opacity(0.06))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.14), lineWidth: 1)
+        }
     }
 }

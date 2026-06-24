@@ -21,6 +21,52 @@ struct BatchPreviewPanel: View {
                 }
                 .padding(.horizontal, 2)
 
+                if batchWorkflowPresentation.showsSourceSummary,
+                   let sourceSummary = model.batchPreviewSourceSummary {
+                    BatchPreviewSourceSummaryRow(
+                        sourceIDs: model.batchPreviewSourceIDs,
+                        automaticFallbackQueryCount: model.batchPreviewAutomaticFallbackQueryCount,
+                        summary: sourceSummary
+                    )
+                }
+
+                if batchWorkflowPresentation.showsSourceNotice,
+                   let sourceNotice = model.sourceNotice {
+                    SourceNoticeCard(
+                        level: sourceNotice.level,
+                        title: sourceNotice.level.title,
+                        message: sourceNotice.message,
+                        hasDiagnostic: true,
+                        primaryActionTitle: sourceNotice.action?.title,
+                        showsDismissButton: true,
+                        primaryAction: {
+                            Task { await model.performSourceNoticeAction() }
+                        },
+                        copyAction: {
+                            model.copyDiagnostic(sourceNotice.diagnostic)
+                        },
+                        revealAction: {
+                            model.revealSupportDirectory()
+                        },
+                        dismissAction: model.dismissSourceNotice
+                    )
+                }
+
+                if batchWorkflowPresentation.showsDownloadNotice,
+                   let downloadNotice = model.downloadNotice {
+                    DownloadNoticeCard(
+                        message: downloadNotice.message,
+                        primaryActionTitle: downloadNotice.action.title,
+                        hasDiagnostic: true,
+                        primaryAction: {
+                            Task { await model.performDownloadNoticeAction() }
+                        },
+                        copyAction: { model.copyDiagnostic(downloadNotice.diagnostic) },
+                        revealAction: model.revealSupportDirectory,
+                        dismissAction: model.dismissDownloadNotice
+                    )
+                }
+
                 AdaptivePDFPreviewPane(hasPreview: model.selectedPreview != nil) {
                     previewList
                 } preview: {
@@ -84,5 +130,61 @@ struct BatchPreviewPanel: View {
             }
         }
         .frame(minWidth: PDFPreviewPaneLayout.listMinimumWidth, maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var batchWorkflowPresentation: BatchPreviewWorkflowPresentation {
+        BatchPreviewWorkflowPresentation(
+            previewCount: model.batchPreview.count,
+            sourceSummary: model.batchPreviewSourceSummary,
+            sourceNotice: model.sourceNotice,
+            downloadNotice: model.downloadNotice
+        )
+    }
+}
+
+private struct BatchPreviewSourceSummaryRow: View {
+    let sourceIDs: [PaperSourceID]
+    let automaticFallbackQueryCount: Int
+    let summary: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ForEach(sourceIDs, id: \.self) { sourceID in
+                    StatusBadge(
+                        text: sourceID.title,
+                        systemImage: "tray.full",
+                        tint: .accentColor,
+                        prominence: .tinted
+                    )
+                }
+
+                if automaticFallbackQueryCount > 0 {
+                    StatusBadge(
+                        text: "自动回退 \(automaticFallbackQueryCount) 次",
+                        systemImage: "arrow.trianglehead.branch",
+                        tint: .accentColor,
+                        prominence: .tinted
+                    )
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            Text(summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.accentColor.opacity(0.06))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.accentColor.opacity(0.14), lineWidth: 1)
+        }
     }
 }

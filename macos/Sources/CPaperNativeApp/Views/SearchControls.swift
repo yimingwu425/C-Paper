@@ -4,12 +4,14 @@ struct SubjectPicker: View {
     let subjects: [Subject]
     @Binding var selection: Subject?
     @Binding var manualCode: String
+    let inspection = Inspection<Self>()
     @State private var isPopoverPresented = false
     @State private var searchQuery = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
+                searchQuery = ""
                 isPopoverPresented = true
             } label: {
                 GlassInputShell(systemImage: "books.vertical") {
@@ -42,7 +44,7 @@ struct SubjectPicker: View {
             }
             .buttonStyle(.plain)
             .disabled(subjects.isEmpty)
-            .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+            .inspectablePopover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
                 SubjectPickerPopover(
                     subjects: subjects,
                     selection: $selection,
@@ -73,6 +75,7 @@ struct SubjectPicker: View {
                     selection = nextState.selection
                 }
         }
+        .onReceive(inspection.notice) { inspection.visit(self, $0) }
     }
 
     private var manualBinding: Binding<String> {

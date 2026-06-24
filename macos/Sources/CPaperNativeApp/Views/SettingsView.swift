@@ -21,6 +21,24 @@ struct SettingsView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
+                        if settingsWorkflowPresentation.showsSupportDirectoryNotice,
+                           let notice = model.supportDirectoryNotice {
+                            SupportDirectoryNoticeCard(
+                                message: notice.message,
+                                retryAction: model.revealSupportDirectory,
+                                copyAction: { model.copyDiagnostic(notice.diagnostic) },
+                                dismissAction: model.dismissSupportDirectoryNotice
+                            )
+                        }
+                        if settingsWorkflowPresentation.showsSettingsNotice,
+                           let notice = model.settingsNotice {
+                            SettingsNoticeCard(
+                                message: notice.message,
+                                copyAction: { model.copyDiagnostic(notice.diagnostic) },
+                                revealAction: model.revealSupportDirectory,
+                                dismissAction: model.dismissSettingsNotice
+                            )
+                        }
                         SaveSettingsSection(settings: $draftSettings) {
                             if let selectedPath = await model.chooseSaveDirectory() {
                                 draftSettings.saveDirectory = selectedPath
@@ -49,6 +67,14 @@ struct SettingsView: View {
         .animation(CPDesign.Motion.standard(reduceMotion: reduceMotion), value: model.updateStatus)
     }
 
+    private var settingsWorkflowPresentation: SettingsWorkflowPresentation {
+        SettingsWorkflowPresentation(
+            supportDirectoryNotice: model.supportDirectoryNotice,
+            settingsNotice: model.settingsNotice,
+            lastDiagnostic: model.lastDiagnostic
+        )
+    }
+
     private var footer: some View {
         HStack(spacing: CPDesign.Spacing.sm) {
             Label("设置保存后会立即用于下一次搜索和下载。", systemImage: "checkmark.seal")
@@ -62,8 +88,9 @@ struct SettingsView: View {
 
             Button("保存") {
                 Task {
-                    await model.saveSettings(draftSettings)
-                    dismiss()
+                    if await model.saveSettings(draftSettings) {
+                        dismiss()
+                    }
                 }
             }
             .buttonStyle(GlassButtonStyle(.primary))

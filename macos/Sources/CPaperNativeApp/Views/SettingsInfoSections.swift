@@ -40,12 +40,29 @@ struct UpdateSettingsSection: View {
     @Bindable var model: AppModel
 
     var body: some View {
+        let updateWorkflowPresentation = UpdateWorkflowPresentation(status: model.updateStatus)
         SettingsSection(
             title: "检查更新",
             subtitle: "通过 GitHub Release 对比当前版本并下载最新 DMG。",
             systemImage: "arrow.down.app"
         ) {
             VStack(alignment: .leading, spacing: 12) {
+                if updateSettingsWorkflowPresentation.showsUpdateNotice,
+                   let notice = model.updateNotice {
+                    UpdateNoticeCard(
+                        message: notice.message,
+                        primaryActionTitle: notice.action.title,
+                        hasDiagnostic: true,
+                        primaryAction: {
+                            Task { await model.performUpdateNoticeAction() }
+                        },
+                        copyAction: { model.copyDiagnostic(notice.diagnostic) },
+                        revealActionTitle: updateWorkflowPresentation.revealActionTitle,
+                        revealAction: model.performUpdateNoticeRevealAction,
+                        dismissAction: model.dismissUpdateNotice
+                    )
+                }
+
                 SettingsRow(label: "当前版本") {
                     Text(BackendConstants.version)
                         .font(.callout.monospacedDigit())
@@ -59,7 +76,8 @@ struct UpdateSettingsSection: View {
                             .foregroundStyle(statusColor)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        if case let .downloading(progress, _) = model.updateStatus {
+                        if case let .downloading(state) = model.updateStatus {
+                            let progress = state.progress
                             ProgressView(value: progress ?? 0)
                                 .progressViewStyle(.linear)
                                 .frame(maxWidth: 260)
@@ -69,7 +87,38 @@ struct UpdateSettingsSection: View {
                     }
                 }
 
-                if let destinationURL = model.updateStatus.destinationURL {
+                if updateSettingsWorkflowPresentation.showsDownloadedSummary,
+                   let downloadedState = model.downloadedUpdateState,
+                   let summary = model.updateDownloadedSummary {
+                    SettingsRow(label: "更新包") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                StatusBadge(
+                                    text: downloadedState.origin.badgeTitle,
+                                    systemImage: downloadedState.origin == .restoredArtifact ? "arrow.uturn.backward.circle" : "arrow.down.circle",
+                                    tint: .accentColor,
+                                    prominence: .tinted
+                                )
+                                if downloadedState.installState == .requiresManualOpen {
+                                    StatusBadge(
+                                        text: "待手动打开",
+                                        systemImage: "shippingbox",
+                                        tint: .orange,
+                                        prominence: .tinted
+                                    )
+                                }
+                            }
+
+                            Text(summary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
+                if updateSettingsWorkflowPresentation.showsDestinationPath,
+                   let destinationURL = model.updateStatus.destinationURL {
                     SettingsRow(label: "保存到") {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(updateDestinationDirectoryText(for: destinationURL))
@@ -93,22 +142,22 @@ struct UpdateSettingsSection: View {
                     Button {
                         Task { await model.checkForUpdates(source: .manual) }
                     } label: {
-                        Label(isChecking ? "检查中" : "检查更新", systemImage: "arrow.clockwise")
+                        Label(updateSettingsWorkflowPresentation.checkButtonTitle, systemImage: "arrow.clockwise")
                     }
                     .buttonStyle(GlassButtonStyle(.subtle))
-                    .disabled(isChecking || isDownloading)
+                    .disabled(updateSettingsWorkflowPresentation.disablesCheckButton)
 
-                    if model.updateStatus.availableRelease != nil {
+                    if updateSettingsWorkflowPresentation.showsDownloadButton {
                         Button {
                             Task { await model.downloadAvailableUpdate() }
                         } label: {
                             Label("下载更新", systemImage: "arrow.down.circle")
                         }
                         .buttonStyle(GlassButtonStyle(.primary))
-                        .disabled(isDownloading)
+                        .disabled(updateSettingsWorkflowPresentation.disablesDownloadButton)
                     }
 
-                    if model.updateStatus.downloadedURL != nil {
+                    if updateSettingsWorkflowPresentation.showsOpenDownloadedButton {
                         Button {
                             model.openDownloadedUpdate()
                         } label: {
@@ -116,6 +165,9 @@ struct UpdateSettingsSection: View {
                         }
                         .buttonStyle(GlassButtonStyle(.primary))
 
+                    }
+
+                    if updateSettingsWorkflowPresentation.showsRevealDownloadedButton {
                         Button {
                             model.revealDownloadedUpdate()
                         } label: {
@@ -130,23 +182,24 @@ struct UpdateSettingsSection: View {
         }
     }
 
-    private var isChecking: Bool {
-        if case .checking = model.updateStatus {
-            return true
-        }
-        return false
-    }
-
-    private var isDownloading: Bool {
-        if case .downloading = model.updateStatus {
-            return true
-        }
-        return false
+    private var updateSettingsWorkflowPresentation: UpdateSettingsWorkflowPresentation {
+        UpdateSettingsWorkflowPresentation(
+            status: model.updateStatus,
+            updateNotice: model.updateNotice,
+            downloadedSummary: model.updateDownloadedSummary
+        )
     }
 
     private var statusColor: Color {
         switch model.updateStatus {
-        case .available, .downloaded:
+        case let .downloaded(state):
+            switch state.installState {
+            case .missingFile, .invalidFile:
+                return .orange
+            case .downloaded, .requiresManualOpen:
+                return .accentColor
+            }
+        case .available:
             return .accentColor
         case .failed:
             return .orange
@@ -195,7 +248,7 @@ struct SupportSettingsSection: View {
                         Label("复制诊断", systemImage: "doc.on.doc")
                     }
                     .buttonStyle(GlassButtonStyle(.subtle))
-                    .disabled(model.lastDiagnostic == nil)
+                    .disabled(!settingsWorkflowPresentation.canCopyLatestDiagnostic)
 
                     Button {
                         model.revealSupportDirectory()
@@ -206,6 +259,14 @@ struct SupportSettingsSection: View {
                 }
             }
         }
+    }
+
+    private var settingsWorkflowPresentation: SettingsWorkflowPresentation {
+        SettingsWorkflowPresentation(
+            supportDirectoryNotice: model.supportDirectoryNotice,
+            settingsNotice: model.settingsNotice,
+            lastDiagnostic: model.lastDiagnostic
+        )
     }
 }
 
