@@ -62,7 +62,7 @@ jobs:
   validate:
     runs-on: macos-latest
     env:
-      CPAPER_SWIFT_SCRATCH_PATH: ${{ runner.temp }}/cpaper-native-swiftpm
+      CPAPER_SWIFT_SCRATCH_PATH: $RUNNER_TEMP/cpaper-native-swiftpm
 
     steps:
       - name: Checkout
@@ -134,7 +134,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: macos-latest
     env:
-      CPAPER_SWIFT_SCRATCH_PATH: ${{ runner.temp }}/cpaper-native-swiftpm
+      CPAPER_SWIFT_SCRATCH_PATH: $RUNNER_TEMP/cpaper-native-swiftpm
 
     steps:
       - name: Checkout

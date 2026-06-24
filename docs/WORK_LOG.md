@@ -30,6 +30,26 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-24 — Fix invalid GitHub Actions scratch-path expression for release workflow
+
+**Task**
+- Fix the native GitHub Actions workflow after GitHub rejected `.github/workflows/build.yml` because the job-level `env` used an unsupported `runner.temp` expression.
+
+**Changed**
+- Updated `.github/workflows/build.yml` so `validate` and `package` now set `CPAPER_SWIFT_SCRATCH_PATH` with the runtime `RUNNER_TEMP` environment variable instead of `${{ runner.temp }}`.
+- Updated `docs/WORK_LOG.md` with this workflow-fix entry.
+
+**Reason**
+- GitHub parses job-level expressions before the runner starts, and this workflow shape rejected `runner.temp` there. Using `RUNNER_TEMP` keeps the same scratch-path intent while matching what the runner shell can always provide at execution time.
+
+**Tested**
+- Inspected `.github/workflows/build.yml` around the failing lines and replaced both invalid expressions with the runtime-safe equivalent.
+- Planned immediate follow-up validation: local YAML parse plus a new push to let GitHub re-parse the workflow.
+
+**Risks / Notes**
+- This is a workflow-only fix and does not change product code.
+- GitHub-side execution still needs to be confirmed after the updated workflow is pushed.
+
 ### 2026-06-18 — Add installed-menu save-directory creation proof for a missing valid path
 
 **Task**
