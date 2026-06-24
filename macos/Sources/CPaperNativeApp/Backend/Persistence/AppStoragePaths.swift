@@ -6,6 +6,7 @@ struct AppStoragePaths: Sendable {
     let settingsURL: URL
     let favoritesURL: URL
     let downloadHistoryURL: URL
+    let downloadSessionURL: URL
     let migrationMarkerURL: URL
 
     init(rootURL: URL? = nil, fileManager: FileManager = .default) throws {
@@ -21,6 +22,7 @@ struct AppStoragePaths: Sendable {
         settingsURL = root.appendingPathComponent("settings.json")
         favoritesURL = root.appendingPathComponent("favorites.json")
         downloadHistoryURL = root.appendingPathComponent("download_history.json")
+        downloadSessionURL = root.appendingPathComponent("download_session.json")
         migrationMarkerURL = root.appendingPathComponent("legacy_migration.json")
     }
 }
