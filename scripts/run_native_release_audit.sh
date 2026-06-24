@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Force a UTF-8 locale so downstream Ruby / grep steps can read Chinese
+# text (release notes, README, project index) without invalid-multibyte
+# errors when the inherited LANG / LC_CTYPE is C / POSIX.
+export LANG="${LANG:-en_US.UTF-8}"
+export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WITH_PACKAGE=0
 WITH_LIVE_SOURCES=0

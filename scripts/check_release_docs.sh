@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Force a UTF-8 locale so the embedded Ruby heredoc can contain Chinese
+# text in raise() messages (e.g. README must keep current native version
+# line) without invalid-multibyte errors under C / POSIX locale.
+export LANG="${LANG:-en_US.UTF-8}"
+export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW_FILE="$ROOT_DIR/.github/workflows/build.yml"
 README_FILE="$ROOT_DIR/README.md"
