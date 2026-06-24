@@ -1,6 +1,6 @@
 import Foundation
 
-struct DownloadDestinationTask: Hashable {
+struct DownloadDestinationTask: Codable, Hashable {
     var id: Int
     var component: PaperComponent
     var filename: String
@@ -19,7 +19,7 @@ struct DownloadDestinationTask: Hashable {
             savePath: saveURL.path,
             status: .pending,
             error: "",
-            errorType: ""
+            errorType: nil
         )
     }
 }
@@ -35,7 +35,7 @@ enum DownloadDestinationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidSaveDirectory:
-            "Invalid save directory."
+            "保存目录无效。"
         }
     }
 }

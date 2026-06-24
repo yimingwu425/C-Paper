@@ -17,7 +17,7 @@ actor DownloadManager {
     private var nextAllowedRequestAt: ContinuousClock.Instant?
     private var requestGateRevision = 0
     private var snapshot = DownloadStatusSnapshot(
-        phase: "idle",
+        phase: .idle,
         done: 0,
         total: 0,
         success: 0,
@@ -32,17 +32,22 @@ actor DownloadManager {
     private let download: DownloadWriter?
     private let sharedTransfer: SharedTransferWriter
     private let completionRecorder: DownloadCompletionRecorder
-    private let fileManager: FileManager
+    private let fileSystem: StagedFileSystem
+    private let sessionStore: DownloadSessionStore?
+    private var pendingRecoverySummary: DownloadSessionRecoverySummary?
     private let circuitBreakerRecoveryTimeout: Duration
     private let defaultRateLimitCooldown: Duration
     private let minimumRateLimitCooldown: Duration
     private let maximumRateLimitCooldown: Duration
     private let maxRetries = 3
+    private var lastOptions: DownloadOptions?
+    private var lastProxyURL = ""
 
     init(
         download: DownloadWriter? = nil,
         sharedTransfer: @escaping SharedTransferWriter = DownloadManager.defaultDownload,
         completionRecorder: @escaping DownloadCompletionRecorder = { _ in },
+        sessionStore: DownloadSessionStore? = nil,
         fileManager: FileManager = .default,
         circuitBreakerRecoveryTimeout: Duration = .seconds(30),
         defaultRateLimitCooldown: Duration = .seconds(30),
@@ -52,7 +57,8 @@ actor DownloadManager {
         self.download = download
         self.sharedTransfer = sharedTransfer
         self.completionRecorder = completionRecorder
-        self.fileManager = fileManager
+        self.fileSystem = StagedFileSystem(fileManager: fileManager)
+        self.sessionStore = sessionStore
         self.circuitBreakerRecoveryTimeout = circuitBreakerRecoveryTimeout
 
         let normalizedMinimum = max(.zero, minimumRateLimitCooldown)
@@ -60,6 +66,20 @@ actor DownloadManager {
         self.minimumRateLimitCooldown = normalizedMinimum
         self.maximumRateLimitCooldown = normalizedMaximum
         self.defaultRateLimitCooldown = min(max(defaultRateLimitCooldown, normalizedMinimum), normalizedMaximum)
+
+        if let sessionStore, let restored = try? sessionStore.restoreInterruptedSession() {
+            workItems = Dictionary(uniqueKeysWithValues: restored.document.tasks.map { ($0.id, $0) })
+            downloadItems = Dictionary(uniqueKeysWithValues: restored.document.items.map { ($0.id, $0) })
+            snapshot = restored.document.snapshot
+            lastOptions = restored.document.options
+            lastProxyURL = restored.document.proxyURL
+            if restored.resumedFailureCount > 0 || restored.cleanedPartialCount > 0 {
+                pendingRecoverySummary = DownloadSessionRecoverySummary(
+                    cleanedPartialCount: restored.cleanedPartialCount,
+                    resumedFailureCount: restored.resumedFailureCount
+                )
+            }
+        }
     }
 
     @discardableResult
@@ -79,13 +99,15 @@ actor DownloadManager {
         downloadItems.removeAll()
         nextAllowedRequestAt = nil
         requestGateRevision = 0
+        lastOptions = options
+        lastProxyURL = proxyURL
 
         let plan = try DownloadDestinationBuilder.build(
             groups: groups,
             saveDirectory: saveDirectory,
             options: options,
             downloadedFilenames: downloadedFilenames,
-            fileManager: fileManager
+            fileManager: fileSystem.fileManager
         )
 
         for task in plan.tasks {
@@ -95,7 +117,7 @@ actor DownloadManager {
         }
 
         snapshot = DownloadStatusSnapshot(
-            phase: plan.tasks.isEmpty ? "done" : "running",
+            phase: plan.tasks.isEmpty ? .done : .running,
             done: 0,
             total: plan.tasks.count,
             success: 0,
@@ -120,7 +142,86 @@ actor DownloadManager {
             }
         }
 
+        persistSessionIfPossible()
+
         return DownloadStartResult(ok: true, total: plan.tasks.count, skipped: plan.skipped)
+    }
+
+    func retryRecoverableFailedItems() -> Bool {
+        let retryableIDs = downloadItems.values
+            .filter { $0.status == .failed && $0.recoveryAction.allowsQueueRetry }
+            .map(\.id)
+            .sorted()
+        return retryItems(
+            withIDs: retryableIDs,
+            message: "准备重试 \(retryableIDs.count) 个失败任务..."
+        )
+    }
+
+    func retryCompletedItemsNeedingRepair(ids: [Int]) -> Bool {
+        let retryableIDs = Array(
+            Set(
+                ids.filter { id in
+                    guard let item = downloadItems[id] else { return false }
+                    return item.status == .done
+                }
+            )
+        ).sorted()
+        return retryItems(
+            withIDs: retryableIDs,
+            message: "准备重新下载 \(retryableIDs.count) 个受影响文件..."
+        )
+    }
+
+    private func retryItems(withIDs ids: [Int], message: String) -> Bool {
+        guard snapshot.phase != .running, let lastOptions else { return false }
+        let retryIDs = Array(
+            Set(
+                ids.filter { workItems[$0] != nil && downloadItems[$0] != nil }
+            )
+        ).sorted()
+        guard !retryIDs.isEmpty else { return false }
+
+        runnerTask?.cancel()
+        runID += 1
+        let currentRunID = runID
+        isCancelled = false
+        queue.removeAll()
+        nextAllowedRequestAt = nil
+        requestGateRevision = 0
+
+        for id in retryIDs {
+            setStatus(id: id, status: .pending, error: "", errorType: nil)
+            queue.enqueue(id)
+        }
+
+        let counts = counts()
+        snapshot = DownloadStatusSnapshot(
+            phase: .running,
+            done: counts.completed,
+            total: snapshot.total,
+            success: counts.done,
+            message: message,
+            failed: counts.failed,
+            cancelled: counts.cancelled,
+            skipped: snapshot.skipped
+        )
+
+        let workers = max(1, min(lastOptions.threads, 16))
+        let rateLimiter = RateLimiter(rate: max(1, min(lastOptions.rate, 20)))
+        let circuitBreaker = CircuitBreaker(recoveryTimeout: circuitBreakerRecoveryTimeout)
+        let retryProxyURL = lastProxyURL
+        runnerTask = Task { [weak self] in
+            await self?.run(
+                workers: workers,
+                runID: currentRunID,
+                proxyURL: retryProxyURL,
+                rateLimiter: rateLimiter,
+                circuitBreaker: circuitBreaker
+            )
+        }
+        persistSessionIfPossible()
+        return true
     }
 
     func status() -> DownloadStatusSnapshot {
@@ -131,8 +232,13 @@ actor DownloadManager {
         downloadItems.values.sorted { $0.id < $1.id }
     }
 
+    func consumeRecoverySummary() -> DownloadSessionRecoverySummary? {
+        defer { pendingRecoverySummary = nil }
+        return pendingRecoverySummary
+    }
+
     func cancel() {
-        guard snapshot.phase == "running" else { return }
+        guard snapshot.phase == .running else { return }
         let cancelledRunID = runID
         isCancelled = true
         runnerTask?.cancel()
@@ -142,11 +248,11 @@ actor DownloadManager {
         requestGateRevision = 0
 
         for item in downloadItems.values where item.status == .pending || item.status == .downloading {
-            setStatus(id: item.id, status: .cancelled, error: "用户取消", errorType: "cancelled")
+            setStatus(id: item.id, status: .cancelled, error: "用户取消", errorType: .cancelled)
         }
         updateProgress(message: "已取消")
         snapshot = DownloadStatusSnapshot(
-            phase: "done",
+            phase: .done,
             done: snapshot.done,
             total: snapshot.total,
             success: snapshot.success,
@@ -158,6 +264,7 @@ actor DownloadManager {
         if runID == cancelledRunID {
             runID += 1
         }
+        persistSessionIfPossible()
     }
 
     private func run(
@@ -206,7 +313,7 @@ actor DownloadManager {
                     }
                 }
                 for item in failed {
-                    setStatus(runID: runID, id: item.id, status: .pending, error: "", errorType: "")
+                    setStatus(runID: runID, id: item.id, status: .pending, error: "", errorType: nil)
                     queue.enqueue(item.id)
                 }
                 updateProgress(runID: runID, message: "\(failed.count) 个失败任务自动重试 (第 \(retryRound) 轮)")
@@ -215,7 +322,7 @@ actor DownloadManager {
 
             let counts = counts()
             snapshot = DownloadStatusSnapshot(
-                phase: "done",
+                phase: .done,
                 done: counts.completed,
                 total: snapshot.total,
                 success: counts.done,
@@ -224,6 +331,7 @@ actor DownloadManager {
                 cancelled: counts.cancelled,
                 skipped: snapshot.skipped
             )
+            persistSessionIfPossible()
             return
         }
     }
@@ -273,34 +381,27 @@ actor DownloadManager {
                     return
                 }
             }
-            setStatus(runID: runID, id: task.id, status: .downloading, error: "", errorType: "")
-            try fileManager.createDirectory(at: task.saveURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-
-            let partialURL = task.saveURL.deletingLastPathComponent()
-                .appendingPathComponent("\(task.saveURL.lastPathComponent).part.\(UUID().uuidString)")
-            defer {
-                try? fileManager.removeItem(at: partialURL)
-            }
-
+            setStatus(runID: runID, id: task.id, status: .downloading, error: "", errorType: nil)
             let sourceURL = try DownloadSourceURLResolver.resolvedSourceURL(for: task.component)
             if let download {
-                try await download(sourceURL, partialURL)
+                try await fileSystem.stagedWrite(to: task.saveURL) { partialURL in
+                    try await download(sourceURL, partialURL)
+                }
             } else {
-                try await sharedTransfer(sourceURL, partialURL, proxyURL) { [taskID = task.id] progress in
-                    await self.updateTransferProgress(runID: runID, id: taskID, progress: progress)
+                try await fileSystem.stagedWrite(to: task.saveURL) { partialURL in
+                    try await sharedTransfer(sourceURL, partialURL, proxyURL) { [taskID = task.id] progress in
+                        await self.updateTransferProgress(runID: runID, id: taskID, progress: progress)
+                    }
                 }
             }
-            try Task.checkCancellation()
-            try ensureActive(runID)
-            try atomicReplace(partialURL: partialURL, destinationURL: task.saveURL)
             try ensureActive(runID)
             await circuitBreaker.recordSuccess()
-            setStatus(runID: runID, id: task.id, status: .done, error: "", errorType: "")
+            setStatus(runID: runID, id: task.id, status: .done, error: "", errorType: nil)
             if isActive(runID) {
                 await completionRecorder(task)
             }
         } catch is CancellationError {
-            setStatus(runID: runID, id: task.id, status: .cancelled, error: "用户取消", errorType: "cancelled")
+            setStatus(runID: runID, id: task.id, status: .cancelled, error: "用户取消", errorType: .cancelled)
         } catch CircuitBreakerError.open {
             await circuitBreaker.recordFailure()
             setStatus(
@@ -308,7 +409,7 @@ actor DownloadManager {
                 id: task.id,
                 status: .failed,
                 error: CircuitBreakerError.open.localizedDescription,
-                errorType: "rate_limit"
+                errorType: .rateLimit
             )
         } catch {
             if case let NetworkClientError.rateLimited(_, retryAfter) = error {
@@ -325,15 +426,7 @@ actor DownloadManager {
         }
     }
 
-    private func atomicReplace(partialURL: URL, destinationURL: URL) throws {
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            _ = try fileManager.replaceItemAt(destinationURL, withItemAt: partialURL)
-        } else {
-            try fileManager.moveItem(at: partialURL, to: destinationURL)
-        }
-    }
-
-    private func setStatus(runID: Int? = nil, id: Int, status: DownloadStatus, error: String, errorType: String) {
+    private func setStatus(runID: Int? = nil, id: Int, status: DownloadStatus, error: String, errorType: DownloadTaskErrorType?) {
         if let runID, !isActive(runID) {
             return
         }
@@ -358,6 +451,7 @@ actor DownloadManager {
             errorType: errorType,
             progressFraction: progressFraction
         )
+        persistSessionIfPossible()
     }
 
     private func updateTransferProgress(runID: Int, id: Int, progress: Double?) {
@@ -394,6 +488,19 @@ actor DownloadManager {
             cancelled: counts.cancelled,
             skipped: snapshot.skipped
         )
+        persistSessionIfPossible()
+    }
+
+    private func persistSessionIfPossible() {
+        guard let sessionStore else { return }
+        let document = DownloadSessionDocument(
+            tasks: workItems.values.sorted { $0.id < $1.id },
+            items: downloadItems.values.sorted { $0.id < $1.id },
+            snapshot: snapshot,
+            options: lastOptions,
+            proxyURL: lastProxyURL
+        )
+        try? sessionStore.save(document)
     }
 
     private func isActive(_ runID: Int) -> Bool {
@@ -423,18 +530,18 @@ actor DownloadManager {
         return message
     }
 
-    private func errorType(for error: Error) -> String {
+    private func errorType(for error: Error) -> DownloadTaskErrorType {
         if error is CircuitBreakerError {
-            return "rate_limit"
+            return .rateLimit
         }
         if case NetworkClientError.rateLimited = error {
-            return "rate_limit"
+            return .rateLimit
         }
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain {
-            return "network"
+            return .network
         }
-        return "unknown"
+        return .unknown
     }
 
     private func waitForSafeRequestInstant(runID: Int, circuitBreaker: CircuitBreaker) async -> Bool {

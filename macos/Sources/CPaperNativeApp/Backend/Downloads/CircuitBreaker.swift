@@ -12,7 +12,7 @@ enum CircuitBreakerError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .open:
-            "Circuit breaker is open."
+            "熔断器已打开。"
         }
     }
 }

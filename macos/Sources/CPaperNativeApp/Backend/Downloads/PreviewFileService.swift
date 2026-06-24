@@ -5,13 +5,13 @@ actor PreviewFileService {
 
     private let paths: AppStoragePaths
     private let transfer: TransferWriter
-    private let fileSystem: PreviewFileSystem
+    private let fileSystem: StagedFileSystem
     private var inFlightDownloads: [URL: Task<URL, Error>] = [:]
 
     init(
         paths: AppStoragePaths,
         transfer: @escaping TransferWriter = PreviewFileService.defaultTransfer,
-        fileSystem: PreviewFileSystem = PreviewFileSystem(fileManager: .default)
+        fileSystem: StagedFileSystem = StagedFileSystem(fileManager: .default)
     ) {
         self.paths = paths
         self.transfer = transfer
@@ -40,29 +40,19 @@ actor PreviewFileService {
         let sourceURL = try DownloadSourceURLResolver.resolvedSourceURL(for: file)
         let fileSystem = self.fileSystem
         let task = Task { [transfer, fileSystem] in
-            try fileSystem.createDirectory(
-                at: cacheURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-
-            let partialURL = cacheURL.deletingLastPathComponent()
-                .appendingPathComponent("\(cacheURL.lastPathComponent).part.\(UUID().uuidString)")
-            defer {
-                try? fileSystem.removeItem(at: partialURL)
-            }
-
-            try await transfer(sourceURL, partialURL, settings.proxyURL)
-            if fileSystem.fileExists(atPath: cacheURL.path) {
-                _ = try fileSystem.replaceItemAt(cacheURL, withItemAt: partialURL)
-            } else {
-                try fileSystem.moveItem(at: partialURL, to: cacheURL)
+            try await fileSystem.stagedWrite(to: cacheURL) { partialURL in
+                try await transfer(sourceURL, partialURL, settings.proxyURL)
             }
             return cacheURL
         }
         inFlightDownloads[cacheURL] = task
 
         do {
-            let resolvedURL = try await task.value
+            let resolvedURL = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
             inFlightDownloads[cacheURL] = nil
             return resolvedURL
         } catch {
@@ -84,33 +74,5 @@ actor PreviewFileService {
     static func defaultTransfer(sourceURL: URL, destinationURL: URL, proxyURL: String) async throws {
         let client = HTTPFileTransferClient(proxy: ProxyConfiguration(rawValue: proxyURL))
         try await client.transfer(from: sourceURL, to: destinationURL) { _ in }
-    }
-}
-
-final class PreviewFileSystem: @unchecked Sendable {
-    let fileManager: FileManager
-
-    init(fileManager: FileManager) {
-        self.fileManager = fileManager
-    }
-
-    func fileExists(atPath path: String) -> Bool {
-        fileManager.fileExists(atPath: path)
-    }
-
-    func createDirectory(at url: URL, withIntermediateDirectories createIntermediates: Bool) throws {
-        try fileManager.createDirectory(at: url, withIntermediateDirectories: createIntermediates)
-    }
-
-    func removeItem(at url: URL) throws {
-        try fileManager.removeItem(at: url)
-    }
-
-    func replaceItemAt(_ originalItemURL: URL, withItemAt newItemURL: URL) throws -> URL? {
-        try fileManager.replaceItemAt(originalItemURL, withItemAt: newItemURL)
-    }
-
-    func moveItem(at srcURL: URL, to dstURL: URL) throws {
-        try fileManager.moveItem(at: srcURL, to: dstURL)
     }
 }
