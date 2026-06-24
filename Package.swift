@@ -11,7 +11,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.13.4"),
-        .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0")
+        .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0"),
+        .package(url: "https://github.com/nalexn/ViewInspector.git", from: "0.10.3")
     ],
     targets: [
         .executableTarget(
@@ -24,7 +25,10 @@ let package = Package(
         ),
         .testTarget(
             name: "CPaperNativeTests",
-            dependencies: ["CPaperNativeApp"],
+            dependencies: [
+                "CPaperNativeApp",
+                .product(name: "ViewInspector", package: "ViewInspector")
+            ],
             path: "macos/Tests/CPaperNativeTests"
         )
     ]

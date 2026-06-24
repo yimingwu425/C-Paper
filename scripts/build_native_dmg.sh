@@ -6,12 +6,14 @@ DISPLAY_NAME="C-Paper"
 BUNDLE_ID="com.yimingwu.CPaperNative"
 MIN_SYSTEM_VERSION="14.0"
 CONFIGURATION="${CONFIGURATION:-debug}"
+SWIFT_SCRATCH_PATH="${CPAPER_SWIFT_SCRATCH_PATH:-${TMPDIR:-/tmp}/cpaper-native-swiftpm}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION_JSON="$ROOT_DIR/version.json"
 PACKAGE_DIR="$ROOT_DIR"
 DIST_DIR="$ROOT_DIR/dist"
 source "$ROOT_DIR/scripts/lib/version_helpers.sh"
+source "$ROOT_DIR/scripts/lib/swiftpm_retry_helpers.sh"
 VERSION="$(version_json_value version "$VERSION_JSON")"
 BUILD_ROOT="${TMPDIR:-/tmp}/cpaper-native-dmg-$VERSION"
 STAGING_DIR="$BUILD_ROOT/dmg_staging"
@@ -37,14 +39,17 @@ mkdir -p "$DIST_DIR" "$BUILD_ROOT"
 
 echo "[1/5] Building Swift $CONFIGURATION binary..."
 cd "$PACKAGE_DIR"
-SWIFT_BINARY="$(find "$PACKAGE_DIR/.build" -path "*/$CONFIGURATION/$APP_NAME" -type f -perm -111 | head -1 || true)"
+mkdir -p "$SWIFT_SCRATCH_PATH"
+SWIFT_BINARY="$(find "$SWIFT_SCRATCH_PATH" -path "*/$CONFIGURATION/$APP_NAME" -type f -perm -111 | head -1 || true)"
 if [ "${SKIP_SWIFT_BUILD:-0}" = "1" ] && [ -n "$SWIFT_BINARY" ] && [ -x "$SWIFT_BINARY" ]; then
   echo "Skipping Swift build and reusing current binary: $SWIFT_BINARY"
 elif [ -n "$SWIFT_BINARY" ] && [ -x "$SWIFT_BINARY" ] && ! find "$PACKAGE_DIR/macos/Sources" -type f -newer "$SWIFT_BINARY" | grep -q .; then
   echo "Reusing current Swift binary: $SWIFT_BINARY"
 else
-  swift build -c "$CONFIGURATION" --product "$APP_NAME"
-  SWIFT_BINARY="$(find "$PACKAGE_DIR/.build" -path "*/$CONFIGURATION/$APP_NAME" -type f -perm -111 | head -1 || true)"
+  run_swiftpm_command_with_retry \
+    "building the Swift app bundle" \
+    swift build -c "$CONFIGURATION" --product "$APP_NAME" --scratch-path "$SWIFT_SCRATCH_PATH"
+  SWIFT_BINARY="$(find "$SWIFT_SCRATCH_PATH" -path "*/$CONFIGURATION/$APP_NAME" -type f -perm -111 | head -1 || true)"
 fi
 if [ -z "$SWIFT_BINARY" ] || [ ! -x "$SWIFT_BINARY" ]; then
   echo "Missing Swift binary for configuration: $CONFIGURATION" >&2
