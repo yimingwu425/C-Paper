@@ -1,6 +1,6 @@
 import Foundation
 
-struct PaperSourceQuery: Equatable {
+struct PaperSourceQuery: Equatable, Sendable {
     var subjectCode: String
     var year: Int?
     var season: String?
@@ -26,7 +26,7 @@ struct PaperSourceQuery: Equatable {
     }
 }
 
-protocol PaperSource {
+protocol PaperSource: Sendable {
     var id: PaperSourceID { get }
     var displayName: String { get }
 
@@ -65,17 +65,18 @@ struct SourceHealth: Codable, Equatable {
     }
 }
 
-enum SourceAttemptStatus: String, Codable, Equatable {
+enum SourceAttemptStatus: String, Codable, Equatable, Sendable {
     case success
     case empty
     case failed
 }
 
-struct SourceAttempt: Codable, Equatable {
+struct SourceAttempt: Codable, Equatable, Sendable {
     let sourceID: PaperSourceID
     let status: SourceAttemptStatus
     let resultCount: Int
     let errorMessage: String?
+    let durationMilliseconds: Int?
 
     var message: String {
         if let errorMessage, !errorMessage.isEmpty {
@@ -83,24 +84,51 @@ struct SourceAttempt: Codable, Equatable {
         }
         switch status {
         case .success:
-            return "\(resultCount) results"
+            return "\(resultCount) 个结果"
         case .empty:
-            return "No results"
+            return "无结果"
         case .failed:
-            return "Failed"
+            return "失败"
         }
     }
 
-    static func success(_ sourceID: PaperSourceID, count: Int) -> SourceAttempt {
-        SourceAttempt(sourceID: sourceID, status: count > 0 ? .success : .empty, resultCount: count, errorMessage: nil)
+    var diagnosticMessage: String {
+        guard let durationMilliseconds else {
+            return message
+        }
+        return "\(message)（耗时 \(durationMilliseconds) ms）"
     }
 
-    static func failure(_ sourceID: PaperSourceID, error: Error) -> SourceAttempt {
-        SourceAttempt(sourceID: sourceID, status: .failed, resultCount: 0, errorMessage: error.localizedDescription)
+    static func success(
+        _ sourceID: PaperSourceID,
+        count: Int,
+        durationMilliseconds: Int? = nil
+    ) -> SourceAttempt {
+        SourceAttempt(
+            sourceID: sourceID,
+            status: count > 0 ? .success : .empty,
+            resultCount: count,
+            errorMessage: nil,
+            durationMilliseconds: durationMilliseconds
+        )
+    }
+
+    static func failure(
+        _ sourceID: PaperSourceID,
+        error: Error,
+        durationMilliseconds: Int? = nil
+    ) -> SourceAttempt {
+        SourceAttempt(
+            sourceID: sourceID,
+            status: .failed,
+            resultCount: 0,
+            errorMessage: error.localizedDescription,
+            durationMilliseconds: durationMilliseconds
+        )
     }
 }
 
-struct SourceSearchResult: Codable, Equatable {
+struct SourceSearchResult: Codable, Equatable, Sendable {
     let sourceID: PaperSourceID
     let components: [PaperComponent]
     let groups: [NativePaperGroup]
@@ -127,9 +155,9 @@ enum PaperSourceError: Error, Equatable, LocalizedError {
         case let .invalidResponse(message):
             message
         case let .unsupportedSource(sourceID):
-            "Unsupported source: \(sourceID.rawValue)"
+            "不支持的来源：\(sourceID.title)"
         case let .allSourcesUnavailable(attempts):
-            "All sources unavailable after \(attempts.count) attempts"
+            "所有来源均不可用（共尝试 \(attempts.count) 个）"
         }
     }
 }

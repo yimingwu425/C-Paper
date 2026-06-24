@@ -207,7 +207,7 @@ struct EasyPaperCrypto: Sendable {
         let encrypted = String(decoding: data, as: UTF8.self)
             .replacingOccurrences(of: replaceTarget, with: "/")
         guard let encryptedData = Data(base64Encoded: encrypted) else {
-            throw PaperSourceError.invalidResponse("EasyPaper returned invalid encrypted data")
+            throw PaperSourceError.invalidResponse("EasyPaper 返回了无效的加密数据")
         }
         let decryptedData = try crypt(
             encryptedData,
@@ -218,7 +218,7 @@ struct EasyPaperCrypto: Sendable {
         let decrypted = String(decoding: decryptedData, as: UTF8.self)
         let json = String(decrypted.dropFirst(10))
         guard let jsonData = json.data(using: .utf8) else {
-            throw PaperSourceError.invalidResponse("EasyPaper returned invalid JSON text")
+            throw PaperSourceError.invalidResponse("EasyPaper 返回了无效的 JSON 文本")
         }
         return try JSONDecoder().decode(EasyPaperDirectoryResponse.self, from: jsonData)
     }
@@ -253,7 +253,7 @@ struct EasyPaperCrypto: Sendable {
         }
 
         guard status == kCCSuccess else {
-            throw PaperSourceError.invalidResponse("EasyPaper AES operation failed: \(status)")
+            throw PaperSourceError.invalidResponse("EasyPaper AES 操作失败：\(status)")
         }
 
         output.removeSubrange(outputLength..<output.count)

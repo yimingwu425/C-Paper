@@ -68,7 +68,7 @@ enum FrankcieSubjectParser {
         do {
             json = try JSONSerialization.jsonObject(with: data)
         } catch {
-            throw PaperSourceError.invalidResponse("Frankcie returned invalid subject JSON")
+            throw PaperSourceError.invalidResponse("FrankCIE 返回了无效的科目 JSON")
         }
 
         let subjects = collectDictionaries(from: json).compactMap { dictionary -> Subject? in
@@ -95,7 +95,7 @@ enum FrankcieResponseParser {
         do {
             json = try JSONSerialization.jsonObject(with: data)
         } catch {
-            throw PaperSourceError.invalidResponse("Frankcie returned invalid JSON")
+            throw PaperSourceError.invalidResponse("FrankCIE 返回了无效的 JSON")
         }
 
         var seen: Set<String> = []
