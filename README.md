@@ -106,8 +106,33 @@ bash scripts/build_native_dmg.sh
 当前 native GitHub Actions workflow 位于 `.github/workflows/build.yml`，按 `validate/package/release` 分段：
 
 - `validate`：在 native 相关 pull request、main push、tag push 和手动 `workflow_dispatch` 上运行，检查 shell 语法、`version.json`、workflow YAML、版本漂移、仓库卫生、Swift 质量门和 `swift test --jobs 1`。
-- `package`：依赖 `validate`，只在 `workflow_dispatch` 或 `push` 事件上运行；它构建 native DMG、执行 `hdiutil verify`、挂载检查 `CPaperNative.app`、`Applications` symlink 和 DMG background，然后上传 30 天 artifact。
+- `package`：依赖 `validate`，只在 `workflow_dispatch` 或 `push` 事件上运行；它构建 native DMG、执行 `bash scripts/verify_native_dmg.sh` 做 `hdiutil verify` / 挂载 / app / symlink / background / mounted-app codesign 检查，然后上传 30 天 artifact。
 - `release`：依赖 `package`，只在 `push` 的 `v*` tag 上发布 GitHub Release；main 分支 push 和 `workflow_dispatch` 都不会发布 release。
+
+本地做 release package 自检时，可先运行：
+
+```bash
+CONFIGURATION=release bash scripts/build_native_dmg.sh
+bash scripts/verify_native_dmg.sh
+```
+
+如果想把当前 native release 候选常用 gate 一次性跑完，可用：
+
+```bash
+bash scripts/run_native_release_audit.sh
+```
+
+需要把可选 package / live source 也纳入同一轮审计时，可加：
+
+```bash
+bash scripts/run_native_release_audit.sh --with-package --with-live-sources
+```
+
+如果你想明确跑“更强的 RC 审计”而不是自己记参数组合，可直接用：
+
+```bash
+bash scripts/run_native_release_audit.sh --release-candidate
+```
 
 release notes 由 tag release job 根据 `version.json` 的 `release_notes` 和固定 native release 模板生成。`.github/release-notes/` 中保留的说明用于记录既有发布线，legacy 说明只面向最终归档版本。
 

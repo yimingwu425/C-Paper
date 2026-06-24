@@ -11,6 +11,7 @@ This file is a compact native-first map of the repository so future contributors
 - `scripts/lib/`: Shared shell helpers used by active native scripts
 - `assets/`: Shared icons and image assets
 - `docs/`: Project memory and internal documentation
+- `docs/RELEASE_CANDIDATE_AUDIT.md`: Requirement-to-evidence matrix for the current native release-candidate quality goal
 - `docs/RELEASE_AND_VALIDATION.md`: Native release, validation, install, signing/notarization, privacy/disclaimer, and data source reliability notes
 
 Project site note:
@@ -71,8 +72,8 @@ These directories are preserved for reference and limited maintenance only. Do n
 ## Release And Validation
 
 - Native workflow: `.github/workflows/build.yml`
-- `validate`: shell syntax, JSON metadata, workflow YAML, version drift, repo hygiene, Swift quality checks, and `swift test --jobs 1`
-- `package`: runs after `validate` for `workflow_dispatch` and `push`, builds/verifies/mounts the native DMG, and uploads the DMG artifact
+- `validate`: shell syntax, JSON metadata, workflow YAML, release-documentation consistency, version drift, repo hygiene, Swift quality checks, and `swift test --jobs 1`
+- `package`: runs after `validate` for `workflow_dispatch` and `push`, builds the native DMG, runs `scripts/verify_native_dmg.sh`, and uploads the DMG artifact
 - `release`: tag-only GitHub Release job; runs only for `push` events to `v*` tags after `package`
 - Signing defaults to ad hoc; optional Developer ID/notary signing and notarization require the documented local env vars or all GitHub Actions secrets
 - Release/install/privacy/disclaimer/data source reliability details live in `docs/RELEASE_AND_VALIDATION.md`
@@ -81,6 +82,10 @@ These directories are preserved for reference and limited maintenance only. Do n
 
 - `Package.swift`: Active Swift package definition
 - `scripts/build_native_dmg.sh`: Active native build script
+- `scripts/check_release_docs.sh`: Static release-documentation consistency gate for workflow/docs/live-canary expectations
+- `scripts/run_native_release_audit.sh`: One-command native release-candidate audit entrypoint for local validation
+- `scripts/verify_native_dmg.sh`: Local/CI DMG verification entrypoint for package artifacts
+- `scripts/lib/swiftpm_retry_helpers.sh`: Shared retry wrapper for the known local SwiftPM modified-during-build transient in audit/build scripts
 - `scripts/lib/native_dmg_helpers.sh`: Shared DMG build helper functions
 - `legacy/python-backend/requirements.txt`: Archived Python backend/test dependencies
 - `legacy/pywebview/requirements.txt`: Legacy pywebview dependencies
