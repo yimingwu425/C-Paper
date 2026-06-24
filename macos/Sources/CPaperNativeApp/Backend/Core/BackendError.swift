@@ -18,7 +18,7 @@ enum BackendError: LocalizedError, Equatable {
         case .sourceUnavailable(let sourceID, let message):
             return "\(sourceID.title) 不可用：\(message)"
         case .noResults(let attempts):
-            let summary = attempts.map { "\($0.sourceID.title): \($0.message)" }.joined(separator: "；")
+            let summary = attempts.map { "\($0.sourceID.title): \($0.diagnosticMessage)" }.joined(separator: "；")
             return summary.isEmpty ? "未找到试卷" : "未找到试卷（\(summary)）"
         case .downloadInProgress:
             return "下载进行中，暂时无法执行该操作"

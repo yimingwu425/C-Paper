@@ -2,40 +2,57 @@ import AppKit
 import Foundation
 
 final class NativeBackendService: @unchecked Sendable {
+    typealias SourceRegistryBuilder = @Sendable (String) -> SourceRegistry
+    typealias DirectoryChooser = @MainActor @Sendable () async -> String
+
     private let paths: AppStoragePaths
+    private let fileManager: FileManager
     private let settingsStore: SettingsStore
     private let favoritesStore: FavoritesStore
     private let historyStore: DownloadHistoryStore
+    private let sessionStore: DownloadSessionStore
     private let cacheStore: SearchCacheStore
     private let downloadManager: DownloadManager
     private let updateService: UpdateService
     private let previewService: PreviewFileService
     private let supportDiagnosticsStore: SupportDiagnosticsStore
+    private let sourceRegistryBuilder: SourceRegistryBuilder
+    private let directoryChooser: DirectoryChooser
 
     init(
         paths: AppStoragePaths? = nil,
         downloadManager: DownloadManager? = nil,
         updateService: UpdateService? = nil,
         previewTransfer: @escaping PreviewFileService.TransferWriter = PreviewFileService.defaultTransfer,
+        sourceRegistryBuilder: @escaping SourceRegistryBuilder = NativeBackendService.makeLiveRegistry,
+        directoryChooser: @escaping DirectoryChooser = NativeBackendService.defaultChooseDirectory,
         fileManager: FileManager = .default
     ) throws {
         let resolvedPaths = try paths ?? AppStoragePaths()
         self.paths = resolvedPaths
+        self.fileManager = fileManager
         self.settingsStore = SettingsStore(paths: resolvedPaths)
         self.favoritesStore = FavoritesStore(paths: resolvedPaths)
         let historyStore = DownloadHistoryStore(paths: resolvedPaths)
         self.historyStore = historyStore
+        let sessionStore = DownloadSessionStore(paths: resolvedPaths, fileManager: fileManager)
+        self.sessionStore = sessionStore
         self.cacheStore = SearchCacheStore(paths: resolvedPaths)
         self.previewService = PreviewFileService(
             paths: resolvedPaths,
             transfer: previewTransfer,
-            fileSystem: PreviewFileSystem(fileManager: fileManager)
+            fileSystem: StagedFileSystem(fileManager: fileManager)
         )
         self.supportDiagnosticsStore = SupportDiagnosticsStore(paths: resolvedPaths, fileManager: fileManager)
+        self.sourceRegistryBuilder = sourceRegistryBuilder
+        self.directoryChooser = directoryChooser
         let historyRecorder = DownloadHistoryRecorder(store: historyStore)
-        self.downloadManager = downloadManager ?? DownloadManager(completionRecorder: { task in
-            await historyRecorder.record(task)
-        })
+        self.downloadManager = downloadManager ?? DownloadManager(
+            completionRecorder: { task in
+                await historyRecorder.record(task)
+            },
+            sessionStore: sessionStore
+        )
         self.updateService = updateService ?? UpdateService()
         try LegacyCacheMigrator(paths: resolvedPaths).migrateIfNeeded()
     }
@@ -97,6 +114,7 @@ final class NativeBackendService: @unchecked Sendable {
         return SearchPayload(
             groups: result.groups,
             sourceID: result.sourceID,
+            usedAutomaticFallback: usedAutomaticFallback(from: result.attempts),
             warnings: warnings(from: result.attempts)
         )
     }
@@ -122,14 +140,24 @@ final class NativeBackendService: @unchecked Sendable {
 
         var allGroups: [NativePaperGroup] = []
         var warnings: [String] = []
+        var sourceIDs: [PaperSourceID] = []
         let registry = registry(proxyURL: settings.proxyURL)
         let mode = registryMode(for: settings.sourceMode)
+        var succeededQueries = 0
+        var automaticFallbackQueryCount = 0
 
         for year in yearFrom...yearTo {
             for season in seasons {
                 do {
                     let query = PaperSourceQuery(subjectCode: subject.code, year: year, season: season.rawValue)
                     let result = try await registry.search(query, mode: mode)
+                    succeededQueries += 1
+                    if !sourceIDs.contains(result.sourceID) {
+                        sourceIDs.append(result.sourceID)
+                    }
+                    if usedAutomaticFallback(from: result.attempts) {
+                        automaticFallbackQueryCount += 1
+                    }
                     allGroups.append(contentsOf: result.groups.filter { paperGroups.contains($0.paperGroup ?? 0) })
                     warnings.append(contentsOf: self.warnings(from: result.attempts))
                 } catch {
@@ -138,11 +166,26 @@ final class NativeBackendService: @unchecked Sendable {
             }
         }
 
-        return BatchPreviewPayload(groups: allGroups, warnings: warnings)
+        guard succeededQueries > 0 else {
+            throw PaperSourceError.sourceUnavailable(batchPreviewFailureMessage(for: warnings))
+        }
+
+        return BatchPreviewPayload(
+            groups: allGroups,
+            sourceIDs: sourceIDs,
+            successfulQueryCount: succeededQueries,
+            automaticFallbackQueryCount: automaticFallbackQueryCount,
+            warnings: warnings
+        )
     }
 
     @MainActor
     func chooseDirectory() async -> String {
+        await directoryChooser()
+    }
+
+    @MainActor
+    private static func defaultChooseDirectory() async -> String {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -187,8 +230,20 @@ final class NativeBackendService: @unchecked Sendable {
         await downloadManager.items()
     }
 
+    func consumeDownloadRecoverySummary() async -> DownloadSessionRecoverySummary? {
+        await downloadManager.consumeRecoverySummary()
+    }
+
     func cancelDownloads() async {
         await downloadManager.cancel()
+    }
+
+    func retryRecoverableDownloads() async -> Bool {
+        await downloadManager.retryRecoverableFailedItems()
+    }
+
+    func retryCompletedDownloadsNeedingRepair(ids: [Int]) async -> Bool {
+        await downloadManager.retryCompletedItemsNeedingRepair(ids: ids)
     }
 
     func checkForUpdate(proxyURL: String) async throws -> AppUpdateCheckResult {
@@ -211,18 +266,28 @@ final class NativeBackendService: @unchecked Sendable {
         try await previewService.previewURL(for: file, settings: settings)
     }
 
+    func discardManagedPreviewCacheFile(at url: URL) throws -> Bool {
+        let standardizedURL = url.standardizedFileURL
+        let previewCacheDirectoryURL = paths.cacheDirectory
+            .appendingPathComponent("preview", isDirectory: true)
+            .standardizedFileURL
+        let previewCachePath = previewCacheDirectoryURL.path
+        let candidatePath = standardizedURL.path
+        guard candidatePath == previewCachePath || candidatePath.hasPrefix(previewCachePath + "/") else {
+            return false
+        }
+        if fileManager.fileExists(atPath: standardizedURL.path) {
+            try fileManager.removeItem(at: standardizedURL)
+        }
+        return true
+    }
+
     func writeSupportDiagnostic(_ diagnostic: SupportDiagnostic) throws -> URL {
         try supportDiagnosticsStore.write(diagnostic)
     }
 
     private func registry(proxyURL: String) -> SourceRegistry {
-        let client = NetworkClient(proxy: ProxyConfiguration(rawValue: proxyURL))
-        return SourceRegistry(sources: [
-            FrankcieSource(networkClient: client),
-            EasyPaperSource(networkClient: client),
-            PastPapersSource(networkClient: client),
-            PapaCambridgeSource(networkClient: client)
-        ])
+        sourceRegistryBuilder(proxyURL)
     }
 
     private func registryMode(for sourceMode: PaperSourceID) -> SourceRegistryMode {
@@ -230,9 +295,54 @@ final class NativeBackendService: @unchecked Sendable {
     }
 
     private func warnings(from attempts: [SourceAttempt]) -> [String] {
-        attempts
+        var warnings: [String] = []
+        if let summary = sourceFallbackSummary(from: attempts) {
+            warnings.append(summary)
+        }
+        warnings.append(contentsOf: attempts
             .filter { $0.status != .success }
-            .map { "\($0.sourceID.title): \($0.message)" }
+            .map { "\($0.sourceID.title): \($0.diagnosticMessage)" }
+        )
+        return warnings
+    }
+
+    private func sourceFallbackSummary(from attempts: [SourceAttempt]) -> String? {
+        guard
+            attempts.count > 1,
+            let successfulAttempt = attempts.last,
+            successfulAttempt.status == .success
+        else {
+            return nil
+        }
+
+        let failedCount = attempts.dropLast().filter { $0.status != .success }.count
+        guard failedCount > 0 else { return nil }
+
+        if failedCount == 1 {
+            return "首选来源响应过慢或不可用，已自动切换到 \(successfulAttempt.sourceID.title)，当前结果可继续使用。"
+        }
+        return "前 \(failedCount) 个来源响应过慢或不可用，已自动切换到 \(successfulAttempt.sourceID.title)，当前结果可继续使用。"
+    }
+
+    private func usedAutomaticFallback(from attempts: [SourceAttempt]) -> Bool {
+        sourceFallbackSummary(from: attempts) != nil
+    }
+
+    private func batchPreviewFailureMessage(for warnings: [String]) -> String {
+        guard let firstWarning = warnings.first, !firstWarning.isEmpty else {
+            return "所选年份和季度均未能获取结果，请调整范围或稍后重试"
+        }
+        return "所选年份和季度均未能获取结果，请调整范围或稍后重试（例如：\(firstWarning)）"
+    }
+
+    private static func makeLiveRegistry(proxyURL: String) -> SourceRegistry {
+        let client = NetworkClient(proxy: ProxyConfiguration(rawValue: proxyURL))
+        return SourceRegistry(sources: [
+            FrankcieSource(networkClient: client),
+            EasyPaperSource(networkClient: client),
+            PastPapersSource(networkClient: client),
+            PapaCambridgeSource(networkClient: client)
+        ])
     }
 
 }

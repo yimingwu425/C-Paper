@@ -10,21 +10,21 @@ enum NetworkClientError: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            return "Invalid HTTP response"
+            return "HTTP 响应无效"
         case let .rateLimited(statusCode, retryAfter):
             if let retryAfter {
                 let retryText = retryAfter.rounded(.towardZero) == retryAfter
                     ? "\(Int(retryAfter))"
                     : String(format: "%.1f", retryAfter)
-                return "Server rate limit reached (HTTP \(statusCode)). Please retry in \(retryText) seconds."
+                return "服务器触发限流（HTTP \(statusCode)），请在 \(retryText) 秒后重试。"
             }
-            return "Server rate limit reached (HTTP \(statusCode)). Please try again shortly."
+            return "服务器触发限流（HTTP \(statusCode)），请稍后重试。"
         case let .serverError(statusCode):
-            return "Server error with HTTP \(statusCode)"
+            return "服务器错误（HTTP \(statusCode)）"
         case let .httpStatus(statusCode):
-            return "Unexpected HTTP status \(statusCode)"
+            return "异常的 HTTP 状态码 \(statusCode)"
         case let .decodingFailed(message):
-            return "Failed to decode response: \(message)"
+            return "解析响应失败：\(message)"
         }
     }
 }
