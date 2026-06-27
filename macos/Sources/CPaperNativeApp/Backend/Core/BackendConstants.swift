@@ -11,5 +11,5 @@ enum BackendConstants {
     static let githubLatestReleaseAPIURL = URL(string: "https://api.github.com/repos/yimingwu425/C-Paper/releases/latest")!
     static let cacheTTL: TimeInterval = 24 * 60 * 60
     static let cacheMaxFiles = 200
-    static let historyMaxItems = 2_000
+    static let historyMaxItems = 2000
 }

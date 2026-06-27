@@ -1,6 +1,6 @@
+@testable import CPaperNativeApp
 import Foundation
 import XCTest
-@testable import CPaperNativeApp
 
 final class PaperSourceFixtureTests: XCTestCase {
     func testFrankcieParsesRenumJSONIntoRedirComponents() async throws {
@@ -24,8 +24,8 @@ final class PaperSourceFixtureTests: XCTestCase {
             return fixture
         }
 
-        let source = FrankcieSource(
-            baseURL: URL(string: "https://cie.fraft.cn")!,
+        let source = try FrankcieSource(
+            baseURL: XCTUnwrap(URL(string: "https://cie.fraft.cn")),
             networkClient: client
         )
 
@@ -39,11 +39,11 @@ final class PaperSourceFixtureTests: XCTestCase {
         XCTAssertNotNil(result.groups.first?.ms)
     }
 
-    func testFrankcieReportsLocalizedInvalidJSONErrors() {
+    func testFrankcieReportsLocalizedInvalidJSONErrors() throws {
         XCTAssertThrowsError(
             try FrankcieResponseParser.components(
                 from: Data("not-json".utf8),
-                baseURL: URL(string: "https://cie.fraft.cn")!
+                baseURL: XCTUnwrap(URL(string: "https://cie.fraft.cn"))
             )
         ) { error in
             XCTAssertEqual(
@@ -80,7 +80,7 @@ final class PaperSourceFixtureTests: XCTestCase {
         let extractor = HTMLPaperLinkExtractor()
         let components = try extractor.extractPDFLinks(
             from: html,
-            baseURL: URL(string: "https://example.test/subjects/9709/index.html")!,
+            baseURL: XCTUnwrap(URL(string: "https://example.test/subjects/9709/index.html")),
             sourceID: .papaCambridge
         )
 
@@ -107,7 +107,7 @@ final class PaperSourceFixtureTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/caie/a-level/mathematics-9709/2023-may-june")
             return html
         }
-        let source = PastPapersSource(baseURL: URL(string: "https://pastpapers.co")!, networkClient: client)
+        let source = try PastPapersSource(baseURL: XCTUnwrap(URL(string: "https://pastpapers.co")), networkClient: client)
 
         let result = try await source.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
 
@@ -117,7 +117,7 @@ final class PaperSourceFixtureTests: XCTestCase {
             result.components.map(\.url.absoluteString),
             [
                 "https://pastpapers.co/caie/A-Level/Mathematics-9709/2023-May-June/9709_s23_ms_12.pdf",
-                "https://pastpapers.co/caie/A-Level/Mathematics-9709/2023-May-June/9709_s23_qp_12.pdf"
+                "https://pastpapers.co/caie/A-Level/Mathematics-9709/2023-May-June/9709_s23_qp_12.pdf",
             ]
         )
     }
@@ -138,7 +138,7 @@ final class PaperSourceFixtureTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/caie/a-level/mathematics-9709/2023-may-june")
             return html
         }
-        let source = PastPapersSource(baseURL: URL(string: "https://pastpapers.co")!, networkClient: client)
+        let source = try PastPapersSource(baseURL: XCTUnwrap(URL(string: "https://pastpapers.co")), networkClient: client)
 
         let result = try await source.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
 
@@ -159,7 +159,7 @@ final class PaperSourceFixtureTests: XCTestCase {
             }
             throw NetworkClientError.httpStatus(404)
         }
-        let source = PastPapersSource(baseURL: URL(string: "https://pastpapers.co")!, networkClient: client)
+        let source = try PastPapersSource(baseURL: XCTUnwrap(URL(string: "https://pastpapers.co")), networkClient: client)
 
         let result = try await source.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
 
@@ -188,7 +188,7 @@ final class PaperSourceFixtureTests: XCTestCase {
                 throw NetworkClientError.httpStatus(404)
             }
         }
-        let source = PastPapersSource(baseURL: URL(string: "https://pastpapers.co")!, networkClient: client)
+        let source = try PastPapersSource(baseURL: XCTUnwrap(URL(string: "https://pastpapers.co")), networkClient: client)
 
         let result = try await source.search(PaperSourceQuery(subjectCode: "0620", year: 2023, season: "Jun"))
 
@@ -215,7 +215,7 @@ final class PaperSourceFixtureTests: XCTestCase {
                 throw NetworkClientError.httpStatus(404)
             }
         }
-        let source = PapaCambridgeSource(baseURL: URL(string: "https://pastpapers.papacambridge.com")!, networkClient: client)
+        let source = try PapaCambridgeSource(baseURL: XCTUnwrap(URL(string: "https://pastpapers.papacambridge.com")), networkClient: client)
 
         let result = try await source.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
 
@@ -243,7 +243,7 @@ final class PaperSourceFixtureTests: XCTestCase {
                 throw NetworkClientError.httpStatus(404)
             }
         }
-        let source = PapaCambridgeSource(baseURL: URL(string: "https://pastpapers.papacambridge.com")!, networkClient: client)
+        let source = try PapaCambridgeSource(baseURL: XCTUnwrap(URL(string: "https://pastpapers.papacambridge.com")), networkClient: client)
 
         let result = try await source.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
 
@@ -255,7 +255,7 @@ final class PaperSourceFixtureTests: XCTestCase {
             XCTAssertEqual(request.httpMethod, "GET")
             return Data("<html><title>Just a moment...</title></html>".utf8)
         }
-        let source = PapaCambridgeSource(baseURL: URL(string: "https://pastpapers.papacambridge.com")!, networkClient: client)
+        let source = try PapaCambridgeSource(baseURL: XCTUnwrap(URL(string: "https://pastpapers.papacambridge.com")), networkClient: client)
 
         do {
             _ = try await source.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
@@ -278,11 +278,11 @@ final class PaperSourceFixtureTests: XCTestCase {
             await calls.append(request.url?.path ?? "")
             XCTAssertEqual(request.httpMethod, "GET")
             XCTAssertTrue(request.url?.path.contains("/paperdownload/dir_v3/") == true)
-            return Data((await calls.count) == 1 ? rootResponse.utf8 : summerResponse.utf8)
+            return await Data((calls.count) == 1 ? rootResponse.utf8 : summerResponse.utf8)
         }
-        let source = EasyPaperSource(
-            apiBaseURL: URL(string: "https://server.easy-paper.com")!,
-            pdfBaseURL: URL(string: "https://server.easy-paper.com")!,
+        let source = try EasyPaperSource(
+            apiBaseURL: XCTUnwrap(URL(string: "https://server.easy-paper.com")),
+            pdfBaseURL: XCTUnwrap(URL(string: "https://server.easy-paper.com")),
             networkClient: client,
             crypto: EasyPaperCrypto(
                 randomString: { String(repeating: "A", count: $0) },

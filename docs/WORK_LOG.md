@@ -49,8 +49,9 @@ This file is a concise running log of meaningful code, configuration, and docume
 **Tested**
 - `bash scripts/check_release_docs.sh`
 - `bash -n scripts/check_release_docs.sh scripts/run_native_release_audit.sh scripts/verify_native_dmg.sh`
+- `bash scripts/check_swift_quality.sh`
 - `git diff --check -- .github/workflows/build.yml scripts/check_release_docs.sh docs/RELEASE_CANDIDATE_AUDIT.md macos/Sources/CPaperNativeApp/Backend/Sources/PapaCambridgeSource.swift macos/Tests/CPaperNativeTests/PaperSourceFixtureTests.swift docs/WORK_LOG.md`
-- `swift test --jobs 1 --scratch-path /tmp/cpaper-native-swiftpm-papacambridge --filter 'PaperSourceFixtureTests/testPapaCambridge'` did not enter tests in the current Codex sandbox because SwiftPM failed while applying `sandbox-exec`.
+- `env NSUnbufferedIO=YES CPAPER_SWIFT_SCRATCH_PATH=/tmp/cpaper-native-swiftpm-papacambridge swift test --jobs 1 --scratch-path /tmp/cpaper-native-swiftpm-papacambridge --filter 'PaperSourceFixtureTests/testPapaCambridge'`
 
 **Risks / Notes**
 - PapaCambridge remains a limited best-effort provider with explicit unavailable messaging for unsupported subject mappings.

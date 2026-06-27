@@ -138,7 +138,7 @@ private enum PapaCambridgePDFCandidateExtractor {
 
 enum PapaCambridgeSubjectSlugs {
     private static let seed: [String: String] = [
-        "9709": "as-and-a-level-mathematics-9709"
+        "9709": "as-and-a-level-mathematics-9709",
     ]
 
     static func slug(for subjectCode: String) -> String? {
