@@ -30,6 +30,32 @@ This file is a concise running log of meaningful code, configuration, and docume
 
 ## Entries
 
+### 2026-06-27 — Refresh release-candidate audit evidence and PapaCambridge PDF probe fallback
+
+**Task**
+- Continue native release closeout by integrating parallel audit findings for stale RC evidence and a small PapaCambridge source compatibility risk.
+
+**Changed**
+- Updated `docs/RELEASE_CANDIDATE_AUDIT.md` so the baseline references current native version `6.0.7` and no longer claims stale previous-version artifact proof as current release evidence.
+- Added `docs/RELEASE_CANDIDATE_AUDIT.md` to the native workflow path filters and `scripts/check_release_docs.sh` required release-doc coverage.
+- Added release-doc static checks that reject stale `6.0.5` artifact evidence and the old `2026-06-18` audit baseline line.
+- Updated `PapaCambridgeSource` to fall back to a GET probe when a PDF HEAD probe is blocked.
+- Added PapaCambridge fixture coverage for the HEAD-blocked / GET-available path.
+
+**Reason**
+- The RC audit matrix is part of the release decision chain and should not present previous-version evidence as current release proof.
+- Some upstream hosts allow GET but reject HEAD, which could make an otherwise valid PapaCambridge PDF look unavailable.
+
+**Tested**
+- `bash scripts/check_release_docs.sh`
+- `bash -n scripts/check_release_docs.sh scripts/run_native_release_audit.sh scripts/verify_native_dmg.sh`
+- `git diff --check -- .github/workflows/build.yml scripts/check_release_docs.sh docs/RELEASE_CANDIDATE_AUDIT.md macos/Sources/CPaperNativeApp/Backend/Sources/PapaCambridgeSource.swift macos/Tests/CPaperNativeTests/PaperSourceFixtureTests.swift docs/WORK_LOG.md`
+- `swift test --jobs 1 --scratch-path /tmp/cpaper-native-swiftpm-papacambridge --filter 'PaperSourceFixtureTests/testPapaCambridge'` did not enter tests in the current Codex sandbox because SwiftPM failed while applying `sandbox-exec`.
+
+**Risks / Notes**
+- PapaCambridge remains a limited best-effort provider with explicit unavailable messaging for unsupported subject mappings.
+- A fresh `6.0.7` release-candidate audit still needs to run before tagging.
+
 ### 2026-06-24 — Fix invalid GitHub Actions scratch-path expression for release workflow
 
 **Task**

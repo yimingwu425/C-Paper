@@ -12,6 +12,7 @@ WORKFLOW_FILE="$ROOT_DIR/.github/workflows/build.yml"
 README_FILE="$ROOT_DIR/README.md"
 PROJECT_INDEX_FILE="$ROOT_DIR/docs/PROJECT_INDEX.md"
 RELEASE_DOC_FILE="$ROOT_DIR/docs/RELEASE_AND_VALIDATION.md"
+RELEASE_AUDIT_DOC_FILE="$ROOT_DIR/docs/RELEASE_CANDIDATE_AUDIT.md"
 LIVE_SOURCE_TESTS_FILE="$ROOT_DIR/macos/Tests/CPaperNativeTests/LiveSourceTests.swift"
 VERIFY_DMG_SCRIPT="$ROOT_DIR/scripts/verify_native_dmg.sh"
 RELEASE_AUDIT_SCRIPT="$ROOT_DIR/scripts/run_native_release_audit.sh"
@@ -33,6 +34,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --release-doc)
       RELEASE_DOC_FILE="$2"
+      shift 2
+      ;;
+    --release-audit-doc)
+      RELEASE_AUDIT_DOC_FILE="$2"
       shift 2
       ;;
     --live-source-tests)
@@ -63,10 +68,10 @@ fail() {
   exit 1
 }
 
-ruby - "$WORKFLOW_FILE" "$README_FILE" "$PROJECT_INDEX_FILE" "$RELEASE_DOC_FILE" "$VERIFY_DMG_SCRIPT" "$RELEASE_AUDIT_SCRIPT" "$SWIFTPM_RETRY_HELPER" <<'RUBY'
+ruby - "$WORKFLOW_FILE" "$README_FILE" "$PROJECT_INDEX_FILE" "$RELEASE_DOC_FILE" "$RELEASE_AUDIT_DOC_FILE" "$VERIFY_DMG_SCRIPT" "$RELEASE_AUDIT_SCRIPT" "$SWIFTPM_RETRY_HELPER" <<'RUBY'
 require "yaml"
 
-workflow_path, readme_path, project_index_path, release_doc_path, verify_dmg_script_path, release_audit_script_path, swiftpm_retry_helper_path = ARGV
+workflow_path, readme_path, project_index_path, release_doc_path, release_audit_doc_path, verify_dmg_script_path, release_audit_script_path, swiftpm_retry_helper_path = ARGV
 workflow = YAML.load_file(workflow_path)
 jobs = workflow.fetch("jobs")
 validate = jobs.fetch("validate")
@@ -111,6 +116,7 @@ push_paths = on_section.fetch("push").fetch("paths")
 required_paths = [
   "README.md",
   "docs/PROJECT_INDEX.md",
+  "docs/RELEASE_CANDIDATE_AUDIT.md",
   "docs/RELEASE_AND_VALIDATION.md",
   "scripts/check_release_docs.sh",
   "scripts/run_native_release_audit.sh",
@@ -122,6 +128,7 @@ required_paths.each do |path|
 end
 
 release_doc = File.read(release_doc_path, encoding: "UTF-8")
+release_audit_doc = File.read(release_audit_doc_path, encoding: "UTF-8")
 [
   "validate/package/release",
   "tag-only",
@@ -143,6 +150,7 @@ end
 
 project_index = File.read(project_index_path, encoding: "UTF-8")
 raise "project index must reference docs/RELEASE_AND_VALIDATION.md" unless project_index.include?("docs/RELEASE_AND_VALIDATION.md")
+raise "project index must reference docs/RELEASE_CANDIDATE_AUDIT.md" unless project_index.include?("docs/RELEASE_CANDIDATE_AUDIT.md")
 raise "project index validate summary must mention release-documentation consistency" unless project_index.include?("release-documentation consistency")
 raise "project index must index scripts/run_native_release_audit.sh" unless project_index.include?("scripts/run_native_release_audit.sh")
 raise "project index must index scripts/verify_native_dmg.sh" unless project_index.include?("scripts/verify_native_dmg.sh")
@@ -153,6 +161,12 @@ raise "README must keep current native version line" unless readme.include?("当
 raise "README must mention bash scripts/run_native_release_audit.sh" unless readme.include?("bash scripts/run_native_release_audit.sh")
 raise "README must mention bash scripts/verify_native_dmg.sh" unless readme.include?("bash scripts/verify_native_dmg.sh")
 raise "README must mention --release-candidate" unless readme.include?("--release-candidate")
+
+readme_version = readme[/当前 native 主线版本：`([^`]+)`/, 1]
+raise "README current native version line must be parseable" unless readme_version
+raise "release audit doc must mention current native version #{readme_version}" unless release_audit_doc.include?(readme_version)
+raise "release audit doc must not keep stale 6.0.5 artifact evidence" if release_audit_doc.include?("6.0.5")
+raise "release audit doc must not keep stale 2026-06-18 audit baseline" if release_audit_doc.include?("Audit date: `2026-06-18`")
 
 puts "Release documentation workflow checks passed."
 RUBY

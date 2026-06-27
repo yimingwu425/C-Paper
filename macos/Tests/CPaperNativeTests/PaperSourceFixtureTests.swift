@@ -223,6 +223,33 @@ final class PaperSourceFixtureTests: XCTestCase {
         XCTAssertEqual(result.components.first?.url.absoluteString, "https://pastpapers.papacambridge.com/directories/CAIE/CAIE-pastpapers/upload/9709_s23_qp_12.pdf")
     }
 
+    func testPapaCambridgeFallsBackToGETWhenHeadProbeIsBlocked() async throws {
+        let html = #"""
+        <html>
+          <body>
+            <a href="/viewer/caie/as-and-a-level-mathematics-9709-2023-may-june/9709_s23_qp_12.pdf">9709_s23_qp_12.pdf</a>
+          </body>
+        </html>
+        """#.data(using: .utf8)!
+        let client = MockNetworkClient { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("GET", "/papers/caie/as-and-a-level-mathematics-9709-2023-may-june"):
+                return html
+            case ("HEAD", "/directories/CAIE/CAIE-pastpapers/upload/9709_s23_qp_12.pdf"):
+                throw NetworkClientError.httpStatus(405)
+            case ("GET", "/directories/CAIE/CAIE-pastpapers/upload/9709_s23_qp_12.pdf"):
+                return Data("pdf".utf8)
+            default:
+                throw NetworkClientError.httpStatus(404)
+            }
+        }
+        let source = PapaCambridgeSource(baseURL: URL(string: "https://pastpapers.papacambridge.com")!, networkClient: client)
+
+        let result = try await source.search(PaperSourceQuery(subjectCode: "9709", year: 2023, season: "Jun"))
+
+        XCTAssertEqual(result.components.map(\.filename), ["9709_s23_qp_12.pdf"])
+    }
+
     func testPapaCambridgeReportsCloudflareChallengeAsUnavailable() async throws {
         let client = MockNetworkClient { request in
             XCTAssertEqual(request.httpMethod, "GET")

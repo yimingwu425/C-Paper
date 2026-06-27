@@ -1,8 +1,8 @@
 {
-  "version": "6.0.6",
+  "version": "6.0.7",
   "min_version": "6.0.0",
-  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.6",
-  "release_notes": "- 下载：阶段式原子写入 + 会话恢复，断电 / 取消不会再留下半截 PDF\n- 下载：HTTP 429 解析为独立限流错误，与网络错误分开，冷却结束后自动续传\n- 下载：熔断器 + 限流 + 跨进程会话恢复，并发批量下载更稳\n- 数据源：SourceRegistry 12s 单源超时，自动回退不再被一个慢源卡住\n- 数据源：手动模式不再静默回退，失败时明确提示所选源不可用\n- 数据源：搜索返回 usedAutomaticFallback 与每源尝试日志，UI 顶部条提示回退情况\n- 更新：自动检查 + 下载 DMG + 下载完成自动打开，丢失 / 损坏 / 需手动打开分别提示\n- 诊断：错误自动写盘到 ~/Library/Application Support/C-Paper/Support/，并自动打码凭据 / token / sig\n- 诊断：菜单与根 alert 都有「复制最近诊断 / 显示支持文件夹」入口，模态错误状态下仍可用\n- UI：下载中心(可重试 / 需修复 / 已完成分类 + 完整性检查)\n- UI：RootView 三态机(loading / ready / failed)，启动失败页支持重试与诊断导出\n- UI：完整中文主菜单(13 个命令)，就绪 UI 出现前后行为一致\n- 测试：5 个新套件(CircuitBreaker / DownloadSessionStore / StagedFileSystem / RenderedWorkflowInteraction / WorkflowPresentation) + 全部 WorkflowStateModels Codable 覆盖\n- 修复：scripts/check_release_docs.sh 与 scripts/run_native_release_audit.sh 在 C / POSIX locale 下因中文 raise() 触发 invalid multibyte 错误崩溃的问题",
+  "download_url": "https://github.com/yimingwu425/C-Paper/releases/tag/v6.0.7",
+  "release_notes": "- 修复：PapaCambridge PDF 探测在源站拒绝 HEAD 时改用 GET 兜底，减少可下载文件被误判不可用\n- 发布：RC 审计矩阵更新为 6.0.7，并防止旧版本 artifact 证据误导 release 判断\n- CI：native workflow 与 release 文档检查纳入 RELEASE_CANDIDATE_AUDIT.md",
   "force_update": false,
-  "published_at": "2026-06-24T00:00:00Z"
+  "published_at": "2026-06-27T00:00:00Z"
 }

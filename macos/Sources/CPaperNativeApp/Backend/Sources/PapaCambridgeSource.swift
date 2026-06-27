@@ -84,6 +84,15 @@ struct PapaCambridgeSource: PaperSource {
             _ = try await networkClient.data(for: requestBuilder.head(url))
             return true
         } catch {
+            return await pdfExistsWithGETFallback(at: url)
+        }
+    }
+
+    private func pdfExistsWithGETFallback(at url: URL) async -> Bool {
+        do {
+            _ = try await networkClient.data(for: requestBuilder.get(url))
+            return true
+        } catch {
             return false
         }
     }
